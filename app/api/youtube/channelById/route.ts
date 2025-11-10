@@ -1,0 +1,59 @@
+import { NextRequest, NextResponse } from "next/server"
+
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const channelId = searchParams.get("channelId")
+
+    if (!channelId) {
+      return NextResponse.json({ error: "Channel ID is required" }, { status: 400 })
+    }
+
+    const apiKey = process.env.YOUTUBE_API_KEY
+    if (!apiKey) {
+      return NextResponse.json({ error: "YouTube API key not configured" }, { status: 500 })
+    }
+
+    // Fetch channel data from YouTube API
+    const channelResponse = await fetch(
+      `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&id=${channelId}&key=${apiKey}`
+    )
+
+    if (!channelResponse.ok) {
+      const error = await channelResponse.json()
+      return NextResponse.json(
+        { error: "Failed to fetch channel data", details: error },
+        { status: channelResponse.status }
+      )
+    }
+
+    const channelData = await channelResponse.json()
+
+    if (!channelData.items || channelData.items.length === 0) {
+      return NextResponse.json({ error: "No channel found" }, { status: 404 })
+    }
+
+    const channel = channelData.items[0]
+
+    return NextResponse.json({
+      success: true,
+      channel: {
+        id: channel.id,
+        title: channel.snippet.title,
+        description: channel.snippet.description,
+        customUrl: channel.snippet.customUrl,
+        thumbnail: channel.snippet.thumbnails?.high?.url || channel.snippet.thumbnails?.default?.url,
+        subscriberCount: channel.statistics.subscriberCount,
+        videoCount: channel.statistics.videoCount,
+        viewCount: channel.statistics.viewCount,
+        publishedAt: channel.snippet.publishedAt,
+      },
+    })
+  } catch (error: any) {
+    console.error("YouTube API Error:", error)
+    return NextResponse.json(
+      { error: "Internal server error", details: error.message },
+      { status: 500 }
+    )
+  }
+}
