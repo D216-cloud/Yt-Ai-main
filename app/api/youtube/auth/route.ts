@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 
+// OAuth callback - must run dynamically to handle per-request authorization codes
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
+  console.log('[YouTube Auth] Route executed at runtime:', new Date().toISOString())
   const { searchParams } = new URL(req.url)
   const code = searchParams.get("code")
   const error = searchParams.get("error")

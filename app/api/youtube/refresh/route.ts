@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 
+// OAuth token refresh - must run dynamically with runtime secrets
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: NextRequest) {
   try {
+    console.log('[YouTube Refresh] Token refresh executed at runtime:', new Date().toISOString())
     const { refreshToken } = await req.json()
     
     if (!refreshToken) {

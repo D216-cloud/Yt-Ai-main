@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 
+// Uses req.url for query params - must run dynamically
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
   try {
+    console.log('[YouTube ChannelById] Route executed at runtime:', new Date().toISOString())
     const { searchParams } = new URL(req.url)
     const channelId = searchParams.get("channelId")
 

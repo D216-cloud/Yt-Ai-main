@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 
+// Uses session + req.url - must run dynamically
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
   try {
+    console.log('[YouTube Channel] Route executed at runtime:', new Date().toISOString())
     const session = await getServerSession(authOptions)
     
     if (!session) {

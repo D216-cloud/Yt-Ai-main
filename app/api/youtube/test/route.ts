@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 
+// Test endpoint - uses runtime API key and network calls
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
   try {
+    console.log('[YouTube Test] API test executed at runtime:', new Date().toISOString())
     // Test YouTube API connectivity
     const apiKey = process.env.YOUTUBE_API_KEY
     if (!apiKey) {

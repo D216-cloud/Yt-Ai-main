@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 
+// This route reads runtime request details (e.g. `req.url`) so it must run dynamically.
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
   try {
+    console.log('[YouTube Videos] Route executed at runtime:', new Date().toISOString())
     const { searchParams } = new URL(req.url)
     const channelId = searchParams.get("channelId")
     const maxResults = searchParams.get("maxResults") || "10"
