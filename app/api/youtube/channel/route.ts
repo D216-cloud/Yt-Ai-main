@@ -70,6 +70,14 @@ export async function GET(req: NextRequest) {
         }
       )
 
+      // If the access token is expired, we should handle this case
+      if (channelResponse.status === 401) {
+        return NextResponse.json(
+          { error: "Access token expired", expired: true },
+          { status: 401 }
+        )
+      }
+
       if (!channelResponse.ok) {
         const error = await channelResponse.json()
         return NextResponse.json(

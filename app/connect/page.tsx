@@ -3,10 +3,9 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Play, ChevronRight, Lock, Loader2, Youtube, CheckCircle, User, LogOut } from "lucide-react"
-import { LockAnimation } from "@/components/lock-animation"
+import { Play, ChevronRight, Lock, Loader2, Youtube, CheckCircle, User, LogOut, RefreshCw, AlertCircle } from "lucide-react"
 
 interface YouTubeChannel {
   id: string
@@ -23,14 +22,47 @@ interface YouTubeChannel {
 export default function ConnectPage() {
   const { data: session, status } = useSession()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [isAuthLoading, setIsAuthLoading] = useState(false)
   const [youtubeChannel, setYoutubeChannel] = useState<YouTubeChannel | null>(null)
   const [youtubeToken, setYoutubeToken] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (status === "unauthenticated") {
       window.location.href = "/signup"
+    }
+
+    // Check for error parameter
+    const errorParam = searchParams.get("error")
+    if (errorParam) {
+      let errorMessage = "Failed to connect to YouTube. Please try again."
+      
+      switch (errorParam) {
+        case "access_denied":
+          errorMessage = "Access denied. Please grant permission to connect your YouTube channel."
+          break
+        case "invalid_client":
+          errorMessage = "Invalid client configuration. Please contact support."
+          break
+        case "missing_client_id":
+          errorMessage = "Missing client ID. Please contact support."
+          break
+        case "missing_credentials":
+          errorMessage = "Missing credentials. Please contact support."
+          break
+        case "token_failed":
+          errorMessage = "Failed to obtain access token. Please try again."
+          break
+        case "auth_failed":
+          errorMessage = "Authentication failed. Please try again."
+          break
+        default:
+          errorMessage = errorParam || errorMessage
+      }
+      
+      setError(errorMessage)
     }
 
     // Check if YouTube token is in URL
@@ -38,6 +70,7 @@ export default function ConnectPage() {
     const refreshToken = searchParams.get("refresh_token")
     
     if (token) {
+      console.log("Received YouTube token from OAuth flow")
       setYoutubeToken(token)
       // Store tokens in localStorage
       if (refreshToken) {
@@ -51,6 +84,7 @@ export default function ConnectPage() {
       // Try to load from localStorage
       const storedToken = localStorage.getItem("youtube_access_token")
       if (storedToken) {
+        console.log("Using stored YouTube token")
         setYoutubeToken(storedToken)
         fetchYouTubeChannel(storedToken)
       }
@@ -60,16 +94,33 @@ export default function ConnectPage() {
   const fetchYouTubeChannel = async (accessToken: string) => {
     try {
       setIsLoading(true)
+      setError(null)
+      console.log("Fetching YouTube channel with token:", accessToken.substring(0, 10) + "...")
+      
       const response = await fetch(`/api/youtube/channel?access_token=${accessToken}`)
       const data = await response.json()
+      console.log("Channel API response:", data)
 
       if (data.success && data.channel) {
         setYoutubeChannel(data.channel)
+        // Store channel data in localStorage for quick access
+        localStorage.setItem("youtube_channel", JSON.stringify(data.channel))
+        console.log("Successfully fetched channel:", data.channel.title)
       } else {
         console.error("Failed to fetch channel:", data.error)
+        setError(data.error || "Failed to fetch channel data")
+        // Clear stored tokens if they're invalid
+        localStorage.removeItem("youtube_access_token")
+        localStorage.removeItem("youtube_refresh_token")
+        localStorage.removeItem("youtube_channel")
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching YouTube channel:", error)
+      setError("Network error. Please try again.")
+      // Clear stored tokens on error
+      localStorage.removeItem("youtube_access_token")
+      localStorage.removeItem("youtube_refresh_token")
+      localStorage.removeItem("youtube_channel")
     } finally {
       setIsLoading(false)
     }
@@ -77,8 +128,41 @@ export default function ConnectPage() {
 
   const handleConnectWithGoogle = () => {
     setIsAuthLoading(true)
+    setError(null)
+    console.log("Initiating Google OAuth flow")
     // Redirect to YouTube OAuth
     window.location.href = "/api/youtube/auth"
+  }
+
+  const handleRefreshChannel = async () => {
+    if (!youtubeToken) {
+      setError("No access token found. Please reconnect your YouTube channel.")
+      return
+    }
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      console.log("Refreshing YouTube channel data")
+      
+      // Fetch channel data with current access token
+      await fetchYouTubeChannel(youtubeToken)
+    } catch (error) {
+      console.error("Refresh error:", error)
+      setError("Failed to refresh channel data. Please try reconnecting.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDisconnect = () => {
+    console.log("Disconnecting YouTube channel")
+    // Clear all YouTube related data
+    localStorage.removeItem("youtube_access_token")
+    localStorage.removeItem("youtube_refresh_token")
+    localStorage.removeItem("youtube_channel")
+    setYoutubeToken(null)
+    setYoutubeChannel(null)
   }
 
   const formatNumber = (num: string | number): string => {
@@ -175,6 +259,7 @@ export default function ConnectPage() {
                 <div className="space-y-4">
                   <h2 className="text-lg md:text-xl font-bold text-gray-900">Connect Your YouTube Channel</h2>
 
+                 
                   {/* Google OAuth Button */}
                   <button
                     onClick={handleConnectWithGoogle}
@@ -200,6 +285,17 @@ export default function ConnectPage() {
                       Secure connection with Google OAuth
                     </p>
                   </div>
+                  
+                  {/* Instructions */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 md:p-4">
+                    <h3 className="font-semibold text-blue-900 text-sm mb-2">Connection Instructions</h3>
+                    <ul className="text-blue-800 text-xs space-y-1">
+                      <li>• Click the button above to start the connection process</li>
+                      <li>• Sign in with your Google account</li>
+                      <li>• Grant permission to access your YouTube channel</li>
+                      <li>• You'll be redirected back to this page when complete</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
@@ -222,7 +318,7 @@ export default function ConnectPage() {
                     </div>
                   </div>
                 )}
-
+                
                 <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">
                   {isLoading ? "Connecting..." : youtubeChannel ? youtubeChannel.title : "Your Channel"}
                 </h3>
@@ -275,40 +371,59 @@ export default function ConnectPage() {
                   </ul>
                 </div>
 
-                {/* Connect Button */}
-                <Button
-                  onClick={handleConnectWithGoogle}
-                  disabled={isAuthLoading || isLoading || !!youtubeChannel}
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 md:py-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-base"
-                >
-                  {isAuthLoading || isLoading ? (
+                {/* Action Buttons */}
+                <div className="space-y-3">
+                  {youtubeChannel ? (
                     <>
-                      <Loader2 className="w-4 h-4 md:w-5 md:h-5 mr-2 animate-spin" />
-                      {isLoading ? "Initializing..." : "Authenticating..."}
-                    </>
-                  ) : youtubeChannel ? (
-                    <>
-                      <CheckCircle className="w-5 h-5 mr-2" />
-                      Connected to YouTube
+                      <Button
+                        onClick={() => router.push("/dashboard")}
+                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 md:py-4 rounded-lg text-base"
+                      >
+                        <CheckCircle className="w-5 h-5 mr-2" />
+                        Go to Dashboard
+                      </Button>
+                      
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={handleRefreshChannel}
+                          variant="outline"
+                          disabled={isLoading}
+                          className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50 py-2 disabled:opacity-50"
+                        >
+                          {isLoading ? (
+                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4 mr-1" />
+                          )}
+                          Refresh
+                        </Button>
+                        
+                        <Button
+                          onClick={handleDisconnect}
+                          variant="outline"
+                          className="flex-1 border-red-300 text-red-600 hover:bg-red-50 py-2"
+                        >
+                          Disconnect
+                        </Button>
+                      </div>
                     </>
                   ) : (
-                    "Connect with Google"
+                    <Button
+                      onClick={handleConnectWithGoogle}
+                      disabled={isAuthLoading || isLoading}
+                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 md:py-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-base"
+                    >
+                      {isAuthLoading || isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 md:w-5 md:h-5 mr-2 animate-spin" />
+                          {isLoading ? "Initializing..." : "Authenticating..."}
+                        </>
+                      ) : (
+                        "Connect with Google"
+                      )}
+                    </Button>
                   )}
-                </Button>
-
-                {youtubeChannel && (
-                  <div className="mt-4 text-center">
-                    <Link href="/dashboard">
-                      <Button
-                        variant="outline"
-                        className="w-full border-2 border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold py-3"
-                      >
-                        Go to Dashboard
-                        <ChevronRight className="w-5 h-5 ml-2" />
-                      </Button>
-                    </Link>
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           </div>

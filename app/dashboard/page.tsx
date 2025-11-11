@@ -56,6 +56,12 @@ export default function DashboardPage() {
       try {
         setChannelLoading(true)
         // Try to get channel data from localStorage first
+        const storedChannel = localStorage.getItem("youtube_channel")
+        if (storedChannel) {
+          setYoutubeChannel(JSON.parse(storedChannel))
+        }
+        
+        // Always fetch fresh data from API to ensure it's up to date
         const storedToken = localStorage.getItem("youtube_access_token")
         if (storedToken) {
           const response = await fetch(`/api/youtube/channel?access_token=${storedToken}`)
@@ -63,6 +69,45 @@ export default function DashboardPage() {
           
           if (data.success && data.channel) {
             setYoutubeChannel(data.channel)
+            // Store in localStorage for quick access
+            localStorage.setItem("youtube_channel", JSON.stringify(data.channel))
+          } else if (data.expired) {
+            // Token expired, try to refresh it
+            const refreshToken = localStorage.getItem("youtube_refresh_token")
+            if (refreshToken) {
+              try {
+                const refreshResponse = await fetch("/api/youtube/refresh", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({ refreshToken }),
+                })
+                
+                const refreshData = await refreshResponse.json()
+                
+                if (refreshData.success && refreshData.access_token) {
+                  const newAccessToken = refreshData.access_token
+                  localStorage.setItem("youtube_access_token", newAccessToken)
+                  
+                  // Try fetching channel data again with new token
+                  const retryResponse = await fetch(`/api/youtube/channel?access_token=${newAccessToken}`)
+                  const retryData = await retryResponse.json()
+                  
+                  if (retryData.success && retryData.channel) {
+                    setYoutubeChannel(retryData.channel)
+                    localStorage.setItem("youtube_channel", JSON.stringify(retryData.channel))
+                  }
+                }
+              } catch (refreshError) {
+                console.error("Token refresh failed:", refreshError)
+                // Clear stored tokens if refresh fails
+                localStorage.removeItem("youtube_access_token")
+                localStorage.removeItem("youtube_refresh_token")
+                localStorage.removeItem("youtube_channel")
+                setYoutubeChannel(null)
+              }
+            }
           }
         }
       } catch (error) {
@@ -74,6 +119,69 @@ export default function DashboardPage() {
 
     fetchChannelData()
   }, [])
+
+  // Function to refresh YouTube channel data
+  const refreshYouTubeChannel = async () => {
+    try {
+      setChannelLoading(true)
+      // Clear stored channel data
+      localStorage.removeItem("youtube_channel")
+      
+      // Refresh from API
+      const storedToken = localStorage.getItem("youtube_access_token")
+      if (storedToken) {
+        const response = await fetch(`/api/youtube/channel?access_token=${storedToken}`)
+        const data = await response.json()
+        
+        if (data.success && data.channel) {
+          setYoutubeChannel(data.channel)
+          // Store in localStorage for quick access
+          localStorage.setItem("youtube_channel", JSON.stringify(data.channel))
+        } else if (data.expired) {
+          // Token expired, try to refresh it
+          const refreshToken = localStorage.getItem("youtube_refresh_token")
+          if (refreshToken) {
+            try {
+              const refreshResponse = await fetch("/api/youtube/refresh", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ refreshToken }),
+              })
+              
+              const refreshData = await refreshResponse.json()
+              
+              if (refreshData.success && refreshData.access_token) {
+                const newAccessToken = refreshData.access_token
+                localStorage.setItem("youtube_access_token", newAccessToken)
+                
+                // Try fetching channel data again with new token
+                const retryResponse = await fetch(`/api/youtube/channel?access_token=${newAccessToken}`)
+                const retryData = await retryResponse.json()
+                
+                if (retryData.success && retryData.channel) {
+                  setYoutubeChannel(retryData.channel)
+                  localStorage.setItem("youtube_channel", JSON.stringify(retryData.channel))
+                }
+              }
+            } catch (refreshError) {
+              console.error("Token refresh failed:", refreshError)
+              // Clear stored tokens if refresh fails
+              localStorage.removeItem("youtube_access_token")
+              localStorage.removeItem("youtube_refresh_token")
+              localStorage.removeItem("youtube_channel")
+              setYoutubeChannel(null)
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing YouTube channel:", error)
+    } finally {
+      setChannelLoading(false)
+    }
+  }
 
   const formatNumber = (num: string | number): string => {
     const n = typeof num === "string" ? parseInt(num) : num
@@ -343,6 +451,34 @@ export default function DashboardPage() {
         </main>
       </div>
 
+      {/* Mobile Bottom Navigation - Only show sidebar button */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden z-40">
+        <div className="flex justify-center py-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 p-3 rounded-full"
+          >
+            {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </Button>
+        </div>
+      </nav>
+      
+      {/* Footer with Terms and Privacy Links */}
+      <footer className="mt-auto py-4 text-center text-xs text-gray-500 border-t border-gray-200">
+        <div className="flex flex-col md:flex-row justify-center items-center gap-4">
+          <Link href="/terms" className="hover:text-gray-900 transition-colors">
+            Terms of Service
+          </Link>
+          <span className="hidden md:inline">•</span>
+          <Link href="/privacy" className="hover:text-gray-900 transition-colors">
+            Privacy Policy
+          </Link>
+          <span className="hidden md:inline">•</span>
+          <span>© {new Date().getFullYear()} YouTubeAI Pro</span>
+        </div>
+      </footer>
     </div>
   )
 }
