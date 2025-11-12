@@ -12,6 +12,11 @@ export async function POST(req: NextRequest) {
     const privacy = formData.get("privacy") as string
     const madeForKids = formData.get("madeForKids") === "true"
     const category = formData.get("category") as string
+    const expectedChannelId = formData.get("channelId") as string // Channel we expect to upload to
+
+    console.log('=== UPLOAD API DEBUG ===')
+    console.log('Expected Channel ID:', expectedChannelId)
+    console.log('Access Token (first 20 chars):', accessToken?.substring(0, 20))
 
     if (!accessToken) {
       return NextResponse.json({ success: false, error: "No access token provided" }, { status: 401 })
@@ -41,6 +46,37 @@ export async function POST(req: NextRequest) {
       auth: oauth2Client,
     })
 
+    // Verify which channel this token belongs to
+    try {
+      const channelResponse = await youtube.channels.list({
+        part: ["snippet"],
+        mine: true,
+      })
+
+      if (channelResponse.data.items && channelResponse.data.items.length > 0) {
+        const actualChannelId = channelResponse.data.items[0].id
+        const actualChannelName = channelResponse.data.items[0].snippet?.title
+        
+        console.log('Actual Channel ID from token:', actualChannelId)
+        console.log('Actual Channel Name:', actualChannelName)
+        
+        if (expectedChannelId && actualChannelId !== expectedChannelId) {
+          console.error('❌ CHANNEL MISMATCH!')
+          console.error('Expected:', expectedChannelId)
+          console.error('Got:', actualChannelId)
+          return NextResponse.json({
+            success: false,
+            error: `Token mismatch! This token belongs to "${actualChannelName}" but you're trying to upload to a different channel. Please reconnect the correct channel.`,
+            channelMismatch: true
+          }, { status: 400 })
+        }
+        
+        console.log('✅ Channel verified:', actualChannelName)
+      }
+    } catch (error) {
+      console.error('Failed to verify channel:', error)
+    }
+
     // Convert File to Buffer
     const arrayBuffer = await videoFile.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
@@ -51,6 +87,7 @@ export async function POST(req: NextRequest) {
       : []
 
     // Upload video
+    console.log('Starting video upload...')
     const response = await youtube.videos.insert({
       part: ["snippet", "status"],
       requestBody: {
@@ -71,12 +108,17 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    console.log('✅ Upload successful! Video ID:', response.data.id)
+    console.log('Video URL:', `https://youtube.com/watch?v=${response.data.id}`)
+
     return NextResponse.json({
       success: true,
       video: {
         id: response.data.id,
         title: response.data.snippet?.title,
         url: `https://youtube.com/watch?v=${response.data.id}`,
+        channelId: response.data.snippet?.channelId,
+        channelTitle: response.data.snippet?.channelTitle,
       },
     })
   } catch (error: any) {

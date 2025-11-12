@@ -1327,37 +1327,60 @@ function ContentStudioView({ youtubeChannel }: { youtubeChannel: YouTubeChannel 
       const results: Array<{channelId: string, channelName: string, videoUrl: string}> = []
       const totalChannels = selectedChannelsForUpload.length
       
+      console.log('=== UPLOAD DEBUG ===')
+      console.log('Total channels selected:', selectedChannelsForUpload.length)
+      console.log('Selected channel IDs:', selectedChannelsForUpload)
+      
       for (let i = 0; i < selectedChannelsForUpload.length; i++) {
         const channelId = selectedChannelsForUpload[i]
         const channel = allChannels.find(ch => ch.id === channelId)
         
-        if (!channel) continue
+        console.log(`\n--- Processing Channel ${i + 1}/${totalChannels} ---`)
+        console.log('Channel ID:', channelId)
+        console.log('Channel Name:', channel?.title || 'NOT FOUND')
+        
+        if (!channel) {
+          console.error('Channel not found in allChannels array!')
+          continue
+        }
 
         // Update progress
         const baseProgress = (i / totalChannels) * 90
         setUploadProgress(Math.floor(baseProgress))
 
         // Get access token for this specific channel
-        // Check if this is the main channel or an additional channel
         const isMainChannel = youtubeChannel?.id === channelId
-        let accessToken = localStorage.getItem('youtube_access_token')
+        console.log('Is Main Channel:', isMainChannel)
         
-        // For additional channels, we need to get their stored token
-        // Note: In current setup, all channels share the same token
-        // For true multi-channel support, each channel needs its own token stored
-        if (!isMainChannel) {
-          // Try to get channel-specific token if it exists
+        let accessToken = null
+        
+        if (isMainChannel) {
+          // Main channel token
+          accessToken = localStorage.getItem('youtube_access_token')
+          console.log('Using MAIN channel token:', accessToken ? accessToken.substring(0, 20) + '...' : 'NOT FOUND')
+        } else {
+          // Additional channel - MUST have its own token
           const channelTokenKey = `youtube_access_token_${channelId}`
-          const channelToken = localStorage.getItem(channelTokenKey)
-          if (channelToken) {
-            accessToken = channelToken
+          accessToken = localStorage.getItem(channelTokenKey)
+          console.log('Looking for token key:', channelTokenKey)
+          console.log('Found channel-specific token:', accessToken ? accessToken.substring(0, 20) + '...' : 'NOT FOUND')
+          
+          // Fallback to main token (THIS IS THE BUG - remove this)
+          if (!accessToken) {
+            console.error('❌ ERROR: No channel-specific token found!')
+            console.error('This channel needs to be connected via OAuth from Content page!')
+            alert(`Channel "${channel.title}" is not properly connected. Please reconnect this channel from the Content page.`)
+            continue
           }
         }
         
         if (!accessToken) {
-          console.error(`No access token found for channel: ${channel.title}`)
+          console.error(`❌ No access token found for channel: ${channel.title}`)
+          alert(`No access token for channel: ${channel.title}. Please reconnect this channel.`)
           continue
         }
+        
+        console.log('✅ Token found, proceeding with upload...')
 
         // Create FormData for upload
         const formData = new FormData()
@@ -1381,11 +1404,18 @@ function ContentStudioView({ youtubeChannel }: { youtubeChannel: YouTubeChannel 
           const data = await response.json()
 
           if (data.success) {
+            console.log('✅ Upload SUCCESS for channel:', channel.title)
+            console.log('Video uploaded to channel:', data.video.channelTitle || channel.title)
+            console.log('Video URL:', data.video.url)
+            
             results.push({
               channelId: channel.id,
               channelName: channel.title,
               videoUrl: data.video.url
             })
+          } else if (data.channelMismatch) {
+            console.error('❌ CHANNEL MISMATCH ERROR:', data.error)
+            alert(`Upload failed for ${channel.title}: ${data.error}`)
           } else if (data.expired) {
             // Try to refresh token
             const refreshToken = localStorage.getItem('youtube_refresh_token')
@@ -2100,6 +2130,84 @@ function ContentStudioView({ youtubeChannel }: { youtubeChannel: YouTubeChannel 
             <span>Ready to publish</span>
           </div>
         </div>
+      </div>
+
+      {/* Connected Channels Section */}
+      <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 border-2 border-blue-200 rounded-xl p-4 md:p-6 mb-6 md:mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg">
+              <Youtube className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Connected Channels</h3>
+              <p className="text-sm text-gray-600">{allChannels.length} channel{allChannels.length !== 1 ? 's' : ''} available for upload</p>
+            </div>
+          </div>
+          <button
+            onClick={handleConnectNewChannel}
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 font-semibold text-sm transition-all flex items-center gap-2 shadow-lg hover:shadow-xl"
+          >
+            <Plus className="w-4 h-4" />
+            Add Channel
+          </button>
+        </div>
+
+        {/* Channel List */}
+        {allChannels.length === 0 ? (
+          <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg bg-white">
+            <Youtube className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500 font-medium mb-2">No channels connected</p>
+            <p className="text-gray-400 text-sm mb-4">Connect your first channel to start uploading</p>
+            <button
+              onClick={handleConnectNewChannel}
+              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 font-semibold text-sm transition-all inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Connect Channel
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {allChannels.map((channel, index) => (
+              <div
+                key={channel.id}
+                className="bg-white border-2 border-gray-200 rounded-lg p-3 hover:border-blue-400 transition-all flex items-center gap-3"
+              >
+                <img
+                  src={channel.thumbnail}
+                  alt={channel.title}
+                  className="w-12 h-12 rounded-full border-2 border-gray-200 object-cover flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-gray-900 text-sm truncate">{channel.title}</p>
+                    {index === 0 && youtubeChannel?.id === channel.id && (
+                      <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full flex-shrink-0">
+                        Main
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    {parseInt(channel.subscriberCount) >= 1000 
+                      ? `${(parseInt(channel.subscriberCount) / 1000).toFixed(1)}K` 
+                      : channel.subscriberCount} subs
+                  </p>
+                </div>
+                <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {allChannels.length > 0 && (
+          <div className="mt-4 p-3 bg-blue-100 border border-blue-300 rounded-lg">
+            <p className="text-sm text-blue-900 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              <span><strong>Tip:</strong> You can upload to multiple channels at once! Select channels during upload.</span>
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Main Action Cards */}

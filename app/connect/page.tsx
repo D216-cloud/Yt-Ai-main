@@ -7,7 +7,7 @@ import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Play, ChevronRight, Lock, Loader2, Youtube, CheckCircle, User, LogOut, RefreshCw, AlertCircle } from "lucide-react"
+import { Play, ChevronRight, Lock, Loader2, Youtube, CheckCircle, User, LogOut, RefreshCw, AlertCircle, X } from "lucide-react"
 
 interface YouTubeChannel {
   id: string
@@ -21,6 +21,15 @@ interface YouTubeChannel {
   publishedAt: string
 }
 
+interface RecentActivity {
+  id: string
+  type: 'connect' | 'refresh' | 'disconnect' | 'oauth'
+  channelName: string
+  channelId: string
+  timestamp: number
+  details?: string
+}
+
 export default function ConnectPage() {
   const { data: session, status } = useSession()
   const searchParams = useSearchParams()
@@ -32,6 +41,117 @@ export default function ConnectPage() {
   const [error, setError] = useState<string | null>(null)
   const [showUnlockAnimation, setShowUnlockAnimation] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(false)
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([])
+  const [additionalChannels, setAdditionalChannels] = useState<YouTubeChannel[]>([])
+
+  // Load all data from localStorage on mount
+  useEffect(() => {
+    loadMainChannel()
+    loadRecentActivities()
+    loadAdditionalChannels()
+    cleanupTempData()
+  }, [])
+
+  const loadMainChannel = () => {
+    try {
+      const stored = localStorage.getItem('youtube_channel')
+      if (stored) {
+        const channel = JSON.parse(stored)
+        setYoutubeChannel(channel)
+        console.log('Loaded main channel from storage:', channel.title)
+      }
+      
+      // Also load the token
+      const token = localStorage.getItem('youtube_access_token')
+      if (token) {
+        setYoutubeToken(token)
+      }
+    } catch (error) {
+      console.error('Failed to load main channel:', error)
+    }
+  }
+
+  const cleanupTempData = () => {
+    // Debug: Check what's in localStorage
+    console.log('=== localStorage Debug ===')
+    console.log('Main channel:', localStorage.getItem('youtube_channel') ? 'EXISTS' : 'MISSING')
+    console.log('Access token:', localStorage.getItem('youtube_access_token') ? 'EXISTS' : 'MISSING')
+    console.log('Temp token:', localStorage.getItem('temp_youtube_access_token') ? 'EXISTS (SHOULD BE CLEANED)' : 'NONE')
+    console.log('Additional channels:', localStorage.getItem('additional_youtube_channels') ? 'EXISTS' : 'NONE')
+    console.log('Recent activities:', localStorage.getItem('youtube_recent_activities') ? 'EXISTS' : 'NONE')
+    console.log('========================')
+    
+    // Clean up any orphaned temp tokens (older than 10 minutes)
+    const tempTokenTime = localStorage.getItem('temp_token_timestamp')
+    if (tempTokenTime) {
+      const age = Date.now() - parseInt(tempTokenTime)
+      if (age > 10 * 60 * 1000) { // 10 minutes
+        localStorage.removeItem('temp_youtube_access_token')
+        localStorage.removeItem('temp_youtube_refresh_token')
+        localStorage.removeItem('temp_token_timestamp')
+        console.log('✅ Cleaned up expired temp tokens')
+      } else {
+        console.log('⚠️ Temp tokens exist but are still valid (less than 10 minutes old)')
+      }
+    }
+    
+    // Force cleanup of temp data if no timestamp exists but temp tokens do
+    if (!tempTokenTime && localStorage.getItem('temp_youtube_access_token')) {
+      console.log('⚠️ Found temp tokens without timestamp - cleaning up')
+      localStorage.removeItem('temp_youtube_access_token')
+      localStorage.removeItem('temp_youtube_refresh_token')
+    }
+  }
+
+  const loadRecentActivities = () => {
+    try {
+      const stored = localStorage.getItem('youtube_recent_activities')
+      if (stored) {
+        const activities = JSON.parse(stored)
+        // Sort by timestamp descending (newest first) and take last 5
+        setRecentActivities(activities.sort((a: RecentActivity, b: RecentActivity) => b.timestamp - a.timestamp).slice(0, 5))
+      }
+    } catch (error) {
+      console.error('Failed to load recent activities:', error)
+    }
+  }
+
+  const loadAdditionalChannels = () => {
+    try {
+      const stored = localStorage.getItem('additional_youtube_channels')
+      if (stored) {
+        setAdditionalChannels(JSON.parse(stored))
+      }
+    } catch (error) {
+      console.error('Failed to load additional channels:', error)
+    }
+  }
+
+  const addActivity = (type: RecentActivity['type'], channelName: string, channelId: string, details?: string) => {
+    try {
+      const stored = localStorage.getItem('youtube_recent_activities')
+      const activities: RecentActivity[] = stored ? JSON.parse(stored) : []
+      
+      const newActivity: RecentActivity = {
+        id: Date.now().toString(),
+        type,
+        channelName,
+        channelId,
+        timestamp: Date.now(),
+        details
+      }
+      
+      activities.unshift(newActivity) // Add to beginning
+      
+      // Keep only last 20 activities
+      const trimmed = activities.slice(0, 20)
+      
+      localStorage.setItem('youtube_recent_activities', JSON.stringify(trimmed))
+      loadRecentActivities()
+    } catch (error) {
+      console.error('Failed to save activity:', error)
+    }
+  }
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -84,6 +204,7 @@ export default function ConnectPage() {
         // For additional channels, we'll store the token with channel ID after fetching
         // Store temporarily for now
         localStorage.setItem("temp_youtube_access_token", token)
+        localStorage.setItem("temp_token_timestamp", Date.now().toString())
         if (refreshToken) {
           localStorage.setItem("temp_youtube_refresh_token", refreshToken)
         }
@@ -157,18 +278,22 @@ export default function ConnectPage() {
                 localStorage.setItem(`youtube_refresh_token_${newChannel.id}`, tempRefreshToken)
                 localStorage.removeItem("temp_youtube_refresh_token")
               }
+              localStorage.removeItem("temp_token_timestamp")
               
               console.log("Added new channel with its own token:", newChannel.title)
+              addActivity('connect', newChannel.title, newChannel.id, 'Additional channel connected via OAuth')
             } else if (isMainChannel) {
               console.log("Channel is already the main channel:", newChannel.title)
               // Clean up temp tokens
               localStorage.removeItem("temp_youtube_access_token")
               localStorage.removeItem("temp_youtube_refresh_token")
+              localStorage.removeItem("temp_token_timestamp")
             } else {
               console.log("Channel already added:", newChannel.title)
               // Clean up temp tokens
               localStorage.removeItem("temp_youtube_access_token")
               localStorage.removeItem("temp_youtube_refresh_token")
+              localStorage.removeItem("temp_token_timestamp")
             }
           } else {
             // No main channel yet, set this as main
@@ -195,7 +320,12 @@ export default function ConnectPage() {
           setYoutubeChannel(newChannel)
           localStorage.setItem("youtube_channel", JSON.stringify(newChannel))
           console.log("Successfully fetched main channel:", newChannel.title)
+          addActivity('connect', newChannel.title, newChannel.id, 'Main channel connected successfully')
         }
+        
+        // Load additional channels and activities after update
+        loadAdditionalChannels()
+        loadRecentActivities()
         
         // Show unlock animation
         setShowUnlockAnimation(true)
@@ -255,6 +385,10 @@ export default function ConnectPage() {
       
       // Fetch channel data with current access token
       await fetchYouTubeChannel(youtubeToken)
+      
+      if (youtubeChannel) {
+        addActivity('refresh', youtubeChannel.title, youtubeChannel.id, 'Channel data refreshed')
+      }
     } catch (error) {
       console.error("Refresh error:", error)
       setError("Failed to refresh channel data. Please try reconnecting.")
@@ -265,6 +399,11 @@ export default function ConnectPage() {
 
   const handleDisconnect = () => {
     console.log("Disconnecting YouTube channel")
+    
+    if (youtubeChannel) {
+      addActivity('disconnect', youtubeChannel.title, youtubeChannel.id, 'Channel disconnected')
+    }
+    
     // Clear all YouTube related data
     localStorage.removeItem("youtube_access_token")
     localStorage.removeItem("youtube_refresh_token")
@@ -606,6 +745,121 @@ export default function ConnectPage() {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Activity & Connected Channels Section */}
+      <div className="w-full border-t border-gray-200 bg-gray-50 py-8 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Recent Activity */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <RefreshCw className="w-5 h-5 text-blue-600" />
+                  Recent Activity
+                </h3>
+                {recentActivities.length > 0 && (
+                  <span className="text-xs text-gray-500">{recentActivities.length} activities</span>
+                )}
+              </div>
+              
+              {recentActivities.length === 0 ? (
+                <div className="text-center py-8">
+                  <Youtube className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 text-sm">No recent activity yet</p>
+                  <p className="text-gray-400 text-xs mt-1">Connect a channel to see activity</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentActivities.map((activity) => (
+                    <div key={activity.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                        activity.type === 'connect' ? 'bg-green-100' : 
+                        activity.type === 'disconnect' ? 'bg-red-100' : 
+                        activity.type === 'refresh' ? 'bg-blue-100' : 'bg-purple-100'
+                      }`}>
+                        {activity.type === 'connect' && <CheckCircle className="w-5 h-5 text-green-600" />}
+                        {activity.type === 'disconnect' && <X className="w-5 h-5 text-red-600" />}
+                        {activity.type === 'refresh' && <RefreshCw className="w-5 h-5 text-blue-600" />}
+                        {activity.type === 'oauth' && <Youtube className="w-5 h-5 text-purple-600" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{activity.channelName}</p>
+                        <p className="text-xs text-gray-600 mt-0.5">{activity.details}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {new Date(activity.timestamp).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Connected Channels */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <Youtube className="w-5 h-5 text-red-600" />
+                  Connected Channels
+                </h3>
+                <span className="text-xs text-gray-500">
+                  {youtubeChannel ? (additionalChannels.length + 1) : additionalChannels.length} channel{(youtubeChannel ? additionalChannels.length + 1 : additionalChannels.length) !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              {!youtubeChannel && additionalChannels.length === 0 ? (
+                <div className="text-center py-8">
+                  <Youtube className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 text-sm">No channels connected</p>
+                  <p className="text-gray-400 text-xs mt-1">Connect your first channel to get started</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Main Channel */}
+                  {youtubeChannel && (
+                    <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-lg">
+                      <img
+                        src={youtubeChannel.thumbnail}
+                        alt={youtubeChannel.title}
+                        className="w-12 h-12 rounded-full border-2 border-white shadow-sm object-cover"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{youtubeChannel.title}</p>
+                          <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-medium rounded-full">Main</span>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-0.5">{formatNumber(youtubeChannel.subscriberCount)} subscribers</p>
+                      </div>
+                      <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
+                    </div>
+                  )}
+
+                  {/* Additional Channels */}
+                  {additionalChannels.map((channel) => (
+                    <div key={channel.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                      <img
+                        src={channel.thumbnail}
+                        alt={channel.title}
+                        className="w-12 h-12 rounded-full border border-gray-200 object-cover"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{channel.title}</p>
+                        <p className="text-xs text-gray-600 mt-0.5">{formatNumber(channel.subscriberCount)} subscribers</p>
+                      </div>
+                      <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
