@@ -5,12 +5,16 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Menu, X, Play, LogOut, User, Mail } from "lucide-react"
 import { useSession, signOut } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const { data: session, status } = useSession()
   const router = useRouter()
+  const pathname = usePathname()
+
+  // Check if we're on signup/signin page
+  const isAuthPage = pathname === "/signup" || pathname === "/signin"
 
   const handleGetStarted = () => {
     if (session) {
@@ -39,26 +43,29 @@ export function Header() {
             </div>
           </Link>
 
-          <nav className="hidden md:flex items-center space-x-2">
-            <Link
-              href="#features"
-              className="flex items-center px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200"
-            >
-              Features
-            </Link>
-            <Link
-              href="#pricing"
-              className="flex items-center px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200"
-            >
-              Pricing
-            </Link>
-            <Link
-              href="#how-it-works"
-              className="flex items-center px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200"
-            >
-              How It Works
-            </Link>
-          </nav>
+          {/* Only show navigation links if NOT on auth pages */}
+          {!isAuthPage && (
+            <nav className="hidden md:flex items-center space-x-2">
+              <Link
+                href="#features"
+                className="flex items-center px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200"
+              >
+                Features
+              </Link>
+              <Link
+                href="#pricing"
+                className="flex items-center px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200"
+              >
+                Pricing
+              </Link>
+              <Link
+                href="#how-it-works"
+                className="flex items-center px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200"
+              >
+                How It Works
+              </Link>
+            </nav>
+          )}
 
           <div className="hidden md:flex items-center space-x-3">
             {session ? (
@@ -113,27 +120,32 @@ export function Header() {
         {isMenuOpen && (
           <div className="md:hidden border-t bg-white/95 backdrop-blur-xl">
             <div className="px-2 pt-2 pb-3 space-y-1">
-              <Link
-                href="#features"
-                className="flex items-center px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Features
-              </Link>
-              <Link
-                href="#pricing"
-                className="flex items-center px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Pricing
-              </Link>
-              <Link
-                href="#how-it-works"
-                className="flex items-center px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                How It Works
-              </Link>
+              {/* Only show navigation links if NOT on auth pages */}
+              {!isAuthPage && (
+                <>
+                  <Link
+                    href="#features"
+                    className="flex items-center px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Features
+                  </Link>
+                  <Link
+                    href="#pricing"
+                    className="flex items-center px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Pricing
+                  </Link>
+                  <Link
+                    href="#how-it-works"
+                    className="flex items-center px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    How It Works
+                  </Link>
+                </>
+              )}
               <div className="px-4 py-2 space-y-2">
                 {session ? (
                   <>

@@ -28,6 +28,8 @@ export default function ConnectPage() {
   const [youtubeChannel, setYoutubeChannel] = useState<YouTubeChannel | null>(null)
   const [youtubeToken, setYoutubeToken] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [showUnlockAnimation, setShowUnlockAnimation] = useState(false)
+  const [isRedirecting, setIsRedirecting] = useState(false)
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -72,11 +74,24 @@ export default function ConnectPage() {
     if (token) {
       console.log("Received YouTube token from OAuth flow")
       setYoutubeToken(token)
-      // Store tokens in localStorage
-      if (refreshToken) {
-        localStorage.setItem("youtube_refresh_token", refreshToken)
+      
+      // Check where the OAuth was initiated from
+      const returnPage = localStorage.getItem("oauth_return_page")
+      
+      if (returnPage === "content") {
+        // For additional channels, we'll store the token with channel ID after fetching
+        // Store temporarily for now
+        localStorage.setItem("temp_youtube_access_token", token)
+        if (refreshToken) {
+          localStorage.setItem("temp_youtube_refresh_token", refreshToken)
+        }
+      } else {
+        // Main channel - store as usual
+        localStorage.setItem("youtube_access_token", token)
+        if (refreshToken) {
+          localStorage.setItem("youtube_refresh_token", refreshToken)
+        }
       }
-      localStorage.setItem("youtube_access_token", token)
       
       // Fetch channel data
       fetchYouTubeChannel(token)
@@ -102,10 +117,101 @@ export default function ConnectPage() {
       console.log("Channel API response:", data)
 
       if (data.success && data.channel) {
-        setYoutubeChannel(data.channel)
-        // Store channel data in localStorage for quick access
-        localStorage.setItem("youtube_channel", JSON.stringify(data.channel))
-        console.log("Successfully fetched channel:", data.channel.title)
+        const newChannel = data.channel
+        
+        // Check where the OAuth was initiated from
+        const returnPage = localStorage.getItem("oauth_return_page")
+        
+        if (returnPage === "content") {
+          // Content page - add to additional channels array (don't replace main)
+          const existingMainChannel = localStorage.getItem("youtube_channel")
+          
+          if (existingMainChannel) {
+            const mainChannel = JSON.parse(existingMainChannel)
+            
+            // Get existing additional channels
+            const additionalChannelsStr = localStorage.getItem("additional_youtube_channels")
+            const additionalChannels = additionalChannelsStr ? JSON.parse(additionalChannelsStr) : []
+            
+            // Check if this is the same as main channel
+            const isMainChannel = mainChannel.id === newChannel.id
+            // Check if already in additional channels
+            const alreadyAdded = additionalChannels.find((ch: YouTubeChannel) => ch.id === newChannel.id)
+            
+            if (!isMainChannel && !alreadyAdded) {
+              // Add new channel to additional channels
+              additionalChannels.push(newChannel)
+              localStorage.setItem("additional_youtube_channels", JSON.stringify(additionalChannels))
+              
+              // Store channel-specific token
+              const tempToken = localStorage.getItem("temp_youtube_access_token")
+              const tempRefreshToken = localStorage.getItem("temp_youtube_refresh_token")
+              
+              if (tempToken) {
+                localStorage.setItem(`youtube_access_token_${newChannel.id}`, tempToken)
+                localStorage.removeItem("temp_youtube_access_token")
+              }
+              if (tempRefreshToken) {
+                localStorage.setItem(`youtube_refresh_token_${newChannel.id}`, tempRefreshToken)
+                localStorage.removeItem("temp_youtube_refresh_token")
+              }
+              
+              console.log("Added new channel with its own token:", newChannel.title)
+            } else if (isMainChannel) {
+              console.log("Channel is already the main channel:", newChannel.title)
+              // Clean up temp tokens
+              localStorage.removeItem("temp_youtube_access_token")
+              localStorage.removeItem("temp_youtube_refresh_token")
+            } else {
+              console.log("Channel already added:", newChannel.title)
+              // Clean up temp tokens
+              localStorage.removeItem("temp_youtube_access_token")
+              localStorage.removeItem("temp_youtube_refresh_token")
+            }
+          } else {
+            // No main channel yet, set this as main
+            setYoutubeChannel(newChannel)
+            localStorage.setItem("youtube_channel", JSON.stringify(newChannel))
+            
+            // Use temp token as main token
+            const tempToken = localStorage.getItem("temp_youtube_access_token")
+            const tempRefreshToken = localStorage.getItem("temp_youtube_refresh_token")
+            
+            if (tempToken) {
+              localStorage.setItem("youtube_access_token", tempToken)
+              localStorage.removeItem("temp_youtube_access_token")
+            }
+            if (tempRefreshToken) {
+              localStorage.setItem("youtube_refresh_token", tempRefreshToken)
+              localStorage.removeItem("temp_youtube_refresh_token")
+            }
+            
+            console.log("Set as main channel:", newChannel.title)
+          }
+        } else {
+          // Dashboard or first time - set as main channel
+          setYoutubeChannel(newChannel)
+          localStorage.setItem("youtube_channel", JSON.stringify(newChannel))
+          console.log("Successfully fetched main channel:", newChannel.title)
+        }
+        
+        // Show unlock animation
+        setShowUnlockAnimation(true)
+        
+        // Redirect to the correct page after animation (3 seconds)
+        setTimeout(() => {
+          setIsRedirecting(true)
+          setTimeout(() => {
+            // Check where to redirect
+            if (returnPage === "content") {
+              localStorage.removeItem("oauth_return_page")
+              router.push("/dashboard?page=content")
+            } else {
+              localStorage.removeItem("oauth_return_page")
+              router.push("/dashboard")
+            }
+          }, 500)
+        }, 3000)
       } else {
         console.error("Failed to fetch channel:", data.error)
         setError(data.error || "Failed to fetch channel data")
@@ -259,6 +365,21 @@ export default function ConnectPage() {
                 <div className="space-y-4">
                   <h2 className="text-lg md:text-xl font-bold text-gray-900">Connect Your YouTube Channel</h2>
 
+                  {/* Error Display */}
+                  {error && (
+                    <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 flex items-start gap-3 animate-shake">
+                      <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-red-800 text-sm font-medium">{error}</p>
+                        <button
+                          onClick={() => setError(null)}
+                          className="text-red-600 text-xs underline hover:text-red-800 mt-1"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  )}
                  
                   {/* Google OAuth Button */}
                   <button
@@ -303,12 +424,70 @@ export default function ConnectPage() {
 
           {/* Right Section - Channel Preview */}
           <div className="w-full md:w-1/2 flex flex-col items-center justify-center p-4 md:p-8 border-t md:border-t-0 md:border-l border-gray-200">
-            <div className="bg-gradient-to-b from-gray-50 to-white rounded-lg p-6 md:p-8 w-full max-w-md mx-auto border border-gray-200 shadow-sm">
+            <div className="bg-gradient-to-b from-gray-50 to-white rounded-lg p-6 md:p-8 w-full max-w-md mx-auto border border-gray-200 shadow-sm relative overflow-hidden">
+              {/* Unlock Animation Overlay */}
+              {showUnlockAnimation && (
+                <div className="absolute inset-0 bg-white z-50 flex flex-col items-center justify-center">
+                  <div className="relative mb-6">
+                    {/* Animated unlock icon */}
+                    <div className="relative w-32 h-32">
+                      <div className="absolute inset-0 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full animate-ping opacity-75"></div>
+                      <div className="relative w-32 h-32 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center shadow-2xl">
+                        <CheckCircle className="w-16 h-16 text-white animate-bounce-in" />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Channel Logo */}
+                  {youtubeChannel?.thumbnail && (
+                    <div className="relative mb-4 animate-scale-in">
+                      <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-600 rounded-full blur-xl opacity-50 animate-pulse"></div>
+                      <img
+                        src={youtubeChannel.thumbnail}
+                        alt={youtubeChannel.title}
+                        className="relative w-24 h-24 rounded-full border-4 border-white shadow-xl object-cover"
+                      />
+                    </div>
+                  )}
+                  
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2 animate-fade-in-up">
+                    Channel Unlocked! 🎉
+                  </h2>
+                  <p className="text-gray-600 text-center px-4 mb-4 animate-fade-in-up-delay">
+                    {youtubeChannel?.title}
+                  </p>
+                  
+                  {isRedirecting ? (
+                    <div className="flex items-center gap-2 text-blue-600 animate-pulse">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="font-semibold">Redirecting to Dashboard...</span>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 animate-fade-in">
+                      Loading your dashboard...
+                    </p>
+                  )}
+                </div>
+              )}
+              
               <div className="text-center">
                 {isLoading ? (
                   <div className="w-20 h-20 md:w-24 md:h-24 mx-auto mb-6 flex items-center justify-center">
                     <div className="animate-spin">
                       <Loader2 className="w-12 h-12 md:w-16 md:h-16 text-blue-600" />
+                    </div>
+                  </div>
+                ) : youtubeChannel?.thumbnail ? (
+                  // Show actual channel logo/thumbnail
+                  <div className="w-20 h-20 md:w-24 md:h-24 mx-auto mb-6 relative group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-600 rounded-full blur-md opacity-50 group-hover:opacity-75 transition-opacity"></div>
+                    <img
+                      src={youtubeChannel.thumbnail}
+                      alt={youtubeChannel.title}
+                      className="relative w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-white shadow-xl object-cover ring-2 ring-blue-200 hover:ring-blue-400 transition-all"
+                    />
+                    <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-green-500 rounded-full border-4 border-white flex items-center justify-center shadow-lg">
+                      <CheckCircle className="w-4 h-4 text-white" />
                     </div>
                   </div>
                 ) : (
@@ -432,6 +611,66 @@ export default function ConnectPage() {
 
       {/* Mobile Bottom Safe Area */}
       <div className="md:hidden h-4 bg-white"></div>
+      
+      {/* Animations */}
+      <style jsx>{`
+        @keyframes bounce-in {
+          0% {
+            transform: scale(0);
+            opacity: 0;
+          }
+          50% {
+            transform: scale(1.2);
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+        @keyframes scale-in {
+          0% {
+            transform: scale(0);
+            opacity: 0;
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+        @keyframes fade-in-up {
+          0% {
+            transform: translateY(20px);
+            opacity: 0;
+          }
+          100% {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+        @keyframes fade-in {
+          0% {
+            opacity: 0;
+          }
+          100% {
+            opacity: 1;
+          }
+        }
+        .animate-bounce-in {
+          animation: bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+        .animate-scale-in {
+          animation: scale-in 0.5s ease-out 0.3s both;
+        }
+        .animate-fade-in-up {
+          animation: fade-in-up 0.5s ease-out 0.6s both;
+        }
+        .animate-fade-in-up-delay {
+          animation: fade-in-up 0.5s ease-out 0.8s both;
+        }
+        .animate-fade-in {
+          animation: fade-in 0.5s ease-out 1s both;
+        }
+      `}</style>
     </div>
   )
 }

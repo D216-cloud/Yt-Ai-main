@@ -24,10 +24,18 @@ import {
   Youtube,
   User,
   GitCompare,
+  Calendar,
+  Globe,
+  CheckCircle,
+  RefreshCw,
+  Plus,
+  Trash2,
+  Upload,
+  ExternalLink,
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useSession, signOut } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 interface YouTubeChannel {
   id: string
@@ -49,6 +57,23 @@ export default function DashboardPage() {
   const [channelLoading, setChannelLoading] = useState(true)
   const { data: session } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Function to update the current channel (used by ProfileView)
+  const updateCurrentChannel = (channel: YouTubeChannel) => {
+    setYoutubeChannel(channel)
+    localStorage.setItem("youtube_channel", JSON.stringify(channel))
+  }
+
+  // Check for page parameter in URL and set active page
+  useEffect(() => {
+    const pageParam = searchParams.get("page")
+    if (pageParam) {
+      setActivePage(pageParam)
+      // Clean up URL
+      router.replace("/dashboard", { scroll: false })
+    }
+  }, [searchParams, router])
 
   // Fetch YouTube channel data
   useEffect(() => {
@@ -252,6 +277,7 @@ export default function DashboardPage() {
 
   const navLinks = [
     { icon: Home, label: "Dashboard", href: "#", id: "dashboard", active: true },
+    { icon: User, label: "Profile", href: "#", id: "profile", active: false },
     { icon: GitCompare, label: "Compare", href: "#", id: "compare", active: false },
     { icon: Video, label: "Content", href: "#", id: "content", active: false },
     { icon: BarChart3, label: "Analytics", href: "#", id: "analytics", active: false },
@@ -443,8 +469,9 @@ export default function DashboardPage() {
         {/* Main Content */}
         <main className="flex-1 md:ml-64 pb-20 md:pb-0">
           {activePage === "dashboard" && <DashboardView stats={stats} isLoading={isLoading} youtubeChannel={youtubeChannel} channelLoading={channelLoading} />}
+          {activePage === "profile" && <ProfileView youtubeChannel={youtubeChannel} channelLoading={channelLoading} session={session} onChannelChange={updateCurrentChannel} />}
           {activePage === "compare" && <CompareView />}
-          {activePage === "content" && <ContentStudioView />}
+          {activePage === "content" && <ContentStudioView youtubeChannel={youtubeChannel} />}
           {activePage === "analytics" && <AnalyticsView />}
           {activePage === "ai-tools" && <AIToolsView />}
           {activePage === "settings" && <SettingsView />}
@@ -479,6 +506,474 @@ export default function DashboardPage() {
           <span>© {new Date().getFullYear()} YouTubeAI Pro</span>
         </div>
       </footer>
+    </div>
+  )
+}
+
+function ProfileView({ youtubeChannel, channelLoading, session, onChannelChange }: { youtubeChannel: YouTubeChannel | null; channelLoading: boolean; session: any; onChannelChange: (channel: YouTubeChannel) => void }) {
+  const [videos, setVideos] = useState<any[]>([])
+  const [videosLoading, setVideosLoading] = useState(false)
+  const [allChannels, setAllChannels] = useState<YouTubeChannel[]>([])
+  const [selectedChannel, setSelectedChannel] = useState<YouTubeChannel | null>(youtubeChannel)
+  const [showChannelDropdown, setShowChannelDropdown] = useState(false)
+
+  // Load all channels
+  useEffect(() => {
+    const channels: YouTubeChannel[] = []
+    
+    if (youtubeChannel) {
+      channels.push(youtubeChannel)
+    }
+    
+    const storedChannels = localStorage.getItem("additional_youtube_channels")
+    if (storedChannels) {
+      try {
+        const additionalChannels = JSON.parse(storedChannels)
+        additionalChannels.forEach((ch: YouTubeChannel) => {
+          if (!channels.find(c => c.id === ch.id)) {
+            channels.push(ch)
+          }
+        })
+      } catch (e) {
+        console.error("Failed to parse additional channels", e)
+      }
+    }
+    
+    setAllChannels(channels)
+    
+    // Load selected channel from localStorage (persists across refreshes)
+    const savedSelectedChannelId = localStorage.getItem("selected_channel_id")
+    if (savedSelectedChannelId && channels.length > 0) {
+      // Find the saved channel in the list
+      const savedChannel = channels.find(ch => ch.id === savedSelectedChannelId)
+      if (savedChannel) {
+        setSelectedChannel(savedChannel)
+        // Update parent component if different from current
+        if (!youtubeChannel || youtubeChannel.id !== savedChannel.id) {
+          onChannelChange(savedChannel)
+        }
+      } else if (youtubeChannel) {
+        // If saved channel not found, use the main channel
+        setSelectedChannel(youtubeChannel)
+      }
+    } else if (youtubeChannel) {
+      // No saved selection, use the main channel
+      setSelectedChannel(youtubeChannel)
+    }
+  }, [youtubeChannel])
+
+  // Fetch videos when channel is loaded or changed
+  useEffect(() => {
+    if (selectedChannel) {
+      fetchVideos()
+    }
+  }, [selectedChannel])
+
+  const handleChannelSelect = (channel: YouTubeChannel) => {
+    setSelectedChannel(channel)
+    setShowChannelDropdown(false)
+    
+    // Save selected channel ID to localStorage (persists across refreshes)
+    localStorage.setItem("selected_channel_id", channel.id)
+    
+    // Update main channel through parent component (updates both Dashboard and Profile)
+    onChannelChange(channel)
+  }
+
+  const fetchVideos = async () => {
+    if (!selectedChannel) return
+    
+    try {
+      setVideosLoading(true)
+      const response = await fetch(`/api/youtube/videos?channelId=${selectedChannel.id}&maxResults=12`)
+      const data = await response.json()
+      
+      if (data.success && data.videos) {
+        setVideos(data.videos)
+      }
+    } catch (error) {
+      console.error("Error fetching videos:", error)
+    } finally {
+      setVideosLoading(false)
+    }
+  }
+
+  const formatNumber = (num: string | number): string => {
+    const n = typeof num === "string" ? parseInt(num) : num
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + "M"
+    if (n >= 1000) return (n / 1000).toFixed(1) + "K"
+    return n.toString()
+  }
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  }
+
+  const formatTimeAgo = (dateString: string): string => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    
+    if (diffDays === 0) return 'Today'
+    if (diffDays === 1) return 'Yesterday'
+    if (diffDays < 7) return `${diffDays} days ago`
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`
+    return `${Math.floor(diffDays / 365)} years ago`
+  }
+
+  return (
+    <div className="p-4 md:p-6 lg:p-8">
+      {/* Header */}
+      <div className="mb-6 md:mb-8 rounded-xl md:rounded-2xl bg-gradient-to-r from-blue-50 to-purple-50 border border-gray-200 p-4 md:p-8">
+        <div className="flex items-center gap-3 mb-2">
+          <User className="w-8 h-8 text-blue-600" />
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Profile</h1>
+        </div>
+        <p className="text-sm md:text-base text-gray-700">
+          View and manage your YouTube channel information
+        </p>
+      </div>
+
+      {channelLoading ? (
+        <div className="space-y-6">
+          <Skeleton className="h-64 w-full rounded-2xl" />
+          <Skeleton className="h-48 w-full rounded-2xl" />
+        </div>
+      ) : selectedChannel ? (
+        <div className="space-y-6">
+          {/* Channel Selector Card - Show if multiple channels */}
+          {allChannels.length > 1 && (
+            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-100 rounded-lg">
+                    <Users className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-indigo-900 text-sm">Channel Selector</h3>
+                    <p className="text-xs text-indigo-700">You have {allChannels.length} connected channels</p>
+                  </div>
+                </div>
+                
+                {/* Dropdown Button */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowChannelDropdown(!showChannelDropdown)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-indigo-300 rounded-lg hover:bg-indigo-50 transition-all"
+                  >
+                    <img
+                      src={selectedChannel.thumbnail}
+                      alt={selectedChannel.title}
+                      className="w-6 h-6 rounded-full object-cover"
+                    />
+                    <span className="font-semibold text-gray-900 text-sm max-w-[150px] truncate">
+                      {selectedChannel.title}
+                    </span>
+                    <ChevronRight className={`w-4 h-4 text-gray-600 transition-transform ${showChannelDropdown ? 'rotate-90' : ''}`} />
+                  </button>
+                  
+                  {/* Dropdown Menu */}
+                  {showChannelDropdown && (
+                    <div className="absolute right-0 mt-2 w-80 bg-white border-2 border-indigo-200 rounded-xl shadow-2xl z-50 max-h-96 overflow-y-auto">
+                      <div className="p-2">
+                        <p className="text-xs font-semibold text-gray-500 uppercase px-3 py-2">Switch Channel</p>
+                        {allChannels.map((channel) => (
+                          <button
+                            key={channel.id}
+                            onClick={() => handleChannelSelect(channel)}
+                            className={`w-full flex items-center gap-3 p-3 rounded-lg hover:bg-indigo-50 transition-all ${
+                              selectedChannel.id === channel.id ? 'bg-indigo-100 border-2 border-indigo-300' : 'border-2 border-transparent'
+                            }`}
+                          >
+                            <img
+                              src={channel.thumbnail}
+                              alt={channel.title}
+                              className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-md"
+                            />
+                            <div className="flex-1 text-left min-w-0">
+                              <p className="font-bold text-gray-900 text-sm truncate">{channel.title}</p>
+                              <p className="text-xs text-gray-600 truncate">
+                                {formatNumber(channel.subscriberCount)} subscribers • {formatNumber(channel.videoCount)} videos
+                              </p>
+                            </div>
+                            {selectedChannel.id === channel.id && (
+                              <CheckCircle className="w-5 h-5 text-indigo-600 flex-shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Channel Profile Card */}
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+            {/* Cover/Banner Area */}
+            <div className="h-32 md:h-40 bg-gradient-to-r from-red-500 via-pink-500 to-purple-500 relative">
+              <div className="absolute inset-0 bg-black/10"></div>
+            </div>
+            
+            {/* Profile Info */}
+            <div className="relative px-6 pb-6">
+              {/* Channel Avatar */}
+              <div className="relative -mt-16 mb-4">
+                <div className="relative inline-block">
+                  <div className="absolute inset-0 bg-gradient-to-br from-red-400 to-pink-600 rounded-full blur-lg opacity-50"></div>
+                  <img
+                    src={selectedChannel.thumbnail}
+                    alt={selectedChannel.title}
+                    className="relative w-28 h-28 md:w-32 md:h-32 rounded-full border-4 border-white shadow-xl object-cover ring-4 ring-red-200"
+                  />
+                  <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-red-500 rounded-full border-4 border-white flex items-center justify-center shadow-lg">
+                    <Youtube className="w-5 h-5 text-white" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Channel Details */}
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <h2 className="text-2xl md:text-3xl font-bold text-gray-900">{selectedChannel.title}</h2>
+                  <CheckCircle className="w-6 h-6 text-blue-500" />
+                </div>
+                {selectedChannel.customUrl && (
+                  <p className="text-gray-600 mb-2">@{selectedChannel.customUrl}</p>
+                )}
+                <p className="text-sm text-gray-500 mb-4">Channel ID: {selectedChannel.id}</p>
+                
+                {selectedChannel.description && (
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <p className="text-sm text-gray-700 leading-relaxed">
+                      {selectedChannel.description}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Users className="w-5 h-5 text-blue-600" />
+                    <p className="text-xs font-medium text-blue-900">Subscribers</p>
+                  </div>
+                  <p className="text-2xl md:text-3xl font-bold text-blue-900">
+                    {formatNumber(selectedChannel.subscriberCount)}
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Eye className="w-5 h-5 text-purple-600" />
+                    <p className="text-xs font-medium text-purple-900">Total Views</p>
+                  </div>
+                  <p className="text-2xl md:text-3xl font-bold text-purple-900">
+                    {formatNumber(selectedChannel.viewCount)}
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Video className="w-5 h-5 text-orange-600" />
+                    <p className="text-xs font-medium text-orange-900">Videos</p>
+                  </div>
+                  <p className="text-2xl md:text-3xl font-bold text-orange-900">
+                    {formatNumber(selectedChannel.videoCount)}
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp className="w-5 h-5 text-green-600" />
+                    <p className="text-xs font-medium text-green-900">Avg Views</p>
+                  </div>
+                  <p className="text-2xl md:text-3xl font-bold text-green-900">
+                    {formatNumber(Math.floor(parseInt(selectedChannel.viewCount) / parseInt(selectedChannel.videoCount)))}
+                  </p>
+                </div>
+              </div>
+
+              {/* Channel Info */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Calendar className="w-5 h-5 text-gray-600" />
+                    <h3 className="font-semibold text-gray-900">Channel Created</h3>
+                  </div>
+                  <p className="text-gray-700">{formatDate(selectedChannel.publishedAt)}</p>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Globe className="w-5 h-5 text-gray-600" />
+                    <h3 className="font-semibold text-gray-900">Channel URL</h3>
+                  </div>
+                  <a
+                    href={`https://youtube.com/channel/${selectedChannel.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 text-sm break-all hover:underline"
+                  >
+                    youtube.com/channel/{selectedChannel.id}
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Account Info Card */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <Mail className="w-6 h-6 text-blue-600" />
+              Account Information
+            </h3>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between py-3 border-b border-gray-200">
+                <span className="text-gray-600 font-medium">Email</span>
+                <span className="text-gray-900">{session?.user?.email || 'Not available'}</span>
+              </div>
+              <div className="flex items-center justify-between py-3 border-b border-gray-200">
+                <span className="text-gray-600 font-medium">Account Name</span>
+                <span className="text-gray-900">{session?.user?.name || 'Not set'}</span>
+              </div>
+              <div className="flex items-center justify-between py-3">
+                <span className="text-gray-600 font-medium">Connection Status</span>
+                <span className="flex items-center gap-2 text-green-600 font-semibold">
+                  <CheckCircle className="w-5 h-5" />
+                  Connected
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions Card */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+            <h3 className="text-xl font-bold text-gray-900 mb-4">Quick Actions</h3>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Link href="/connect">
+                <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold h-12">
+                  <RefreshCw className="w-5 h-5 mr-2" />
+                  Refresh Channel Data
+                </Button>
+              </Link>
+              <Link href={`https://youtube.com/channel/${selectedChannel.id}`} target="_blank">
+                <Button variant="outline" className="w-full border-red-300 text-red-600 hover:bg-red-50 font-semibold h-12">
+                  <Youtube className="w-5 h-5 mr-2" />
+                  View on YouTube
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          {/* Videos Section */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <Video className="w-6 h-6 text-red-600" />
+                Latest Videos
+              </h3>
+              {videos.length > 0 && (
+                <span className="text-sm text-gray-500">{videos.length} videos</span>
+              )}
+            </div>
+
+            {videosLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className="space-y-3">
+                    <Skeleton className="h-40 w-full rounded-lg" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-3 w-2/3" />
+                  </div>
+                ))}
+              </div>
+            ) : videos.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {videos.map((video) => (
+                  <a
+                    key={video.id}
+                    href={`https://youtube.com/watch?v=${video.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group"
+                  >
+                    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-all hover:border-red-300">
+                      {/* Thumbnail */}
+                      <div className="relative aspect-video bg-gray-100 overflow-hidden">
+                        <img
+                          src={video.thumbnail}
+                          alt={video.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
+                        {/* Play button overlay */}
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-lg">
+                            <Play className="w-8 h-8 text-white fill-white ml-1" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Video Info */}
+                      <div className="p-3">
+                        <h4 className="font-semibold text-gray-900 text-sm line-clamp-2 mb-2 group-hover:text-red-600 transition-colors">
+                          {video.title}
+                        </h4>
+                        
+                        {/* Stats */}
+                        <div className="flex items-center gap-3 text-xs text-gray-600 mb-2">
+                          <div className="flex items-center gap-1">
+                            <Eye className="w-3 h-3" />
+                            <span>{formatNumber(video.viewCount || 0)}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <TrendingUp className="w-3 h-3" />
+                            <span>{formatNumber(video.likeCount || 0)}</span>
+                          </div>
+                          {video.commentCount > 0 && (
+                            <div className="flex items-center gap-1">
+                              <MessageSquare className="w-3 h-3" />
+                              <span>{formatNumber(video.commentCount)}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Published Date */}
+                        <p className="text-xs text-gray-500">
+                          {formatTimeAgo(video.publishedAt)}
+                        </p>
+                      </div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Video className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600">No videos found</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center shadow-sm">
+          <Youtube className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">No Channel Connected</h2>
+          <p className="text-gray-600 mb-6">Connect your YouTube channel to view your profile information</p>
+          <Link href="/connect">
+            <Button className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white font-semibold">
+              <Youtube className="w-5 h-5 mr-2" />
+              Connect YouTube Channel
+            </Button>
+          </Link>
+        </div>
+      )}
     </div>
   )
 }
@@ -528,14 +1023,23 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading }: { s
           <Skeleton className="h-20 w-full" />
         </div>
       ) : youtubeChannel ? (
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 p-6 backdrop-blur-sm shadow-sm">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 p-6 backdrop-blur-sm shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center gap-4 mb-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center shadow-lg">
-              <Youtube className="w-8 h-8 text-white" />
+            {/* Show real channel logo/thumbnail */}
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-br from-red-400 to-pink-600 rounded-full blur-md opacity-50 group-hover:opacity-75 transition-opacity"></div>
+              <img
+                src={youtubeChannel.thumbnail}
+                alt={youtubeChannel.title}
+                className="relative w-16 h-16 rounded-full border-4 border-white shadow-lg object-cover ring-2 ring-red-200 group-hover:ring-red-400 transition-all"
+              />
+              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-red-500 rounded-full border-2 border-white flex items-center justify-center shadow-md">
+                <Youtube className="w-3 h-3 text-white" />
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl md:text-2xl font-bold text-gray-900">{youtubeChannel.title}</h2>
-              <p className="text-gray-600 text-sm">{youtubeChannel.customUrl || youtubeChannel.id}</p>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{youtubeChannel.title}</h2>
+              <p className="text-gray-600 text-sm truncate">{youtubeChannel.customUrl || youtubeChannel.id}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-4 text-sm">
@@ -623,41 +1127,1118 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading }: { s
   )
 }
 
-function ContentStudioView() {
+function ContentStudioView({ youtubeChannel }: { youtubeChannel: YouTubeChannel | null }) {
+  const [showBulkChannelModal, setShowBulkChannelModal] = useState(false)
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [allChannels, setAllChannels] = useState<YouTubeChannel[]>([])
+  const [uploadType, setUploadType] = useState<'short' | 'long'>('long')
+  const [selectedChannelsForUpload, setSelectedChannelsForUpload] = useState<string[]>([])
+  const [selectedUploadChannel, setSelectedUploadChannel] = useState<YouTubeChannel | null>(null)
+  const [uploadData, setUploadData] = useState({
+    title: '',
+    description: '',
+    tags: '',
+    category: '22', // People & Blogs
+    privacy: 'public',
+    madeForKids: false
+  })
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadResults, setUploadResults] = useState<Array<{channelId: string, channelName: string, videoUrl: string}>>([])
+  const [showUploadResults, setShowUploadResults] = useState(false)
+
+  // Load all connected channels from localStorage
+  useEffect(() => {
+    const loadAllChannels = () => {
+      const channels: YouTubeChannel[] = []
+      
+      // Load main channel
+      if (youtubeChannel) {
+        channels.push(youtubeChannel)
+      }
+      
+      // Load additional channels from localStorage
+      const storedChannels = localStorage.getItem("additional_youtube_channels")
+      if (storedChannels) {
+        try {
+          const additionalChannels = JSON.parse(storedChannels)
+          // Filter out duplicates
+          additionalChannels.forEach((ch: YouTubeChannel) => {
+            if (!channels.find(c => c.id === ch.id)) {
+              channels.push(ch)
+            }
+          })
+        } catch (e) {
+          console.error("Failed to parse additional channels", e)
+        }
+      }
+      
+      setAllChannels(channels)
+      
+      // Set default upload channel to the first available channel
+      if (channels.length > 0 && selectedChannelsForUpload.length === 0) {
+        setSelectedChannelsForUpload([channels[0].id])
+      }
+    }
+    
+    loadAllChannels()
+  }, [youtubeChannel])
+
+  const handleConnectNewChannel = () => {
+    // Store current page context before OAuth redirect
+    localStorage.setItem("oauth_return_page", "content")
+    
+    // Open OAuth in a popup window instead of redirect (for better UX)
+    const width = 600
+    const height = 700
+    const left = (window.screen.width - width) / 2
+    const top = (window.screen.height - height) / 2
+    
+    const popup = window.open(
+      "/api/youtube/auth",
+      "YouTube OAuth",
+      `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`
+    )
+    
+    // Listen for popup close and refresh channels
+    const checkPopupClosed = setInterval(() => {
+      if (popup && popup.closed) {
+        clearInterval(checkPopupClosed)
+        // Reload channels after OAuth completes
+        setTimeout(() => {
+          const loadAllChannels = () => {
+            const channels: YouTubeChannel[] = []
+            
+            if (youtubeChannel) {
+              channels.push(youtubeChannel)
+            }
+            
+            const storedChannels = localStorage.getItem("additional_youtube_channels")
+            if (storedChannels) {
+              try {
+                const additionalChannels = JSON.parse(storedChannels)
+                additionalChannels.forEach((ch: YouTubeChannel) => {
+                  if (!channels.find(c => c.id === ch.id)) {
+                    channels.push(ch)
+                  }
+                })
+              } catch (e) {
+                console.error("Failed to parse additional channels", e)
+              }
+            }
+            
+            setAllChannels(channels)
+          }
+          
+          loadAllChannels()
+        }, 1000)
+      }
+    }, 500)
+  }
+
+  const handleRemoveChannel = (channelId: string) => {
+    // Remove specific channel
+    const updatedChannels = allChannels.filter(ch => ch.id !== channelId)
+    
+    // If it's the main channel
+    if (youtubeChannel && youtubeChannel.id === channelId) {
+      localStorage.removeItem("youtube_access_token")
+      localStorage.removeItem("youtube_refresh_token")
+      localStorage.removeItem("youtube_channel")
+    } else {
+      // Update additional channels
+      const additionalChannels = updatedChannels.filter(ch => ch.id !== youtubeChannel?.id)
+      localStorage.setItem("additional_youtube_channels", JSON.stringify(additionalChannels))
+    }
+    
+    setAllChannels(updatedChannels)
+  }
+
+  const formatNumber = (num: string): string => {
+    const number = parseInt(num)
+    if (number >= 1000000) return (number / 1000000).toFixed(1) + "M"
+    if (number >= 1000) return (number / 1000).toFixed(1) + "K"
+    return number.toString()
+  }
+
+  const totalSubscribers = allChannels.reduce((sum, channel) => {
+    return sum + parseInt(channel.subscriberCount)
+  }, 0)
+
+  const totalVideos = allChannels.reduce((sum, channel) => {
+    return sum + parseInt(channel.videoCount)
+  }, 0)
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Check file type
+      const validTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']
+      if (!validTypes.includes(file.type)) {
+        alert('Please select a valid video file (MP4, WebM, MOV, AVI)')
+        return
+      }
+      
+      // Check file size (max 2GB for Shorts, 128GB for long videos)
+      const maxSize = uploadType === 'short' ? 2 * 1024 * 1024 * 1024 : 128 * 1024 * 1024 * 1024
+      if (file.size > maxSize) {
+        alert(`File size exceeds ${uploadType === 'short' ? '2GB' : '128GB'} limit`)
+        return
+      }
+      
+      setSelectedFile(file)
+    }
+  }
+
+  const handleChannelToggleForUpload = (channelId: string) => {
+    setSelectedChannelsForUpload(prev => {
+      if (prev.includes(channelId)) {
+        return prev.filter(id => id !== channelId)
+      } else {
+        return [...prev, channelId]
+      }
+    })
+  }
+
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      alert('Please select a video file')
+      return
+    }
+
+    if (!uploadData.title.trim()) {
+      alert('Please enter a video title')
+      return
+    }
+
+    if (selectedChannelsForUpload.length === 0) {
+      alert('Please select at least one channel to upload to')
+      return
+    }
+
+    setIsUploading(true)
+    setUploadProgress(0)
+    setUploadResults([])
+
+    try {
+      const results: Array<{channelId: string, channelName: string, videoUrl: string}> = []
+      const totalChannels = selectedChannelsForUpload.length
+      
+      for (let i = 0; i < selectedChannelsForUpload.length; i++) {
+        const channelId = selectedChannelsForUpload[i]
+        const channel = allChannels.find(ch => ch.id === channelId)
+        
+        if (!channel) continue
+
+        // Update progress
+        const baseProgress = (i / totalChannels) * 90
+        setUploadProgress(Math.floor(baseProgress))
+
+        // Get access token for this specific channel
+        // Check if this is the main channel or an additional channel
+        const isMainChannel = youtubeChannel?.id === channelId
+        let accessToken = localStorage.getItem('youtube_access_token')
+        
+        // For additional channels, we need to get their stored token
+        // Note: In current setup, all channels share the same token
+        // For true multi-channel support, each channel needs its own token stored
+        if (!isMainChannel) {
+          // Try to get channel-specific token if it exists
+          const channelTokenKey = `youtube_access_token_${channelId}`
+          const channelToken = localStorage.getItem(channelTokenKey)
+          if (channelToken) {
+            accessToken = channelToken
+          }
+        }
+        
+        if (!accessToken) {
+          console.error(`No access token found for channel: ${channel.title}`)
+          continue
+        }
+
+        // Create FormData for upload
+        const formData = new FormData()
+        formData.append('video', selectedFile)
+        formData.append('title', uploadData.title)
+        formData.append('description', uploadData.description)
+        formData.append('tags', uploadData.tags)
+        formData.append('privacy', uploadData.privacy)
+        formData.append('madeForKids', uploadData.madeForKids.toString())
+        formData.append('category', uploadData.category)
+        formData.append('access_token', accessToken)
+        formData.append('channelId', channelId) // Pass channel ID to verify
+
+        try {
+          // Upload to YouTube API
+          const response = await fetch('/api/youtube/upload', {
+            method: 'POST',
+            body: formData,
+          })
+
+          const data = await response.json()
+
+          if (data.success) {
+            results.push({
+              channelId: channel.id,
+              channelName: channel.title,
+              videoUrl: data.video.url
+            })
+          } else if (data.expired) {
+            // Try to refresh token
+            const refreshToken = localStorage.getItem('youtube_refresh_token')
+            if (refreshToken) {
+              const refreshResponse = await fetch('/api/youtube/refresh', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ refreshToken }),
+              })
+              
+              const refreshData = await refreshResponse.json()
+              
+              if (refreshData.success && refreshData.access_token) {
+                localStorage.setItem('youtube_access_token', refreshData.access_token)
+              }
+            }
+          }
+        } catch (error: any) {
+          console.error(`Upload error for ${channel.title}:`, error)
+        }
+      }
+
+      setUploadProgress(100)
+      setUploadResults(results)
+      
+      if (results.length > 0) {
+        setShowUploadResults(true)
+      } else {
+        alert('All uploads failed. Please check your connection and try again.')
+        setIsUploading(false)
+      }
+    } catch (error: any) {
+      console.error('Upload error:', error)
+      alert(`Upload failed: ${error.message || 'Please try again.'}`)
+      setIsUploading(false)
+    }
+  }
+
+  const resetUploadForm = () => {
+    setUploadData({
+      title: '',
+      description: '',
+      tags: '',
+      category: '22',
+      privacy: 'public',
+      madeForKids: false
+    })
+    setSelectedFile(null)
+    setUploadProgress(0)
+    setUploadType('long')
+    setUploadResults([])
+    setShowUploadResults(false)
+    setIsUploading(false)
+    // Reset to first channel
+    if (allChannels.length > 0) {
+      setSelectedChannelsForUpload([allChannels[0].id])
+    }
+  }
+
   return (
     <div className="p-4 md:p-6 lg:p-8">
-      <div className="mb-6 md:mb-8 rounded-xl md:rounded-2xl bg-gradient-to-r from-orange-100 to-red-50 border border-gray-200 p-4 md:p-8">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Content Studio</h1>
-        <p className="text-sm md:text-base text-gray-700">
-          Manage, edit, and organize your video content all in one place
-        </p>
+      {/* Upload Video Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => !isUploading && setShowUploadModal(false)}>
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-red-500 via-pink-500 to-purple-500 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-white/20 backdrop-blur-sm rounded-full">
+                    <Video className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">Upload Video</h2>
+                    <p className="text-white/80 text-sm">Upload Shorts or Long videos to your channel</p>
+                  </div>
+                </div>
+                {!isUploading && (
+                  <button
+                    onClick={() => setShowUploadModal(false)}
+                    className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                  >
+                    <X className="w-6 h-6 text-white" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+              {/* Video Type Selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-bold text-gray-900 mb-3">Video Type</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => setUploadType('short')}
+                    disabled={isUploading}
+                    className={`p-4 border-2 rounded-xl transition-all ${
+                      uploadType === 'short'
+                        ? 'border-red-500 bg-red-50'
+                        : 'border-gray-200 hover:border-red-300'
+                    } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <Zap className={`w-6 h-6 ${uploadType === 'short' ? 'text-red-600' : 'text-gray-600'}`} />
+                      <h3 className={`font-bold ${uploadType === 'short' ? 'text-red-900' : 'text-gray-900'}`}>
+                        YouTube Shorts
+                      </h3>
+                    </div>
+                    <p className="text-xs text-gray-600">Vertical video, up to 60 seconds</p>
+                  </button>
+
+                  <button
+                    onClick={() => setUploadType('long')}
+                    disabled={isUploading}
+                    className={`p-4 border-2 rounded-xl transition-all ${
+                      uploadType === 'long'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-300'
+                    } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <Video className={`w-6 h-6 ${uploadType === 'long' ? 'text-blue-600' : 'text-gray-600'}`} />
+                      <h3 className={`font-bold ${uploadType === 'long' ? 'text-blue-900' : 'text-gray-900'}`}>
+                        Long Video
+                      </h3>
+                    </div>
+                    <p className="text-xs text-gray-600">Standard video, any duration</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* File Upload */}
+              <div className="mb-6">
+                <label className="block text-sm font-bold text-gray-900 mb-3">Video File</label>
+                <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-blue-400 transition-colors">
+                  <input
+                    type="file"
+                    accept="video/*"
+                    onChange={handleFileSelect}
+                    disabled={isUploading}
+                    className="hidden"
+                    id="video-upload"
+                  />
+                  <label htmlFor="video-upload" className={`cursor-pointer ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    {selectedFile ? (
+                      <div className="flex items-center justify-center gap-3">
+                        <Video className="w-8 h-8 text-green-600" />
+                        <div className="text-left">
+                          <p className="font-bold text-gray-900">{selectedFile.name}</p>
+                          <p className="text-sm text-gray-600">
+                            {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                          </p>
+                        </div>
+                        {!isUploading && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault()
+                              setSelectedFile(null)
+                            }}
+                            className="ml-4 p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        <Upload className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                        <p className="font-semibold text-gray-900 mb-1">Click to upload video</p>
+                        <p className="text-sm text-gray-600">
+                          {uploadType === 'short' ? 'Max 2GB, up to 60 seconds' : 'Max 128GB'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">MP4, WebM, MOV, AVI</p>
+                      </div>
+                    )}
+                  </label>
+                </div>
+              </div>
+
+              {/* Video Details */}
+              <div className="space-y-4">
+                {/* Channel Selector with Multi-Select */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 mb-3">
+                    Upload to Channels <span className="text-red-500">*</span>
+                  </label>
+                  <div className="space-y-2">
+                    {allChannels.map((channel) => (
+                      <button
+                        key={channel.id}
+                        type="button"
+                        onClick={() => handleChannelToggleForUpload(channel.id)}
+                        disabled={isUploading}
+                        className={`w-full flex items-center gap-3 p-3 border-2 rounded-xl transition-all ${
+                          selectedChannelsForUpload.includes(channel.id)
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                        } ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                      >
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                          selectedChannelsForUpload.includes(channel.id)
+                            ? 'bg-blue-600 border-blue-600'
+                            : 'border-gray-300 bg-white'
+                        }`}>
+                          {selectedChannelsForUpload.includes(channel.id) && (
+                            <CheckCircle className="w-4 h-4 text-white" />
+                          )}
+                        </div>
+                        <img
+                          src={channel.thumbnail}
+                          alt={channel.title}
+                          className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-md"
+                        />
+                        <div className="flex-1 text-left min-w-0">
+                          <p className={`font-bold text-sm truncate ${
+                            selectedChannelsForUpload.includes(channel.id) ? 'text-blue-900' : 'text-gray-900'
+                          }`}>
+                            {channel.title}
+                          </p>
+                          <p className="text-xs text-gray-600 truncate">
+                            {formatNumber(channel.subscriberCount)} subscribers • {formatNumber(channel.videoCount)} videos
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {selectedChannelsForUpload.length === 0 && 'Select at least one channel to upload this video.'}
+                    {selectedChannelsForUpload.length === 1 && '1 channel selected. Video will be uploaded to this channel.'}
+                    {selectedChannelsForUpload.length > 1 && `${selectedChannelsForUpload.length} channels selected. Video will be uploaded to all selected channels.`}
+                  </p>
+                </div>
+
+                {/* Title */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 mb-2">
+                    Title {uploadType === 'short' && <span className="text-xs text-gray-600">(Add #Shorts for better reach)</span>}
+                  </label>
+                  <input
+                    type="text"
+                    value={uploadData.title}
+                    onChange={(e) => setUploadData({ ...uploadData, title: e.target.value })}
+                    disabled={isUploading}
+                    placeholder={uploadType === 'short' ? 'Amazing moment! #Shorts' : 'Enter video title'}
+                    maxLength={100}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">{uploadData.title.length}/100 characters</p>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 mb-2">Description</label>
+                  <textarea
+                    value={uploadData.description}
+                    onChange={(e) => setUploadData({ ...uploadData, description: e.target.value })}
+                    disabled={isUploading}
+                    placeholder="Describe your video..."
+                    rows={4}
+                    maxLength={5000}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50 resize-none"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">{uploadData.description.length}/5000 characters</p>
+                </div>
+
+                {/* Tags */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 mb-2">Tags (comma separated)</label>
+                  <input
+                    type="text"
+                    value={uploadData.tags}
+                    onChange={(e) => setUploadData({ ...uploadData, tags: e.target.value })}
+                    disabled={isUploading}
+                    placeholder="gaming, tutorial, funny"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                  />
+                </div>
+
+                {/* Privacy */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-900 mb-2">Privacy</label>
+                  <select
+                    value={uploadData.privacy}
+                    onChange={(e) => setUploadData({ ...uploadData, privacy: e.target.value })}
+                    disabled={isUploading}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:opacity-50"
+                  >
+                    <option value="public">Public</option>
+                    <option value="unlisted">Unlisted</option>
+                    <option value="private">Private</option>
+                  </select>
+                </div>
+
+                {/* Made for Kids */}
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="madeForKids"
+                    checked={uploadData.madeForKids}
+                    onChange={(e) => setUploadData({ ...uploadData, madeForKids: e.target.checked })}
+                    disabled={isUploading}
+                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="madeForKids" className="text-sm font-medium text-gray-900">
+                    Made for kids
+                  </label>
+                </div>
+              </div>
+
+              {/* Upload Progress */}
+              {isUploading && (
+                <div className="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-bold text-blue-900">Uploading...</span>
+                    <span className="text-sm font-bold text-blue-900">{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-blue-500 to-purple-600 h-full transition-all duration-300 rounded-full"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-blue-700 mt-2">Please don't close this window...</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-gray-200 p-6 bg-gray-50">
+              <div className="flex items-center justify-between gap-4">
+                <button
+                  onClick={() => setShowUploadModal(false)}
+                  disabled={isUploading}
+                  className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpload}
+                  disabled={isUploading || !selectedFile || !uploadData.title.trim()}
+                  className="px-6 py-3 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg hover:from-red-700 hover:to-pink-700 font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isUploading ? (
+                    <>
+                      <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-5 h-5" />
+                      Upload {uploadType === 'short' ? 'Short' : 'Video'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Results Modal */}
+      {showUploadResults && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-white/20 backdrop-blur-sm rounded-full">
+                    <CheckCircle className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">Upload Complete!</h2>
+                    <p className="text-white/80 text-sm">
+                      {uploadResults.length} video{uploadResults.length !== 1 ? 's' : ''} uploaded successfully
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowUploadResults(false)
+                    setShowUploadModal(false)
+                    resetUploadForm()
+                  }}
+                  className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6 text-white" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+              <div className="space-y-4">
+                <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4 mb-4">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
+                    <div>
+                      <h3 className="font-bold text-green-900 mb-1">Videos Successfully Uploaded</h3>
+                      <p className="text-sm text-green-700">
+                        Your {uploadType === 'short' ? 'Short' : 'video'} "{uploadData.title}" has been uploaded to {uploadResults.length} channel{uploadResults.length !== 1 ? 's' : ''}.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="font-bold text-gray-900 text-sm">View Videos on YouTube:</h4>
+                  {uploadResults.map((result, index) => (
+                    <div key={result.channelId} className="flex items-center gap-3 p-4 bg-gray-50 border-2 border-gray-200 rounded-xl hover:border-blue-300 transition-all">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold flex-shrink-0">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-gray-900 text-sm truncate">{result.channelName}</p>
+                        <p className="text-xs text-gray-600 truncate">{result.videoUrl}</p>
+                      </div>
+                      <button
+                        onClick={() => window.open(result.videoUrl, '_blank')}
+                        className="px-4 py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg hover:from-red-700 hover:to-pink-700 font-semibold text-sm transition-all flex items-center gap-2 flex-shrink-0"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        View Video
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-gray-200 p-6 bg-gray-50">
+              <div className="flex items-center justify-center gap-4">
+                <button
+                  onClick={() => {
+                    setShowUploadResults(false)
+                    setShowUploadModal(false)
+                    resetUploadForm()
+                  }}
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 font-semibold transition-all flex items-center gap-2"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Channel Modal */}
+      {showBulkChannelModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowBulkChannelModal(false)}>
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-white/20 backdrop-blur-sm rounded-full">
+                    <Users className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">Bulk Channel Manager</h2>
+                    <p className="text-white/80 text-sm">Manage all your YouTube channels in one place</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowBulkChannelModal(false)}
+                  className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6 text-white" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+              {/* Stats Overview */}
+              {allChannels.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-bold text-blue-900 text-sm">Connected Channels</h4>
+                      <Youtube className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <p className="text-3xl font-bold text-blue-900">{allChannels.length}</p>
+                    <p className="text-xs text-blue-700 mt-1">Active {allChannels.length === 1 ? 'channel' : 'channels'}</p>
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-bold text-purple-900 text-sm">Total Subscribers</h4>
+                      <Users className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <p className="text-3xl font-bold text-purple-900">{formatNumber(totalSubscribers.toString())}</p>
+                    <p className="text-xs text-purple-700 mt-1">Across all channels</p>
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-bold text-green-900 text-sm">Total Videos</h4>
+                      <Video className="w-5 h-5 text-green-600" />
+                    </div>
+                    <p className="text-3xl font-bold text-green-900">{formatNumber(totalVideos.toString())}</p>
+                    <p className="text-xs text-green-700 mt-1">Combined content</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-6 p-6 bg-yellow-50 border-2 border-yellow-200 rounded-xl">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Youtube className="w-6 h-6 text-yellow-600" />
+                    <h4 className="font-bold text-yellow-900">No Channel Connected</h4>
+                  </div>
+                  <p className="text-sm text-yellow-800">Connect your YouTube channel to manage it here.</p>
+                </div>
+              )}
+
+              {/* Channel List */}
+              <div className="space-y-3">
+                <h3 className="font-bold text-gray-900 text-lg mb-4">Your Channels</h3>
+                
+                {allChannels.length > 0 ? (
+                  <div className="space-y-3">
+                    {allChannels.map((channel) => (
+                      <div key={channel.id} className="flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-indigo-300 hover:shadow-lg transition-all group">
+                        <div className="relative flex-shrink-0">
+                          <div className="absolute inset-0 bg-gradient-to-br from-red-500 to-pink-600 rounded-full blur-sm opacity-0 group-hover:opacity-50 transition-opacity"></div>
+                          <img
+                            src={channel.thumbnail}
+                            alt={channel.title}
+                            className="relative w-14 h-14 rounded-full shadow-lg object-cover border-2 border-white"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-bold text-gray-900 text-base group-hover:text-indigo-600 transition-colors truncate">
+                              {channel.title}
+                            </h4>
+                            <span className="flex-shrink-0 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold rounded-full flex items-center gap-1">
+                              <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                              Active
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-gray-600">
+                            <div className="flex items-center gap-1">
+                              <Users className="w-3.5 h-3.5" />
+                              <span className="font-semibold">{formatNumber(channel.subscriberCount)} subscribers</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Video className="w-3.5 h-3.5" />
+                              <span className="font-semibold">{formatNumber(channel.videoCount)} videos</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg transition-colors" title="Manage Channel">
+                            <Settings className="w-4 h-4" />
+                          </button>
+                          <button className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors" title="View Analytics">
+                            <BarChart3 className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleRemoveChannel(channel.id)}
+                            className="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors" 
+                            title="Disconnect Channel"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl">
+                    <Youtube className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                    <p className="text-gray-600 mb-4">No channels connected yet</p>
+                    <Button
+                      onClick={handleConnectNewChannel}
+                      className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white font-semibold"
+                    >
+                      <Youtube className="w-4 h-4 mr-2" />
+                      Connect Your First Channel
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Add New Channel Button - Always show */}
+              <button
+                onClick={handleConnectNewChannel}
+                className="w-full mt-6 p-4 border-2 border-dashed border-indigo-300 rounded-xl hover:border-indigo-500 hover:bg-indigo-50 transition-all group"
+              >
+                <div className="flex items-center justify-center gap-3">
+                  <div className="p-2 bg-indigo-100 group-hover:bg-indigo-200 rounded-full transition-colors">
+                    <Plus className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                      {allChannels.length > 0 ? 'Connect Another Channel' : 'Connect Your First Channel'}
+                    </p>
+                    <p className="text-sm text-gray-600">Add {allChannels.length > 0 ? 'more' : ''} YouTube channels to manage</p>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-gray-200 p-6 bg-gray-50">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-600">
+                  {allChannels.length > 0
+                    ? `Managing ${allChannels.length} ${allChannels.length === 1 ? 'channel' : 'channels'} • All channels appear in Profile and Dashboard` 
+                    : "Connect channels to manage them here"}
+                </p>
+                <Button
+                  onClick={() => setShowBulkChannelModal(false)}
+                  className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold px-6"
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Enhanced Header with Gradient Border */}
+      <div className="mb-6 md:mb-8 rounded-xl md:rounded-2xl bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 border border-orange-300 p-[2px] shadow-lg hover:shadow-2xl transition-all duration-300">
+        <div className="bg-white rounded-xl md:rounded-2xl p-4 md:p-8">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-orange-400 to-red-600 rounded-full blur-md opacity-50 animate-pulse"></div>
+              <div className="relative bg-gradient-to-br from-orange-600 to-red-600 rounded-full p-2.5 shadow-lg">
+                <Video className="w-6 h-6 md:w-7 md:h-7 text-white" />
+              </div>
+            </div>
+            <h1 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 bg-clip-text text-transparent">
+              Content Studio
+            </h1>
+          </div>
+          <p className="text-sm md:text-base text-gray-600 leading-relaxed">
+            Manage, edit, and organize your video content all in one place with powerful AI tools
+          </p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-        <ContentCard
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
+        <div className="group bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+              <Video className="w-4 h-4 text-white" />
+            </div>
+            <p className="text-xs font-semibold text-white/90">Total Videos</p>
+          </div>
+          <p className="text-2xl md:text-3xl font-bold text-white group-hover:scale-110 transition-transform">
+            245
+          </p>
+          <div className="mt-2 flex items-center gap-1 text-white/80 text-xs">
+            <TrendingUp className="w-3 h-3" />
+            <span>+12 this month</span>
+          </div>
+        </div>
+
+        <div className="group bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+              <Eye className="w-4 h-4 text-white" />
+            </div>
+            <p className="text-xs font-semibold text-white/90">Draft Videos</p>
+          </div>
+          <p className="text-2xl md:text-3xl font-bold text-white group-hover:scale-110 transition-transform">
+            8
+          </p>
+          <div className="mt-2 flex items-center gap-1 text-white/80 text-xs">
+            <ChevronRight className="w-3 h-3" />
+            <span>In progress</span>
+          </div>
+        </div>
+
+        <div className="group bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+              <BarChart3 className="w-4 h-4 text-white" />
+            </div>
+            <p className="text-xs font-semibold text-white/90">Playlists</p>
+          </div>
+          <p className="text-2xl md:text-3xl font-bold text-white group-hover:scale-110 transition-transform">
+            18
+          </p>
+          <div className="mt-2 flex items-center gap-1 text-white/80 text-xs">
+            <Sparkles className="w-3 h-3" />
+            <span>Organized</span>
+          </div>
+        </div>
+
+        <div className="group bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-4 shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+              <Calendar className="w-4 h-4 text-white" />
+            </div>
+            <p className="text-xs font-semibold text-white/90">Scheduled</p>
+          </div>
+          <p className="text-2xl md:text-3xl font-bold text-white group-hover:scale-110 transition-transform">
+            5
+          </p>
+          <div className="mt-2 flex items-center gap-1 text-white/80 text-xs">
+            <Globe className="w-3 h-3" />
+            <span>Ready to publish</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Action Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8">
+        <EnhancedContentCard
           title="Upload New Video"
           icon={Video}
-          description="Create and upload new video content"
+          description="Create and upload new video content with AI-powered optimization"
           color="from-blue-500 to-blue-600"
+          badge="Quick Start"
+          badgeColor="bg-blue-100 text-blue-700"
+          onClick={() => setShowUploadModal(true)}
         />
-        <ContentCard
+        <EnhancedContentCard
           title="Edit Videos"
           icon={Zap}
-          description="Trim, edit, and enhance your videos"
+          description="Trim, edit, and enhance your videos with advanced editing tools"
           color="from-purple-500 to-purple-600"
+          badge="Pro Tools"
+          badgeColor="bg-purple-100 text-purple-700"
         />
-        <ContentCard
+        <EnhancedContentCard
           title="Manage Playlists"
           icon={BarChart3}
-          description="Organize videos into playlists"
+          description="Organize videos into playlists and optimize viewer retention"
           color="from-orange-500 to-orange-600"
+          badge="Organize"
+          badgeColor="bg-orange-100 text-orange-700"
         />
-        <ContentCard
+        <EnhancedContentCard
           title="Schedule Posts"
-          icon={Video}
-          description="Plan content for future publishing"
+          icon={Calendar}
+          description="Plan content for future publishing with smart scheduling"
           color="from-green-500 to-green-600"
+          badge="Auto Publish"
+          badgeColor="bg-green-100 text-green-700"
         />
+        <EnhancedContentCard
+          title="AI Thumbnails"
+          icon={Sparkles}
+          description="Generate eye-catching thumbnails using AI technology"
+          color="from-pink-500 to-rose-600"
+          badge="AI Powered"
+          badgeColor="bg-pink-100 text-pink-700"
+        />
+        <EnhancedContentCard
+          title="Bulk Channel Manager"
+          icon={Users}
+          description="Manage multiple YouTube channels in one place with bulk actions"
+          color="from-indigo-500 to-indigo-600"
+          badge="Multi-Channel"
+          badgeColor="bg-indigo-100 text-indigo-700"
+          onClick={() => setShowBulkChannelModal(true)}
+        />
+      </div>
+
+      {/* Recent Activity Section */}
+      <div className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="absolute inset-0 bg-blue-400 rounded-full blur-md opacity-50 animate-pulse"></div>
+              <div className="relative p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full shadow-lg">
+                <BarChart3 className="w-6 h-6 text-white" />
+              </div>
+            </div>
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900">Recent Activity</h3>
+          </div>
+          <button className="text-blue-600 hover:text-blue-800 font-semibold text-sm flex items-center gap-1 group">
+            View All
+            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
+        
+        <div className="space-y-3">
+          <ActivityItem
+            icon={Video}
+            title="New video uploaded"
+            description="'How to grow your YouTube channel' - Published 2 hours ago"
+            color="from-blue-500 to-blue-600"
+            time="2h ago"
+          />
+          <ActivityItem
+            icon={Sparkles}
+            title="Thumbnail generated"
+            description="AI created 5 thumbnail options for your latest video"
+            color="from-purple-500 to-purple-600"
+            time="5h ago"
+          />
+          <ActivityItem
+            icon={TrendingUp}
+            title="Video trending"
+            description="'Best YouTube Tips' is gaining 2.5K views/hour"
+            color="from-green-500 to-green-600"
+            time="1d ago"
+          />
+          <ActivityItem
+            icon={Calendar}
+            title="Scheduled post ready"
+            description="'Weekly Vlog #45' scheduled for tomorrow at 2 PM"
+            color="from-orange-500 to-orange-600"
+            time="2d ago"
+          />
+        </div>
+      </div>
+
+      {/* AI Tools Section */}
+      <div className="bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 border-2 border-purple-200 rounded-2xl p-6 md:p-8 shadow-lg hover:shadow-2xl transition-all duration-300">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="relative">
+            <div className="absolute inset-0 bg-purple-400 rounded-full blur-md opacity-50 animate-pulse"></div>
+            <div className="relative p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full shadow-lg">
+              <Sparkles className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <div>
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900">AI-Powered Tools</h3>
+            <p className="text-sm text-gray-600">Supercharge your content creation workflow</p>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <AIToolButton
+            icon={Sparkles}
+            title="Title Generator"
+            description="Create click-worthy titles"
+            gradient="from-blue-500 to-cyan-500"
+          />
+          <AIToolButton
+            icon={MessageSquare}
+            title="Description Writer"
+            description="SEO-optimized descriptions"
+            gradient="from-purple-500 to-pink-500"
+          />
+          <AIToolButton
+            icon={Video}
+            title="Script Generator"
+            description="AI-written video scripts"
+            gradient="from-orange-500 to-red-500"
+          />
+        </div>
       </div>
     </div>
   )
@@ -793,14 +2374,123 @@ function ContentCard({
   )
 }
 
+function EnhancedContentCard({
+  title,
+  icon: Icon,
+  description,
+  color,
+  badge,
+  badgeColor,
+  onClick,
+}: {
+  title: string
+  icon: React.ComponentType<{ className?: string }>
+  description: string
+  color: string
+  badge: string
+  badgeColor: string
+  onClick?: () => void
+}) {
+  return (
+    <div 
+      onClick={onClick}
+      className="group bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-2xl p-6 hover:shadow-2xl transition-all duration-300 hover:border-blue-300 hover:scale-105 cursor-pointer">
+      <div className="flex items-start justify-between mb-4">
+        <div className="relative">
+          <div className={`absolute inset-0 bg-gradient-to-br ${color} rounded-xl blur-md opacity-0 group-hover:opacity-50 transition-opacity`}></div>
+          <div className={`relative p-3 rounded-xl bg-gradient-to-br ${color} shadow-lg group-hover:scale-110 transition-transform`}>
+            <Icon className="w-6 h-6 text-white" />
+          </div>
+        </div>
+        <span className={`text-xs font-bold px-3 py-1 rounded-full ${badgeColor}`}>
+          {badge}
+        </span>
+      </div>
+      <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
+        {title}
+      </h3>
+      <p className="text-gray-600 text-sm leading-relaxed mb-4">
+        {description}
+      </p>
+      <button className="w-full mt-auto py-2 px-4 bg-gray-100 hover:bg-gradient-to-r hover:from-blue-600 hover:to-purple-600 hover:text-white text-gray-700 font-semibold rounded-lg transition-all duration-300 flex items-center justify-center gap-2 group-hover:shadow-lg">
+        <span>Get Started</span>
+        <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+      </button>
+    </div>
+  )
+}
+
+function ActivityItem({
+  icon: Icon,
+  title,
+  description,
+  color,
+  time,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+  description: string
+  color: string
+  time: string
+}) {
+  return (
+    <div className="flex items-start gap-4 p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group">
+      <div className="relative flex-shrink-0">
+        <div className={`absolute inset-0 bg-gradient-to-br ${color} rounded-lg blur-sm opacity-0 group-hover:opacity-50 transition-opacity`}></div>
+        <div className={`relative p-2.5 rounded-lg bg-gradient-to-br ${color} shadow-md`}>
+          <Icon className="w-5 h-5 text-white" />
+        </div>
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-1">
+          <h4 className="font-bold text-gray-900 text-sm group-hover:text-blue-600 transition-colors">
+            {title}
+          </h4>
+          <span className="text-xs text-gray-500 font-medium flex-shrink-0 ml-2">{time}</span>
+        </div>
+        <p className="text-gray-600 text-xs leading-relaxed">{description}</p>
+      </div>
+      <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all flex-shrink-0" />
+    </div>
+  )
+}
+
+function AIToolButton({
+  icon: Icon,
+  title,
+  description,
+  gradient,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+  description: string
+  gradient: string
+}) {
+  return (
+    <button className="group relative bg-white border-2 border-purple-200 rounded-xl p-5 hover:border-purple-400 transition-all duration-300 hover:shadow-xl hover:scale-105 text-left">
+      <div className="relative mb-3">
+        <div className={`absolute inset-0 bg-gradient-to-br ${gradient} rounded-lg blur-md opacity-0 group-hover:opacity-50 transition-opacity`}></div>
+        <div className={`relative p-2.5 w-fit rounded-lg bg-gradient-to-br ${gradient} shadow-lg group-hover:scale-110 transition-transform`}>
+          <Icon className="w-5 h-5 text-white" />
+        </div>
+      </div>
+      <h4 className="font-bold text-gray-900 mb-1 group-hover:text-purple-600 transition-colors">
+        {title}
+      </h4>
+      <p className="text-gray-600 text-xs leading-relaxed mb-3">{description}</p>
+      <div className="flex items-center gap-1 text-purple-600 text-xs font-semibold">
+        <span>Try Now</span>
+        <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+      </div>
+    </button>
+  )
+}
+
 function AnalyticsCard({ title, description }: { title: string; description: string }) {
   return (
     <div className="bg-white border border-gray-200 rounded-lg md:rounded-xl p-4 md:p-6 hover:shadow-lg transition">
       <h3 className="text-base md:text-lg font-bold text-gray-900 mb-2">{title}</h3>
-      <p className="text-gray-600 text-xs md:text-sm mb-4">{description}</p>
-      <div className="h-40 bg-gradient-to-br from-green-500/5 to-emerald-500/5 rounded-lg flex items-center justify-center border border-gray-200">
-        <p className="text-gray-400 text-xs md:text-sm">Chart placeholder</p>
-      </div>
+      <p className="text-gray-600 text-xs md:text-sm">{description}</p>
     </div>
   )
 }
@@ -816,26 +2506,20 @@ function AIToolCard({
 }) {
   return (
     <div className="bg-white border border-gray-200 rounded-lg md:rounded-xl p-4 md:p-6 hover:shadow-lg transition">
-      <div className="p-3 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 w-fit mb-4">
+      <div className="p-3 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 w-fit mb-4">
         <Icon className="w-6 h-6 text-white" />
       </div>
       <h3 className="text-base md:text-lg font-bold text-gray-900 mb-2">{title}</h3>
       <p className="text-gray-600 text-xs md:text-sm">{description}</p>
-      <Button className="mt-4 w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-sm">
-        Try Now
-      </Button>
     </div>
   )
 }
 
 function SettingCard({ title, description }: { title: string; description: string }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg md:rounded-xl p-4 md:p-6 flex items-center justify-between hover:shadow-lg transition">
-      <div>
-        <h3 className="text-base md:text-lg font-bold text-gray-900 mb-1">{title}</h3>
-        <p className="text-gray-600 text-xs md:text-sm">{description}</p>
-      </div>
-      <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
+    <div className="bg-white border border-gray-200 rounded-lg md:rounded-xl p-4 md:p-6 hover:shadow-lg transition">
+      <h3 className="text-base md:text-lg font-bold text-gray-900 mb-2">{title}</h3>
+      <p className="text-gray-600 text-xs md:text-sm">{description}</p>
     </div>
   )
 }
