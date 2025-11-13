@@ -1,7 +1,5 @@
 "use client"
 
-export const dynamic = 'force-dynamic'
-
 import type React from "react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
@@ -33,7 +31,6 @@ import {
   Plus,
   Trash2,
   Upload,
-  ExternalLink,
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useSession, signOut } from "next-auth/react"
@@ -1005,6 +1002,29 @@ function CompareView() {
 }
 
 function DashboardView({ stats, isLoading, youtubeChannel, channelLoading }: { stats: any[]; isLoading: boolean; youtubeChannel: YouTubeChannel | null; channelLoading: boolean }) {
+  const [trendingKeywords, setTrendingKeywords] = useState<{keyword: string, frequency: number}[]>([])
+  const [loadingKeywords, setLoadingKeywords] = useState(true)
+
+  useEffect(() => {
+    const fetchTrendingKeywords = async () => {
+      try {
+        setLoadingKeywords(true)
+        const response = await fetch('/api/youtube/trending?maxResults=20')
+        const data = await response.json()
+        
+        if (data.success && data.keywords) {
+          setTrendingKeywords(data.keywords)
+        }
+      } catch (error) {
+        console.error('Error fetching trending keywords:', error)
+      } finally {
+        setLoadingKeywords(false)
+      }
+    }
+
+    fetchTrendingKeywords()
+  }, [])
+
   return (
     <div className="p-4 md:p-6 lg:p-8">
       {isLoading ? (
@@ -1087,7 +1107,7 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading }: { s
 
       {/* Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-        {/* Performance Chart */}
+        {/* Performance Trend with Trending Keywords */}
         <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl md:rounded-2xl p-4 md:p-6 backdrop-blur-sm shadow-sm hover:shadow-md transition">
           <div className="flex items-center justify-between mb-4 md:mb-6">
             <h2 className="text-lg md:text-xl font-bold text-gray-900">Performance Trend</h2>
@@ -1095,12 +1115,7 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading }: { s
               <BarChart3 className="w-5 h-5" />
             </button>
           </div>
-          <div className="h-48 md:h-64 bg-gradient-to-br from-blue-500/5 to-purple-500/5 rounded-lg flex items-center justify-center border border-gray-200">
-            <div className="text-center">
-              <BarChart3 className="w-10 h-10 md:w-12 md:h-12 text-gray-400 mx-auto mb-2 md:mb-3" />
-              <p className="text-gray-400 font-medium text-sm">Chart visualization</p>
-            </div>
-          </div>
+          <TrendingKeywordsCard trendingKeywords={trendingKeywords} loadingKeywords={loadingKeywords} />
         </div>
 
         {/* Quick Actions */}
@@ -1181,6 +1196,7 @@ function ContentStudioView({ youtubeChannel }: { youtubeChannel: YouTubeChannel 
       // Set default upload channel to the first available channel
       if (channels.length > 0 && selectedChannelsForUpload.length === 0) {
         setSelectedChannelsForUpload([channels[0].id])
+        setSelectedUploadChannel(channels[0])
       }
     }
     
@@ -1234,6 +1250,10 @@ function ContentStudioView({ youtubeChannel }: { youtubeChannel: YouTubeChannel 
           }
           
           loadAllChannels()
+          // Set default upload channel after loading
+          if (allChannels.length > 0) {
+            setSelectedUploadChannel(allChannels[0])
+          }
         }, 1000)
       }
     }, 500)
@@ -1293,16 +1313,6 @@ function ContentStudioView({ youtubeChannel }: { youtubeChannel: YouTubeChannel 
     }
   }
 
-  const handleChannelToggleForUpload = (channelId: string) => {
-    setSelectedChannelsForUpload(prev => {
-      if (prev.includes(channelId)) {
-        return prev.filter(id => id !== channelId)
-      } else {
-        return [...prev, channelId]
-      }
-    })
-  }
-
   const handleUpload = async () => {
     if (!selectedFile) {
       alert('Please select a video file')
@@ -1314,140 +1324,91 @@ function ContentStudioView({ youtubeChannel }: { youtubeChannel: YouTubeChannel 
       return
     }
 
-    if (selectedChannelsForUpload.length === 0) {
-      alert('Please select at least one channel to upload to')
+    if (!selectedUploadChannel) {
+      alert('Please select a channel to upload to')
+      return
+    }
+
+    const accessToken = localStorage.getItem('youtube_access_token')
+    if (!accessToken) {
+      alert('YouTube access token not found. Please reconnect your channel.')
       return
     }
 
     setIsUploading(true)
     setUploadProgress(0)
-    setUploadResults([])
 
     try {
-      const results: Array<{channelId: string, channelName: string, videoUrl: string}> = []
-      const totalChannels = selectedChannelsForUpload.length
-      
-      console.log('=== UPLOAD DEBUG ===')
-      console.log('Total channels selected:', selectedChannelsForUpload.length)
-      console.log('Selected channel IDs:', selectedChannelsForUpload)
-      
-      for (let i = 0; i < selectedChannelsForUpload.length; i++) {
-        const channelId = selectedChannelsForUpload[i]
-        const channel = allChannels.find(ch => ch.id === channelId)
-        
-        console.log(`\n--- Processing Channel ${i + 1}/${totalChannels} ---`)
-        console.log('Channel ID:', channelId)
-        console.log('Channel Name:', channel?.title || 'NOT FOUND')
-        
-        if (!channel) {
-          console.error('Channel not found in allChannels array!')
-          continue
-        }
+      // Create FormData for upload
+      const formData = new FormData()
+      formData.append('video', selectedFile)
+      formData.append('title', uploadData.title)
+      formData.append('description', uploadData.description)
+      formData.append('tags', uploadData.tags)
+      formData.append('privacy', uploadData.privacy)
+      formData.append('madeForKids', uploadData.madeForKids.toString())
+      formData.append('category', uploadData.category)
+      formData.append('access_token', accessToken)
 
-        // Update progress
-        const baseProgress = (i / totalChannels) * 90
-        setUploadProgress(Math.floor(baseProgress))
+      // Simulate progress for large files
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(progressInterval)
+            return 90
+          }
+          return prev + 10
+        })
+      }, 1000)
 
-        // Get access token for this specific channel
-        const isMainChannel = youtubeChannel?.id === channelId
-        console.log('Is Main Channel:', isMainChannel)
+      // Upload to YouTube API
+      const response = await fetch('/api/youtube/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      
+      clearInterval(progressInterval)
+      const data = await response.json()
+      
+      if (data.success) {
+        setUploadProgress(100)
         
-        let accessToken = null
-        
-        if (isMainChannel) {
-          // Main channel token
-          accessToken = localStorage.getItem('youtube_access_token')
-          console.log('Using MAIN channel token:', accessToken ? accessToken.substring(0, 20) + '...' : 'NOT FOUND')
-        } else {
-          // Additional channel - MUST have its own token
-          const channelTokenKey = `youtube_access_token_${channelId}`
-          accessToken = localStorage.getItem(channelTokenKey)
-          console.log('Looking for token key:', channelTokenKey)
-          console.log('Found channel-specific token:', accessToken ? accessToken.substring(0, 20) + '...' : 'NOT FOUND')
+        setTimeout(() => {
+          alert(`${uploadType === 'short' ? 'Short' : 'Video'} "${uploadData.title}" uploaded successfully to ${selectedUploadChannel?.title}!\n\nVideo URL: ${data.video.url}`)
+          setShowUploadModal(false)
+          resetUploadForm()
           
-          // Fallback to main token (THIS IS THE BUG - remove this)
-          if (!accessToken) {
-            console.error('❌ ERROR: No channel-specific token found!')
-            console.error('This channel needs to be connected via OAuth from Content page!')
-            alert(`Channel "${channel.title}" is not properly connected. Please reconnect this channel from the Content page.`)
-            continue
+          // Optionally redirect to the video
+          if (confirm('Do you want to view the video on YouTube?')) {
+            window.open(data.video.url, '_blank')
           }
-        }
-        
-        if (!accessToken) {
-          console.error(`❌ No access token found for channel: ${channel.title}`)
-          alert(`No access token for channel: ${channel.title}. Please reconnect this channel.`)
-          continue
-        }
-        
-        console.log('✅ Token found, proceeding with upload...')
-
-        // Create FormData for upload
-        const formData = new FormData()
-        formData.append('video', selectedFile)
-        formData.append('title', uploadData.title)
-        formData.append('description', uploadData.description)
-        formData.append('tags', uploadData.tags)
-        formData.append('privacy', uploadData.privacy)
-        formData.append('madeForKids', uploadData.madeForKids.toString())
-        formData.append('category', uploadData.category)
-        formData.append('access_token', accessToken)
-        formData.append('channelId', channelId) // Pass channel ID to verify
-
-        try {
-          // Upload to YouTube API
-          const response = await fetch('/api/youtube/upload', {
+        }, 500)
+      } else if (data.expired) {
+        // Token expired, try to refresh
+        const refreshToken = localStorage.getItem('youtube_refresh_token')
+        if (refreshToken) {
+          const refreshResponse = await fetch('/api/youtube/refresh', {
             method: 'POST',
-            body: formData,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ refreshToken }),
           })
-
-          const data = await response.json()
-
-          if (data.success) {
-            console.log('✅ Upload SUCCESS for channel:', channel.title)
-            console.log('Video uploaded to channel:', data.video.channelTitle || channel.title)
-            console.log('Video URL:', data.video.url)
-            
-            results.push({
-              channelId: channel.id,
-              channelName: channel.title,
-              videoUrl: data.video.url
-            })
-          } else if (data.channelMismatch) {
-            console.error('❌ CHANNEL MISMATCH ERROR:', data.error)
-            alert(`Upload failed for ${channel.title}: ${data.error}`)
-          } else if (data.expired) {
-            // Try to refresh token
-            const refreshToken = localStorage.getItem('youtube_refresh_token')
-            if (refreshToken) {
-              const refreshResponse = await fetch('/api/youtube/refresh', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ refreshToken }),
-              })
-              
-              const refreshData = await refreshResponse.json()
-              
-              if (refreshData.success && refreshData.access_token) {
-                localStorage.setItem('youtube_access_token', refreshData.access_token)
-              }
-            }
+          
+          const refreshData = await refreshResponse.json()
+          
+          if (refreshData.success && refreshData.access_token) {
+            localStorage.setItem('youtube_access_token', refreshData.access_token)
+            alert('Session refreshed. Please try uploading again.')
+          } else {
+            alert('Your session has expired. Please reconnect your YouTube channel.')
           }
-        } catch (error: any) {
-          console.error(`Upload error for ${channel.title}:`, error)
+        } else {
+          alert('Your session has expired. Please reconnect your YouTube channel.')
         }
-      }
-
-      setUploadProgress(100)
-      setUploadResults(results)
-      
-      if (results.length > 0) {
-        setShowUploadResults(true)
-      } else {
-        alert('All uploads failed. Please check your connection and try again.')
         setIsUploading(false)
+      } else {
+        throw new Error(data.error || 'Upload failed')
       }
     } catch (error: any) {
       console.error('Upload error:', error)
@@ -1468,12 +1429,9 @@ function ContentStudioView({ youtubeChannel }: { youtubeChannel: YouTubeChannel 
     setSelectedFile(null)
     setUploadProgress(0)
     setUploadType('long')
-    setUploadResults([])
-    setShowUploadResults(false)
-    setIsUploading(false)
     // Reset to first channel
     if (allChannels.length > 0) {
-      setSelectedChannelsForUpload([allChannels[0].id])
+      setSelectedUploadChannel(allChannels[0])
     }
   }
 
@@ -1600,57 +1558,71 @@ function ContentStudioView({ youtubeChannel }: { youtubeChannel: YouTubeChannel 
 
               {/* Video Details */}
               <div className="space-y-4">
-                {/* Channel Selector with Multi-Select */}
-                <div>
-                  <label className="block text-sm font-bold text-gray-900 mb-3">
-                    Upload to Channels <span className="text-red-500">*</span>
-                  </label>
-                  <div className="space-y-2">
-                    {allChannels.map((channel) => (
-                      <button
-                        key={channel.id}
-                        type="button"
-                        onClick={() => handleChannelToggleForUpload(channel.id)}
-                        disabled={isUploading}
-                        className={`w-full flex items-center gap-3 p-3 border-2 rounded-xl transition-all ${
-                          selectedChannelsForUpload.includes(channel.id)
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                        } ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                      >
-                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                          selectedChannelsForUpload.includes(channel.id)
-                            ? 'bg-blue-600 border-blue-600'
-                            : 'border-gray-300 bg-white'
-                        }`}>
-                          {selectedChannelsForUpload.includes(channel.id) && (
-                            <CheckCircle className="w-4 h-4 text-white" />
+                {/* Channel Selector */}
+                {allChannels.length > 1 && (
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-3">
+                      Upload to Channel <span className="text-red-500">*</span>
+                    </label>
+                    <div className="space-y-2">
+                      {allChannels.map((channel) => (
+                        <button
+                          key={channel.id}
+                          type="button"
+                          onClick={() => setSelectedUploadChannel(channel)}
+                          disabled={isUploading}
+                          className={`w-full flex items-center gap-3 p-3 border-2 rounded-xl transition-all ${
+                            selectedUploadChannel?.id === channel.id
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                          } ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        >
+                          <img
+                            src={channel.thumbnail}
+                            alt={channel.title}
+                            className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-md"
+                          />
+                          <div className="flex-1 text-left min-w-0">
+                            <p className={`font-bold text-sm truncate ${
+                              selectedUploadChannel?.id === channel.id ? 'text-blue-900' : 'text-gray-900'
+                            }`}>
+                              {channel.title}
+                            </p>
+                            <p className="text-xs text-gray-600 truncate">
+                              {formatNumber(channel.subscriberCount)} subscribers • {formatNumber(channel.videoCount)} videos
+                            </p>
+                          </div>
+                          {selectedUploadChannel?.id === channel.id && (
+                            <CheckCircle className="w-6 h-6 text-blue-600 flex-shrink-0" />
                           )}
-                        </div>
-                        <img
-                          src={channel.thumbnail}
-                          alt={channel.title}
-                          className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-md"
-                        />
-                        <div className="flex-1 text-left min-w-0">
-                          <p className={`font-bold text-sm truncate ${
-                            selectedChannelsForUpload.includes(channel.id) ? 'text-blue-900' : 'text-gray-900'
-                          }`}>
-                            {channel.title}
-                          </p>
-                          <p className="text-xs text-gray-600 truncate">
-                            {formatNumber(channel.subscriberCount)} subscribers • {formatNumber(channel.videoCount)} videos
-                          </p>
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      You have {allChannels.length} connected channels. Select which channel to upload this video to.
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    {selectedChannelsForUpload.length === 0 && 'Select at least one channel to upload this video.'}
-                    {selectedChannelsForUpload.length === 1 && '1 channel selected. Video will be uploaded to this channel.'}
-                    {selectedChannelsForUpload.length > 1 && `${selectedChannelsForUpload.length} channels selected. Video will be uploaded to all selected channels.`}
-                  </p>
-                </div>
+                )}
+
+                {/* Show selected channel if only one channel */}
+                {allChannels.length === 1 && selectedUploadChannel && (
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+                    <label className="block text-sm font-bold text-blue-900 mb-2">Uploading to</label>
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={selectedUploadChannel.thumbnail}
+                        alt={selectedUploadChannel.title}
+                        className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-md"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-blue-900 text-sm truncate">{selectedUploadChannel.title}</p>
+                        <p className="text-xs text-blue-700 truncate">
+                          {formatNumber(selectedUploadChannel.subscriberCount)} subscribers
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Title */}
                 <div>
@@ -1772,96 +1744,6 @@ function ContentStudioView({ youtubeChannel }: { youtubeChannel: YouTubeChannel 
                       Upload {uploadType === 'short' ? 'Short' : 'Video'}
                     </>
                   )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Upload Results Modal */}
-      {showUploadResults && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-white/20 backdrop-blur-sm rounded-full">
-                    <CheckCircle className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-white">Upload Complete!</h2>
-                    <p className="text-white/80 text-sm">
-                      {uploadResults.length} video{uploadResults.length !== 1 ? 's' : ''} uploaded successfully
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowUploadResults(false)
-                    setShowUploadModal(false)
-                    resetUploadForm()
-                  }}
-                  className="p-2 hover:bg-white/20 rounded-full transition-colors"
-                >
-                  <X className="w-6 h-6 text-white" />
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-              <div className="space-y-4">
-                <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4 mb-4">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
-                    <div>
-                      <h3 className="font-bold text-green-900 mb-1">Videos Successfully Uploaded</h3>
-                      <p className="text-sm text-green-700">
-                        Your {uploadType === 'short' ? 'Short' : 'video'} "{uploadData.title}" has been uploaded to {uploadResults.length} channel{uploadResults.length !== 1 ? 's' : ''}.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <h4 className="font-bold text-gray-900 text-sm">View Videos on YouTube:</h4>
-                  {uploadResults.map((result, index) => (
-                    <div key={result.channelId} className="flex items-center gap-3 p-4 bg-gray-50 border-2 border-gray-200 rounded-xl hover:border-blue-300 transition-all">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold flex-shrink-0">
-                        {index + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 text-sm truncate">{result.channelName}</p>
-                        <p className="text-xs text-gray-600 truncate">{result.videoUrl}</p>
-                      </div>
-                      <button
-                        onClick={() => window.open(result.videoUrl, '_blank')}
-                        className="px-4 py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg hover:from-red-700 hover:to-pink-700 font-semibold text-sm transition-all flex items-center gap-2 flex-shrink-0"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        View Video
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="border-t border-gray-200 p-6 bg-gray-50">
-              <div className="flex items-center justify-center gap-4">
-                <button
-                  onClick={() => {
-                    setShowUploadResults(false)
-                    setShowUploadModal(false)
-                    resetUploadForm()
-                  }}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 font-semibold transition-all flex items-center gap-2"
-                >
-                  <CheckCircle className="w-5 h-5" />
-                  Done
                 </button>
               </div>
             </div>
@@ -2130,84 +2012,6 @@ function ContentStudioView({ youtubeChannel }: { youtubeChannel: YouTubeChannel 
             <span>Ready to publish</span>
           </div>
         </div>
-      </div>
-
-      {/* Connected Channels Section */}
-      <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 border-2 border-blue-200 rounded-xl p-4 md:p-6 mb-6 md:mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg">
-              <Youtube className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-gray-900">Connected Channels</h3>
-              <p className="text-sm text-gray-600">{allChannels.length} channel{allChannels.length !== 1 ? 's' : ''} available for upload</p>
-            </div>
-          </div>
-          <button
-            onClick={handleConnectNewChannel}
-            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 font-semibold text-sm transition-all flex items-center gap-2 shadow-lg hover:shadow-xl"
-          >
-            <Plus className="w-4 h-4" />
-            Add Channel
-          </button>
-        </div>
-
-        {/* Channel List */}
-        {allChannels.length === 0 ? (
-          <div className="text-center py-8 border-2 border-dashed border-gray-300 rounded-lg bg-white">
-            <Youtube className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 font-medium mb-2">No channels connected</p>
-            <p className="text-gray-400 text-sm mb-4">Connect your first channel to start uploading</p>
-            <button
-              onClick={handleConnectNewChannel}
-              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 font-semibold text-sm transition-all inline-flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              Connect Channel
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {allChannels.map((channel, index) => (
-              <div
-                key={channel.id}
-                className="bg-white border-2 border-gray-200 rounded-lg p-3 hover:border-blue-400 transition-all flex items-center gap-3"
-              >
-                <img
-                  src={channel.thumbnail}
-                  alt={channel.title}
-                  className="w-12 h-12 rounded-full border-2 border-gray-200 object-cover flex-shrink-0"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-gray-900 text-sm truncate">{channel.title}</p>
-                    {index === 0 && youtubeChannel?.id === channel.id && (
-                      <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full flex-shrink-0">
-                        Main
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-600">
-                    {parseInt(channel.subscriberCount) >= 1000 
-                      ? `${(parseInt(channel.subscriberCount) / 1000).toFixed(1)}K` 
-                      : channel.subscriberCount} subs
-                  </p>
-                </div>
-                <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {allChannels.length > 0 && (
-          <div className="mt-4 p-3 bg-blue-100 border border-blue-300 rounded-lg">
-            <p className="text-sm text-blue-900 flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              <span><strong>Tip:</strong> You can upload to multiple channels at once! Select channels during upload.</span>
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Main Action Cards */}
@@ -2630,6 +2434,80 @@ function SettingCard({ title, description }: { title: string; description: strin
     <div className="bg-white border border-gray-200 rounded-lg md:rounded-xl p-4 md:p-6 hover:shadow-lg transition">
       <h3 className="text-base md:text-lg font-bold text-gray-900 mb-2">{title}</h3>
       <p className="text-gray-600 text-xs md:text-sm">{description}</p>
+    </div>
+  )
+}
+
+function TrendingKeywordsCard({ trendingKeywords, loadingKeywords }: { trendingKeywords: { keyword: string, frequency: number }[], loadingKeywords: boolean }) {
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        // Could add a toast notification here
+        console.log('Copied to clipboard:', text)
+      })
+      .catch(err => {
+        console.error('Failed to copy:', err)
+      })
+  }
+
+  if (loadingKeywords) {
+    return (
+      <div className="min-h-[300px] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-gray-600">Loading trending keywords...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-[300px]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[300px] overflow-y-auto pr-2">
+        {trendingKeywords.length > 0 ? (
+          trendingKeywords.map((item: { keyword: string, frequency: number }, index: number) => (
+            <div 
+              key={index}
+              className="group relative bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-3 hover:shadow-md transition-all cursor-pointer"
+              onClick={() => copyToClipboard(item.keyword)}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-medium text-gray-900 text-sm truncate">{item.keyword}</h3>
+                  <p className="text-xs text-gray-500 mt-1">Frequency: {item.frequency}</p>
+                </div>
+                <button 
+                  className="ml-2 p-1.5 rounded-md bg-white border border-gray-300 text-gray-500 hover:bg-gray-100 hover:text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    copyToClipboard(item.keyword)
+                  }}
+                  title="Copy to clipboard"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="col-span-full flex items-center justify-center py-10">
+            <div className="text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-gray-600">No trending keywords found</p>
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="mt-4 text-xs text-gray-500 flex items-center">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Click on any keyword to copy it to clipboard
+      </div>
     </div>
   )
 }
