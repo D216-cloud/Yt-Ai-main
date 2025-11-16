@@ -34,6 +34,7 @@ import {
   Hash,
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import AiToolsSection from '@/components/ai-tools-section'
 import { useSession, signOut } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import TrendingVideosCard from '@/components/TrendingVideosCard'
@@ -372,130 +373,60 @@ export default function DashboardPage() {
       </header>
 
       <div className="flex">
-        {/* Mobile Sidebar Overlay */}
-        {sidebarOpen && (
-          <div className="fixed inset-0 bg-black/50 md:hidden z-30 top-16" onClick={() => setSidebarOpen(false)}></div>
-        )}
+        {/* Mobile sidebar and mobile bottom nav removed for simplified mobile UI */}
 
-        {/* Mobile Sidebar */}
-        <aside
-          className={`fixed left-0 top-16 bottom-0 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 md:hidden z-40 ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          <nav className="p-4 space-y-2">
-            {navLinks.map((link) => {
-              const Icon = link.icon
-              return (
-                <button
-                  key={link.id}
-                  onClick={() => handleNavClick(link.id)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                    activePage === link.id
-                      ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium">{link.label}</span>
-                </button>
-              )
-            })}
-          </nav>
+        {/* Desktop Sidebar (narrow icon column centered inside the existing width) */}
+        <aside className="hidden md:block w-64 border-r border-gray-200 fixed left-0 top-16 bottom-0 bg-slate-900 text-slate-100">
+          <div className="h-full flex flex-col items-center py-6">
+            <div className="mb-6">
+              <Link href="/" className="flex items-center flex-col gap-2">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-lg">
+                  <Play className="w-5 h-5 text-white fill-white" />
+                </div>
+                <span className="text-xs font-semibold text-slate-200">YouTubeAI</span>
+              </Link>
+            </div>
 
-          <div className="absolute bottom-4 left-4 right-4">
-            <Button
-              onClick={handleSignOut}
-              disabled={isLoading}
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg bg-transparent border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-            >
-              {isLoading ? (
-                <>
-                  <span className="w-4 h-4 mr-2 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></span>
-                  Signing Out...
-                </>
-              ) : (
-                <>
-                  <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
-                  <span>Sign Out</span>
-                </>
-              )}
-            </Button>
+            <nav className="flex-1 flex flex-col items-center gap-3 w-full">
+              {navLinks.map((link) => {
+                const Icon = link.icon
+                const active = activePage === link.id
+                return (
+                  <button
+                    key={link.id}
+                    onClick={() => handleNavClick(link.id)}
+                    className={`w-full flex flex-col items-center gap-1 py-3 transition-all ${active ? 'text-blue-400' : 'text-slate-400 hover:text-slate-100'}`}
+                    title={link.label}
+                  >
+                    <div className={`w-10 h-10 flex items-center justify-center rounded-lg ${active ? 'bg-white/10 ring-1 ring-white/20' : 'bg-transparent'} hover:bg-white/5 transition`}>
+                      <Icon className={`w-5 h-5 ${active ? 'text-white' : 'text-slate-300'}`} />
+                    </div>
+                    <span className="text-[11px] mt-1 uppercase tracking-wide font-medium">{link.label}</span>
+                  </button>
+                )
+              })}
+            </nav>
+
+            <div className="mt-6 w-full px-4">
+              <button
+                onClick={() => router.push('/upgrade')}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold shadow-md hover:opacity-95 transition"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h4l3 9 4-18 3 9h4" />
+                </svg>
+                <span className="text-sm">Upgrade</span>
+              </button>
+            </div>
           </div>
         </aside>
 
-        {/* Desktop Sidebar */}
-        <aside className="hidden md:block w-64 border-r border-gray-200 bg-white fixed left-0 top-16 bottom-0 overflow-y-auto">
-          <nav className="p-4 space-y-1">
-            {navLinks.map((link) => {
-              const Icon = link.icon
-              return (
-                <button
-                  key={link.id}
-                  onClick={() => handleNavClick(link.id)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                    activePage === link.id
-                      ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50 shadow-sm"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium">{link.label}</span>
-                </button>
-              )
-            })}
-          </nav>
-
-          <div className="absolute bottom-4 left-4 right-4">
-            <Button
-              onClick={handleSignOut}
-              disabled={isLoading}
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg bg-transparent border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-            >
-              {isLoading ? (
-                <>
-                  <span className="w-4 h-4 mr-2 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></span>
-                  Signing Out...
-                </>
-              ) : (
-                <>
-                  <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
-                  <span>Sign Out</span>
-                </>
-              )}
-            </Button>
-          </div>
-        </aside>
-
-        {/* Mobile Bottom Navigation - Show all navigation options */}
-        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden z-40">
-          <div className="grid grid-cols-7 gap-1 py-2">
-            {navLinks.map((link) => {
-              const Icon = link.icon
-              return (
-                <button
-                  key={link.id}
-                  onClick={() => handleNavClick(link.id)}
-                  className={`flex flex-col items-center justify-center py-1 px-1 ${
-                    activePage === link.id
-                      ? "text-blue-600"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  <Icon className="w-5 h-5 mb-1" />
-                  <span className="text-xs font-medium truncate w-full text-center px-1">
-                    {link.label}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </nav>
+        {/* Mobile bottom navigation removed */}
       
       {/* Footer with Terms and Privacy Links */}
         {/* Main Content */}
         <main className="flex-1 md:ml-64 pb-20 md:pb-0">
-          {activePage === "dashboard" && <DashboardView stats={stats} isLoading={isLoading} youtubeChannel={youtubeChannel} channelLoading={channelLoading} />}
+          {activePage === "dashboard" && <DashboardView stats={stats} isLoading={isLoading} youtubeChannel={youtubeChannel} channelLoading={channelLoading} router={router} />}
           {activePage === "profile" && <ProfileView youtubeChannel={youtubeChannel} channelLoading={channelLoading} session={session} onChannelChange={updateCurrentChannel} />}
           {activePage === "compare" && <CompareView />}
           {activePage === "content" && <ContentStudioView youtubeChannel={youtubeChannel} />}
@@ -505,19 +436,7 @@ export default function DashboardPage() {
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation - Only show sidebar button */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden z-40">
-        <div className="flex justify-center py-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 p-3 rounded-full"
-          >
-            {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </Button>
-        </div>
-      </nav>
+      {/* Mobile bottom single-button nav removed */}
       
       {/* Footer with Terms and Privacy Links */}
       <footer className="mt-auto py-4 text-center text-xs text-gray-500 border-t border-gray-200">
@@ -589,6 +508,45 @@ function ProfileView({ youtubeChannel, channelLoading, session, onChannelChange 
     }
   }, [youtubeChannel])
 
+  const formatNumber = (num: string | number): string => {
+    const n = typeof num === "string" ? parseInt(num) : num
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + "M"
+    if (n >= 1000) return (n / 1000).toFixed(1) + "K"
+    return n.toString()
+  }
+
+  // Local stats for the selected channel (avoid referencing global `stats`)
+  const channelStats = selectedChannel ? [
+    {
+      icon: Users,
+      label: 'Subscribers',
+      value: formatNumber(selectedChannel.subscriberCount),
+      change: '+2.5%',
+      color: 'from-blue-500 to-blue-600',
+    },
+    {
+      icon: Eye,
+      label: 'Total Views',
+      value: formatNumber(selectedChannel.viewCount),
+      change: '+12.4%',
+      color: 'from-purple-500 to-purple-600',
+    },
+    {
+      icon: Video,
+      label: 'Videos',
+      value: formatNumber(selectedChannel.videoCount),
+      change: '+3',
+      color: 'from-orange-500 to-orange-600',
+    },
+    {
+      icon: TrendingUp,
+      label: 'Avg Views',
+      value: formatNumber(Math.floor(parseInt(selectedChannel.viewCount) / Math.max(1, parseInt(selectedChannel.videoCount)))),
+      change: '+5.2%',
+      color: 'from-green-500 to-green-600',
+    },
+  ] : []
+
   // Fetch videos when channel is loaded or changed
   useEffect(() => {
     if (selectedChannel) {
@@ -599,22 +557,22 @@ function ProfileView({ youtubeChannel, channelLoading, session, onChannelChange 
   const handleChannelSelect = (channel: YouTubeChannel) => {
     setSelectedChannel(channel)
     setShowChannelDropdown(false)
-    
+
     // Save selected channel ID to localStorage (persists across refreshes)
     localStorage.setItem("selected_channel_id", channel.id)
-    
+
     // Update main channel through parent component (updates both Dashboard and Profile)
     onChannelChange(channel)
   }
 
   const fetchVideos = async () => {
     if (!selectedChannel) return
-    
+
     try {
       setVideosLoading(true)
       const response = await fetch(`/api/youtube/videos?channelId=${selectedChannel.id}&maxResults=12`)
       const data = await response.json()
-      
+
       if (data.success && data.videos) {
         setVideos(data.videos)
       }
@@ -623,13 +581,6 @@ function ProfileView({ youtubeChannel, channelLoading, session, onChannelChange 
     } finally {
       setVideosLoading(false)
     }
-  }
-
-  const formatNumber = (num: string | number): string => {
-    const n = typeof num === "string" ? parseInt(num) : num
-    if (n >= 1000000) return (n / 1000000).toFixed(1) + "M"
-    if (n >= 1000) return (n / 1000).toFixed(1) + "K"
-    return n.toString()
   }
 
   const formatDate = (dateString: string): string => {
@@ -1029,11 +980,13 @@ function CompareView() {
   )
 }
 
-function DashboardView({ stats, isLoading, youtubeChannel, channelLoading }: { stats: any[]; isLoading: boolean; youtubeChannel: YouTubeChannel | null; channelLoading: boolean }) {
+function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, router }: { stats: any[]; isLoading: boolean; youtubeChannel: YouTubeChannel | null; channelLoading: boolean; router: any }) {
   const [trendingKeywords, setTrendingKeywords] = useState<{keyword: string, frequency: number}[]>([])
   const [loadingKeywords, setLoadingKeywords] = useState(true)
   const [trendingVideos, setTrendingVideos] = useState<any[]>([])
   const [loadingVideos, setLoadingVideos] = useState(true)
+  const [latestVideo, setLatestVideo] = useState<any | null>(null)
+  const [loadingLatest, setLoadingLatest] = useState(true)
 
   useEffect(() => {
     const fetchTrendingKeywords = async () => {
@@ -1056,6 +1009,34 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading }: { s
 
     fetchTrendingKeywords()
   }, [])
+
+  // Fetch latest video from connected channel (if available)
+  useEffect(() => {
+    const fetchLatest = async () => {
+      try {
+        setLoadingLatest(true)
+        if (!youtubeChannel) {
+          setLatestVideo(null)
+          return
+        }
+
+        const response = await fetch(`/api/youtube/videos?channelId=${youtubeChannel.id}&maxResults=1`)
+        const data = await response.json()
+        if (data.success && data.videos && data.videos.length > 0) {
+          setLatestVideo(data.videos[0])
+        } else {
+          setLatestVideo(null)
+        }
+      } catch (err) {
+        console.error('Error fetching latest video:', err)
+        setLatestVideo(null)
+      } finally {
+        setLoadingLatest(false)
+      }
+    }
+
+    fetchLatest()
+  }, [youtubeChannel])
 
   return (
     <div className="p-4 md:p-6 lg:p-8">
@@ -1131,7 +1112,7 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading }: { s
       )}
 
       {/* Stats Grid - Mobile Optimized */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-8">
         {/* Custom action cards as requested */}
         {[
           {
@@ -1191,11 +1172,12 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading }: { s
           }
         ].map((card, idx) => (
           card.front ? (
-            <FrontActionCard
+            <AIToolButton
               key={idx}
+              icon={card.icon}
               title={card.label}
-              cta={card.label}
-              image={card.image}
+              description={card.change}
+              gradient={card.color}
               onClick={card.onClick}
             />
           ) : (
@@ -1214,7 +1196,12 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading }: { s
               <BarChart3 className="w-5 h-5" />
             </button>
           </div>
-          <TrendingKeywordsCard trendingKeywords={trendingKeywords} loadingKeywords={loadingKeywords} />
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-lg font-bold text-gray-900">Optimize Your Latest Video</h3>
+            <a href="/content" className="text-sm text-blue-500 hover:underline">View All</a>
+          </div>
+
+          <LatestVideoCard video={latestVideo} loading={loadingLatest} channel={youtubeChannel} />
 
           {/* Trending videos area (used by action card scroll) */}
           <div id="trending-videos" className="mt-6">
@@ -1232,6 +1219,11 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading }: { s
             <QuickActionButton icon={GitCompare} label="Compare Channels" color="from-orange-500 to-orange-600" />
             <QuickActionButton icon={MessageSquare} label="Generate Scripts" color="from-green-500 to-green-600" />
           </div>
+        </div>
+
+        {/* AI Tools Preview - easier access from the Dashboard */}
+        <div className="lg:col-span-1">
+          <AiToolsSection />
         </div>
       </div>
 
@@ -1382,12 +1374,44 @@ function ContentStudioView({ youtubeChannel }: { youtubeChannel: YouTubeChannel 
     setAllChannels(updatedChannels)
   }
 
-  const formatNumber = (num: string): string => {
-    const number = parseInt(num)
+  const formatNumber = (num: string | number): string => {
+    const number = typeof num === 'string' ? parseInt(num) : num
     if (number >= 1000000) return (number / 1000000).toFixed(1) + "M"
     if (number >= 1000) return (number / 1000).toFixed(1) + "K"
     return number.toString()
   }
+
+  // Local stats for the selected upload channel (used inside upload modal)
+  const uploadChannelStats: { icon: React.ComponentType<{ className?: string }>, label: string, value: string, change: string, color: string }[] = selectedUploadChannel ? [
+    {
+      icon: Users,
+      label: 'Subscribers',
+      value: formatNumber(selectedUploadChannel.subscriberCount),
+      change: '+2.5%',
+      color: 'from-blue-500 to-blue-600',
+    },
+    {
+      icon: Eye,
+      label: 'Total Views',
+      value: formatNumber(selectedUploadChannel.viewCount),
+      change: '+12.4%',
+      color: 'from-purple-500 to-purple-600',
+    },
+    {
+      icon: Video,
+      label: 'Videos',
+      value: formatNumber(selectedUploadChannel.videoCount),
+      change: '+3',
+      color: 'from-orange-500 to-orange-600',
+    },
+    {
+      icon: TrendingUp,
+      label: 'Avg Views',
+      value: formatNumber(Math.floor(parseInt(selectedUploadChannel.viewCount) / Math.max(1, parseInt(selectedUploadChannel.videoCount)))),
+      change: '+5.2%',
+      color: 'from-green-500 to-green-600',
+    }
+  ] : []
 
   const totalSubscribers = allChannels.reduce((sum, channel) => {
     return sum + parseInt(channel.subscriberCount)
@@ -1567,6 +1591,19 @@ function ContentStudioView({ youtubeChannel }: { youtubeChannel: YouTubeChannel 
                   </button>
                 )}
               </div>
+            </div>
+            {/* Channel stats cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+              {uploadChannelStats.map((s: { icon: React.ComponentType<{ className?: string }>; label: string; value: string; change: string; color: string }, idx: number) => (
+                <StatCard
+                  key={idx}
+                  icon={s.icon}
+                  label={s.label}
+                  value={s.value}
+                  change={s.change}
+                  color={s.color}
+                />
+              ))}
             </div>
 
             {/* Modal Content */}
@@ -2344,7 +2381,7 @@ function StatCard({
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={(e) => { if (onClick && (e.key === 'Enter' || e.key === ' ')) onClick() }}
       onClick={() => onClick?.()}
-      className={`bg-white border border-gray-200 rounded-lg md:rounded-xl p-3 md:p-4 backdrop-blur-sm hover:border-gray-300 hover:shadow-md transition ${onClick ? 'cursor-pointer' : ''}`}
+      className={`bg-white border border-gray-200 rounded-2xl p-4 backdrop-blur-sm hover:border-gray-300 hover:shadow-lg transition transform hover:-translate-y-1 ${onClick ? 'cursor-pointer' : ''}`}
     >
       <div className="flex items-center justify-between mb-3">
         <p className="text-gray-700 text-xs md:text-sm font-medium">{label}</p>
@@ -2366,11 +2403,13 @@ function FrontActionCard({
   title,
   cta,
   image,
+  description,
   onClick,
 }: {
   title: string
   cta: string
   image?: string
+  description?: string
   onClick?: () => void
 }) {
   // Map titles to appropriate icons
@@ -2382,51 +2421,16 @@ function FrontActionCard({
     return Hash // fallback
   }
 
-  const getColors = (title: string) => {
-    if (title.includes('Keywords')) return {
-      bg: 'from-cyan-500 via-blue-500 to-indigo-600',
-      icon: 'text-cyan-600',
-      border: 'border-cyan-200',
-      hover: 'hover:border-cyan-300',
-      shadow: 'shadow-cyan-100',
-      bgHover: 'group-hover:shadow-cyan-200'
-    }
-    if (title.includes('Thumbnails')) return {
-      bg: 'from-violet-500 via-purple-500 to-fuchsia-600',
-      icon: 'text-violet-600',
-      border: 'border-violet-200',
-      hover: 'hover:border-violet-300',
-      shadow: 'shadow-violet-100',
-      bgHover: 'group-hover:shadow-violet-200'
-    }
-    if (title.includes('Videos')) return {
-      bg: 'from-emerald-500 via-green-500 to-teal-600',
-      icon: 'text-emerald-600',
-      border: 'border-emerald-200',
-      hover: 'hover:border-emerald-300',
-      shadow: 'shadow-emerald-100',
-      bgHover: 'group-hover:shadow-emerald-200'
-    }
-    if (title.includes('unique features')) return {
-      bg: 'from-amber-500 via-orange-500 to-red-600',
-      icon: 'text-amber-600',
-      border: 'border-amber-200',
-      hover: 'hover:border-amber-300',
-      shadow: 'shadow-amber-100',
-      bgHover: 'group-hover:shadow-amber-200'
-    }
-    return {
-      bg: 'from-gray-500 to-gray-600',
-      icon: 'text-gray-600',
-      border: 'border-gray-200',
-      hover: 'hover:border-gray-300',
-      shadow: 'shadow-gray-100',
-      bgHover: 'group-hover:shadow-gray-200'
-    }
+  const getGradient = (title: string) => {
+    if (title.includes('Keywords')) return 'from-blue-500 to-cyan-500'
+    if (title.includes('Thumbnails')) return 'from-purple-500 to-pink-500'
+    if (title.includes('Videos')) return 'from-green-500 to-teal-500'
+    if (title.includes('unique features')) return 'from-orange-500 to-red-500'
+    return 'from-gray-500 to-gray-600'
   }
 
   const Icon = getIcon(title)
-  const colors = getColors(title)
+  const gradient = getGradient(title)
 
   return (
     <div
@@ -2434,89 +2438,22 @@ function FrontActionCard({
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={(e) => { if (onClick && (e.key === 'Enter' || e.key === ' ')) onClick() }}
       onClick={() => onClick?.()}
-      className={`group bg-gradient-to-br from-gray-50 via-white to-gray-100 border-2 ${colors.border} rounded-xl p-2 md:p-4 ${colors.hover} ${colors.shadow} hover:shadow-xl ${colors.bgHover} transition-all duration-300 cursor-pointer relative overflow-hidden backdrop-blur-sm`}
+      className="group relative bg-white border-2 border-purple-200 rounded-xl p-4 hover:shadow-xl hover:scale-105 transition-all cursor-pointer flex items-center gap-4"
     >
-      {/* Channel card style background pattern */}
-      <div className="absolute inset-0 opacity-10">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-100 via-purple-50 to-pink-100"></div>
-        <div className="absolute top-0 right-0 w-16 h-16 md:w-24 md:h-24 bg-gradient-to-bl from-indigo-200/30 to-transparent rounded-full transform translate-x-8 -translate-y-8 md:translate-x-12 md:-translate-y-12"></div>
-        <div className="absolute bottom-0 left-0 w-12 h-12 md:w-16 md:h-16 bg-gradient-to-tr from-purple-200/20 to-transparent rounded-full transform -translate-x-6 translate-y-6 md:-translate-x-8 md:translate-y-8"></div>
-      </div>
-
-      {/* Icon container - compact */}
-      <div className="relative flex items-center justify-center mb-1 md:mb-3">
-        <div className={`p-1.5 md:p-3 rounded-lg md:rounded-xl bg-gradient-to-br ${colors.bg} shadow-lg group-hover:shadow-2xl transition-all duration-300 relative`}>
-          <Icon className="w-4 h-4 md:w-6 md:h-6 text-white drop-shadow-sm" />
-          {/* Subtle glow effect */}
-          <div className={`absolute inset-0 rounded-lg md:rounded-xl bg-gradient-to-br ${colors.bg} opacity-0 group-hover:opacity-20 blur-md transition-opacity duration-300`}></div>
+      <div className="relative flex-shrink-0">
+        <div className={`absolute inset-0 bg-gradient-to-br ${gradient} rounded-lg blur-md opacity-0 group-hover:opacity-60 transition-opacity`} />
+        <div className={`relative p-2.5 w-fit rounded-lg bg-gradient-to-br ${gradient} shadow-lg`}> 
+          <Icon className="w-5 h-5 text-white" />
         </div>
       </div>
 
-      {/* Content */}
-      <div className="relative text-center">
-        <h4 className="text-xs font-bold text-gray-800 mb-0.5 md:mb-2 group-hover:text-gray-900 transition-colors leading-tight">
-          {title}
-        </h4>
-
-        {/* Stats or benefits - ultra compact */}
-        <div className="flex items-center justify-center gap-1 md:gap-3 mb-2 md:mb-4 text-xs">
-          {title.includes('Keywords') && (
-            <>
-              <div className="flex items-center gap-0.5 bg-cyan-50 px-1 md:px-2 py-0.5 rounded-full border border-cyan-100">
-                <TrendingUp className="w-2 h-2 md:w-3 md:h-3 text-cyan-600" />
-                <span className="text-cyan-700 font-medium text-xs">+150%</span>
-              </div>
-              <div className="flex items-center gap-0.5 bg-cyan-50 px-1 md:px-2 py-0.5 rounded-full border border-cyan-100">
-                <Users className="w-2 h-2 md:w-3 md:h-3 text-cyan-600" />
-                <span className="text-cyan-700 font-medium text-xs">Live</span>
-              </div>
-            </>
-          )}
-          {title.includes('Thumbnails') && (
-            <>
-              <div className="flex items-center gap-0.5 bg-violet-50 px-1 md:px-2 py-0.5 rounded-full border border-violet-100">
-                <Eye className="w-2 h-2 md:w-3 md:h-3 text-violet-600" />
-                <span className="text-violet-700 font-medium text-xs">+200%</span>
-              </div>
-              <div className="flex items-center gap-0.5 bg-violet-50 px-1 md:px-2 py-0.5 rounded-full border border-violet-100">
-                <Sparkles className="w-2 h-2 md:w-3 md:h-3 text-violet-600" />
-                <span className="text-violet-700 font-medium text-xs">AI</span>
-              </div>
-            </>
-          )}
-          {title.includes('Videos') && (
-            <>
-              <div className="flex items-center gap-0.5 bg-emerald-50 px-1 md:px-2 py-0.5 rounded-full border border-emerald-100">
-                <Video className="w-2 h-2 md:w-3 md:h-3 text-emerald-600" />
-                <span className="text-emerald-700 font-medium text-xs">Top</span>
-              </div>
-              <div className="flex items-center gap-0.5 bg-emerald-50 px-1 md:px-2 py-0.5 rounded-full border border-emerald-100">
-                <BarChart3 className="w-2 h-2 md:w-3 md:h-3 text-emerald-600" />
-                <span className="text-emerald-700 font-medium text-xs">Data</span>
-              </div>
-            </>
-          )}
-          {title.includes('unique features') && (
-            <>
-              <div className="flex items-center gap-0.5 bg-amber-50 px-1 md:px-2 py-0.5 rounded-full border border-amber-100">
-                <Zap className="w-2 h-2 md:w-3 md:h-3 text-amber-600" />
-                <span className="text-amber-700 font-medium text-xs">Excl</span>
-              </div>
-              <div className="flex items-center gap-0.5 bg-amber-50 px-1 md:px-2 py-0.5 rounded-full border border-amber-100">
-                <CheckCircle className="w-2 h-2 md:w-3 md:h-3 text-amber-600" />
-                <span className="text-amber-700 font-medium text-xs">Prem</span>
-              </div>
-            </>
-          )}
+      <div className="flex-1 min-w-0">
+        <h4 className="font-bold text-gray-900 truncate">{title}</h4>
+        <p className="text-gray-600 text-xs truncate mt-1">{description ?? cta}</p>
+        <div className="flex items-center gap-1 text-purple-600 text-xs font-semibold mt-3">
+          <span>Try Now</span>
+          <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
         </div>
-
-        {/* CTA Button - mobile optimized */}
-        <button className={`w-full py-2 md:py-2.5 px-3 md:px-4 bg-gradient-to-r ${colors.bg} hover:opacity-90 text-white font-semibold rounded-lg md:rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-1 text-xs relative overflow-hidden`} onClick={(e) => { e.stopPropagation(); onClick?.(); }}>
-          <span className="relative z-10 truncate">{cta}</span>
-          <ChevronRight className="w-2 h-2 md:w-3 md:h-3 relative z-10 flex-shrink-0" />
-          {/* Button shine effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 hover:opacity-20 transform -skew-x-12 translate-x-[-100%] hover:translate-x-[100%] transition-all duration-700"></div>
-        </button>
       </div>
     </div>
   )
@@ -2649,27 +2586,35 @@ function AIToolButton({
   title,
   description,
   gradient,
+  onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>
   title: string
   description: string
   gradient: string
+  onClick?: () => void
 }) {
   return (
-    <button className="group relative bg-white border-2 border-purple-200 rounded-xl p-5 hover:border-purple-400 transition-all duration-300 hover:shadow-xl hover:scale-105 text-left">
-      <div className="relative mb-3">
-        <div className={`absolute inset-0 bg-gradient-to-br ${gradient} rounded-lg blur-md opacity-0 group-hover:opacity-50 transition-opacity`}></div>
-        <div className={`relative p-2.5 w-fit rounded-lg bg-gradient-to-br ${gradient} shadow-lg group-hover:scale-110 transition-transform`}>
-          <Icon className="w-5 h-5 text-white" />
+    <button
+      onClick={onClick}
+      className="group relative bg-white border border-purple-200 rounded-2xl p-5 hover:shadow-lg hover:-translate-y-1 transition-transform duration-200 text-left w-full"
+    >
+      <div className="flex items-start gap-4">
+        <div className="flex-shrink-0">
+          <div className={`w-12 h-12 flex items-center justify-center rounded-lg bg-linear-to-br ${gradient} shadow-md`}>
+            <Icon className="w-6 h-6 text-white" />
+          </div>
         </div>
-      </div>
-      <h4 className="font-bold text-gray-900 mb-1 group-hover:text-purple-600 transition-colors">
-        {title}
-      </h4>
-      <p className="text-gray-600 text-xs leading-relaxed mb-3">{description}</p>
-      <div className="flex items-center gap-1 text-purple-600 text-xs font-semibold">
-        <span>Try Now</span>
-        <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+
+        <div className="flex-1 min-w-0">
+          <h4 className="font-bold text-gray-900 text-sm md:text-base mb-1">{title}</h4>
+          <p className="text-gray-600 text-xs md:text-sm line-clamp-2">{description}</p>
+
+          <div className="mt-4 text-purple-600 font-semibold text-xs flex items-center gap-1">
+            <span>Try Now</span>
+            <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </div>
       </div>
     </button>
   )
@@ -2782,6 +2727,82 @@ function TrendingKeywordsCard({ trendingKeywords, loadingKeywords }: { trendingK
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         Click on any keyword to copy it to clipboard
+      </div>
+    </div>
+  )
+}
+
+function LatestVideoCard({ video, loading, channel }: { video: any | null, loading: boolean, channel: YouTubeChannel | null }) {
+  const formatNumber = (num: string | number): string => {
+    const n = typeof num === 'string' ? parseInt(num) : num
+    if (isNaN(n)) return '0'
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + "M"
+    if (n >= 1000) return (n / 1000).toFixed(1) + "K"
+    return n.toString()
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-[300px] flex items-center justify-center bg-white border border-gray-200 rounded-xl p-6">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-gray-600">Loading latest video...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!video) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-2xl p-6 min-h-[300px] flex items-center justify-center">
+        <div className="text-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14v-4zM4 6h8v12H4z" />
+          </svg>
+          <p className="text-gray-600">No recent videos found</p>
+        </div>
+      </div>
+    )
+  }
+
+  const titleScore = Math.min(99, Math.max(0, (video?.title?.length || 0) % 100))
+  const timeAgo = (dateStr?: string) => {
+    if (!dateStr) return ''
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    if (diffDays === 0) return 'Today'
+    if (diffDays === 1) return '1 day ago'
+    if (diffDays < 7) return `${diffDays} days ago`
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
+    return `${Math.floor(diffDays / 30)} months ago`
+  }
+
+  return (
+    <div className="bg-slate-900 text-slate-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition flex flex-col md:flex-row items-start md:items-center gap-4">
+      {/* Thumbnail */}
+      <div className="w-full md:w-36 flex-shrink-0">
+        <img src={video.thumbnail} alt={video.title} className="w-full h-40 md:h-20 object-cover rounded-md shadow-md" />
+      </div>
+
+      {/* Main info */}
+      <div className="flex-1 min-w-0">
+        <h3 className="font-semibold text-white text-base md:text-lg truncate">{video.title}</h3>
+        <p className="text-sm text-slate-300 mt-1">{formatNumber(video.viewCount || 0)} views · {timeAgo(video.publishedAt)}</p>
+
+        <div className="flex flex-wrap items-center gap-3 mt-3">
+          <div className="text-xs px-2 py-1 bg-slate-800 border border-slate-700 rounded-full text-slate-200 font-semibold">Title {titleScore}</div>
+          <button className="text-xs px-3 py-1 border border-slate-700 rounded-full text-slate-200 hover:bg-slate-800/60 transition">Generate scores <span className="ml-1 text-slate-400">+</span></button>
+        </div>
+      </div>
+
+      {/* Optimize button - full width on mobile, compact on desktop */}
+      <div className="w-full md:w-auto flex-shrink-0">
+        <a href={`https://youtube.com/watch?v=${video.id}`} target="_blank" rel="noreferrer" className="w-full md:inline-flex justify-center items-center gap-2 px-4 py-2 rounded-full bg-slate-800 border border-slate-700 text-white font-semibold hover:bg-slate-700 transition inline-flex">
+          <Sparkles className="w-4 h-4" />
+          <span>Optimize</span>
+        </a>
       </div>
     </div>
   )

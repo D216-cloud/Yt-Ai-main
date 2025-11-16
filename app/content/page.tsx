@@ -35,6 +35,7 @@ import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Breadcrumb } from "@/components/breadcrumb"
 import { NavMenu } from "@/components/nav-menu"
+import AiToolsSection from '@/components/ai-tools-section'
 
 export const dynamic = 'force-dynamic'
 
@@ -1406,52 +1407,7 @@ export default function ContentPage() {
             </div>
 
             {/* Bulk Upload Section */}
-            <div className="bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 border-2 border-purple-200 rounded-2xl p-6 md:p-8 shadow-lg hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-purple-400 rounded-full blur-md opacity-50 animate-pulse"></div>
-                  <div className="relative p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full shadow-lg">
-                    <Sparkles className="w-6 h-6 text-white" />
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-xl md:text-2xl font-bold text-gray-900">AI-Powered Tools</h3>
-                  <p className="text-sm text-gray-600">Supercharge your content creation workflow</p>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="group bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-xl p-4 hover:shadow-lg transition cursor-pointer">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 shadow-md">
-                      <Sparkles className="w-5 h-5 text-white" />
-                    </div>
-                    <h4 className="font-bold text-gray-900">Title Generator</h4>
-                  </div>
-                  <p className="text-gray-600 text-xs">Create click-worthy titles</p>
-                </div>
-                
-                <div className="group bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-xl p-4 hover:shadow-lg transition cursor-pointer">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 shadow-md">
-                      <MessageSquare className="w-5 h-5 text-white" />
-                    </div>
-                    <h4 className="font-bold text-gray-900">Description Writer</h4>
-                  </div>
-                  <p className="text-gray-600 text-xs">SEO-optimized descriptions</p>
-                </div>
-                
-                <div className="group bg-gradient-to-br from-white to-gray-50 border border-gray-200 rounded-xl p-4 hover:shadow-lg transition cursor-pointer">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-red-500 shadow-md">
-                      <Video className="w-5 h-5 text-white" />
-                    </div>
-                    <h4 className="font-bold text-gray-900">Script Generator</h4>
-                  </div>
-                  <p className="text-gray-600 text-xs">AI-written video scripts</p>
-                </div>
-              </div>
-            </div>
+            <AiToolsSection />
           </div>
         </main>
       </div>
