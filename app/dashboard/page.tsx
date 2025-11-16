@@ -31,10 +31,12 @@ import {
   Plus,
   Trash2,
   Upload,
+  Hash,
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
+import TrendingVideosCard from '@/components/TrendingVideosCard'
 
 interface YouTubeChannel {
   id: string
@@ -465,6 +467,32 @@ export default function DashboardPage() {
           </div>
         </aside>
 
+        {/* Mobile Bottom Navigation - Show all navigation options */}
+        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden z-40">
+          <div className="grid grid-cols-7 gap-1 py-2">
+            {navLinks.map((link) => {
+              const Icon = link.icon
+              return (
+                <button
+                  key={link.id}
+                  onClick={() => handleNavClick(link.id)}
+                  className={`flex flex-col items-center justify-center py-1 px-1 ${
+                    activePage === link.id
+                      ? "text-blue-600"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  <Icon className="w-5 h-5 mb-1" />
+                  <span className="text-xs font-medium truncate w-full text-center px-1">
+                    {link.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </nav>
+      
+      {/* Footer with Terms and Privacy Links */}
         {/* Main Content */}
         <main className="flex-1 md:ml-64 pb-20 md:pb-0">
           {activePage === "dashboard" && <DashboardView stats={stats} isLoading={isLoading} youtubeChannel={youtubeChannel} channelLoading={channelLoading} />}
@@ -1004,6 +1032,8 @@ function CompareView() {
 function DashboardView({ stats, isLoading, youtubeChannel, channelLoading }: { stats: any[]; isLoading: boolean; youtubeChannel: YouTubeChannel | null; channelLoading: boolean }) {
   const [trendingKeywords, setTrendingKeywords] = useState<{keyword: string, frequency: number}[]>([])
   const [loadingKeywords, setLoadingKeywords] = useState(true)
+  const [trendingVideos, setTrendingVideos] = useState<any[]>([])
+  const [loadingVideos, setLoadingVideos] = useState(true)
 
   useEffect(() => {
     const fetchTrendingKeywords = async () => {
@@ -1012,13 +1042,15 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading }: { s
         const response = await fetch('/api/youtube/trending?maxResults=20')
         const data = await response.json()
         
-        if (data.success && data.keywords) {
-          setTrendingKeywords(data.keywords)
+        if (data.success) {
+          if (data.keywords) setTrendingKeywords(data.keywords)
+          if (data.videos) setTrendingVideos(data.videos)
         }
       } catch (error) {
         console.error('Error fetching trending keywords:', error)
-      } finally {
+        } finally {
         setLoadingKeywords(false)
+        setLoadingVideos(false)
       }
     }
 
@@ -1100,15 +1132,82 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading }: { s
 
       {/* Stats Grid - Mobile Optimized */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-8">
-        {stats.map((stat, index) => (
-          <StatCard key={index} {...stat} />
+        {/* Custom action cards as requested */}
+        {[
+          {
+            icon: Hash,
+            label: 'Find Trending Keywords',
+            value: trendingKeywords?.length ? `${trendingKeywords.length}` : 'Explore',
+            change: 'Discover hot terms',
+            color: 'from-blue-500 to-blue-600',
+              front: true,
+              image: '/images/trending-keywords-preview.svg',
+              cta: 'Find Trending Keywords',
+              onClick: () => {
+              // Scroll to the trending keywords section
+              const el = document.getElementById('trending-keywords')
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }
+          },
+          {
+            icon: Sparkles,
+            label: 'Enhance Your Thumbnails',
+            value: 'Improve CTR',
+            change: 'AI thumbnail generator',
+            color: 'from-purple-500 to-purple-600',
+            front: true,
+            image: '/images/ai-thumbnails-preview.svg',
+            cta: 'Create Thumbnails',
+            onClick: () => {
+              const el = document.getElementById('ai-thumbnails')
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              else router.push('/ai-tools')
+            }
+          },
+          {
+            icon: Video,
+            label: 'Find Trending Videos',
+            value: trendingVideos?.length ? `${trendingVideos.length}` : 'Explore',
+            change: 'Top trending vids',
+            color: 'from-green-500 to-green-600',
+            front: true,
+            image: '/images/trending-videos-preview.svg',
+            cta: 'Find Trending Videos',
+            onClick: () => {
+              const el = document.getElementById('trending-videos')
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }
+          },
+          {
+            icon: Zap,
+            label: "Add unique features",
+            value: 'Exclusive',
+            change: "Add things other platforms don't have",
+            color: 'from-orange-500 to-orange-600',
+            front: true,
+            image: '/images/create-thumbnails-preview.svg',
+            cta: 'Get Video Ideas',
+            onClick: () => router.push('/ai-tools')
+          }
+        ].map((card, idx) => (
+          card.front ? (
+            <FrontActionCard
+              key={idx}
+              title={card.label}
+              cta={card.label}
+              image={card.image}
+              onClick={card.onClick}
+            />
+          ) : (
+            <StatCard key={idx} {...card} />
+          )
         ))}
       </div>
 
       {/* Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Performance Trend with Trending Keywords */}
-        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl md:rounded-2xl p-4 md:p-6 backdrop-blur-sm shadow-sm hover:shadow-md transition">
+        <div id="trending-keywords" className="lg:col-span-2 bg-white border border-gray-200 rounded-xl md:rounded-2xl p-4 md:p-6 backdrop-blur-sm shadow-sm hover:shadow-md transition">
           <div className="flex items-center justify-between mb-4 md:mb-6">
             <h2 className="text-lg md:text-xl font-bold text-gray-900">Performance Trend</h2>
             <button className="text-gray-400 hover:text-gray-900 transition">
@@ -1116,6 +1215,12 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading }: { s
             </button>
           </div>
           <TrendingKeywordsCard trendingKeywords={trendingKeywords} loadingKeywords={loadingKeywords} />
+
+          {/* Trending videos area (used by action card scroll) */}
+          <div id="trending-videos" className="mt-6">
+            <h3 className="text-sm font-bold text-gray-900 mb-3">Trending Videos</h3>
+            <TrendingVideosCard trendingVideos={trendingVideos} loadingVideos={loadingVideos} />
+          </div>
         </div>
 
         {/* Quick Actions */}
@@ -2224,15 +2329,23 @@ function StatCard({
   value,
   change,
   color,
+  onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>
   label: string
   value: string
   change: string
   color: string
+  onClick?: () => void
 }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg md:rounded-xl p-3 md:p-4 backdrop-blur-sm hover:border-gray-300 hover:shadow-md transition">
+    <div
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={(e) => { if (onClick && (e.key === 'Enter' || e.key === ' ')) onClick() }}
+      onClick={() => onClick?.()}
+      className={`bg-white border border-gray-200 rounded-lg md:rounded-xl p-3 md:p-4 backdrop-blur-sm hover:border-gray-300 hover:shadow-md transition ${onClick ? 'cursor-pointer' : ''}`}
+    >
       <div className="flex items-center justify-between mb-3">
         <p className="text-gray-700 text-xs md:text-sm font-medium">{label}</p>
         <div className={`p-2 rounded-lg bg-gradient-to-br ${color} shadow-md`}>
@@ -2240,9 +2353,159 @@ function StatCard({
         </div>
       </div>
       <p className="text-xl md:text-2xl font-bold text-gray-900 mb-1">{value}</p>
-      <p className="text-xs text-green-600 font-semibold">
-        {change} <span className="text-gray-600">from last month</span>
-      </p>
+      {change ? (
+        <p className="text-xs text-green-600 font-semibold">
+          {change} <span className="text-gray-600">from last month</span>
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function FrontActionCard({
+  title,
+  cta,
+  image,
+  onClick,
+}: {
+  title: string
+  cta: string
+  image?: string
+  onClick?: () => void
+}) {
+  // Map titles to appropriate icons
+  const getIcon = (title: string) => {
+    if (title.includes('Keywords')) return Hash
+    if (title.includes('Thumbnails')) return Sparkles
+    if (title.includes('Videos')) return Video
+    if (title.includes('unique features')) return Zap
+    return Hash // fallback
+  }
+
+  const getColors = (title: string) => {
+    if (title.includes('Keywords')) return {
+      bg: 'from-blue-500 to-blue-600',
+      icon: 'text-blue-600',
+      border: 'border-blue-200',
+      hover: 'hover:border-blue-300'
+    }
+    if (title.includes('Thumbnails')) return {
+      bg: 'from-purple-500 to-purple-600',
+      icon: 'text-purple-600',
+      border: 'border-purple-200',
+      hover: 'hover:border-purple-300'
+    }
+    if (title.includes('Videos')) return {
+      bg: 'from-green-500 to-green-600',
+      icon: 'text-green-600',
+      border: 'border-green-200',
+      hover: 'hover:border-green-300'
+    }
+    if (title.includes('unique features')) return {
+      bg: 'from-orange-500 to-orange-600',
+      icon: 'text-orange-600',
+      border: 'border-orange-200',
+      hover: 'hover:border-orange-300'
+    }
+    return {
+      bg: 'from-gray-500 to-gray-600',
+      icon: 'text-gray-600',
+      border: 'border-gray-200',
+      hover: 'hover:border-gray-300'
+    }
+  }
+
+  const Icon = getIcon(title)
+  const colors = getColors(title)
+
+  return (
+    <div
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={(e) => { if (onClick && (e.key === 'Enter' || e.key === ' ')) onClick() }}
+      onClick={() => onClick?.()}
+      className={`group bg-white border-2 ${colors.border} rounded-xl p-3 hover:shadow-lg ${colors.hover} hover:scale-105 transition-all duration-300 cursor-pointer relative overflow-hidden`}
+    >
+      {/* Background gradient effect */}
+      <div className={`absolute inset-0 bg-gradient-to-br ${colors.bg} opacity-0 group-hover:opacity-5 transition-opacity duration-300 rounded-xl`}></div>
+
+      {/* Icon container */}
+      <div className="relative flex items-center justify-center mb-2">
+        <div className={`p-2 rounded-lg bg-gradient-to-br ${colors.bg} shadow-md group-hover:scale-110 transition-transform duration-300`}>
+          <Icon className="w-5 h-5 text-white" />
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="relative text-center">
+        <h4 className="text-sm font-bold text-gray-900 mb-1 group-hover:text-blue-600 transition-colors truncate">
+          {title}
+        </h4>
+        <p className="text-xs text-gray-600 mb-2 leading-tight line-clamp-2">
+          {title.includes('Keywords') && 'Discover trending keywords to boost visibility'}
+          {title.includes('Thumbnails') && 'Create eye-catching thumbnails for more clicks'}
+          {title.includes('Videos') && 'Find trending videos to analyze'}
+          {title.includes('unique features') && 'Access exclusive AI tools'}
+        </p>
+
+        {/* Stats or benefits - compact version */}
+        <div className="flex items-center justify-center gap-2 mb-2 text-xs text-gray-500">
+          {title.includes('Keywords') && (
+            <>
+              <span className="flex items-center gap-1">
+                <TrendingUp className="w-3 h-3" />
+                +150%
+              </span>
+              <span className="flex items-center gap-1">
+                <Users className="w-3 h-3" />
+                Live
+              </span>
+            </>
+          )}
+          {title.includes('Thumbnails') && (
+            <>
+              <span className="flex items-center gap-1">
+                <Eye className="w-3 h-3" />
+                +200%
+              </span>
+              <span className="flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                AI
+              </span>
+            </>
+          )}
+          {title.includes('Videos') && (
+            <>
+              <span className="flex items-center gap-1">
+                <Video className="w-3 h-3" />
+                Top
+              </span>
+              <span className="flex items-center gap-1">
+                <BarChart3 className="w-3 h-3" />
+                Data
+              </span>
+            </>
+          )}
+          {title.includes('unique features') && (
+            <>
+              <span className="flex items-center gap-1">
+                <Zap className="w-3 h-3" />
+                Excl
+              </span>
+              <span className="flex items-center gap-1">
+                <CheckCircle className="w-3 h-3" />
+                Prem
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* CTA Button */}
+        <button className={`w-full py-2 px-3 bg-gradient-to-r ${colors.bg} hover:opacity-90 text-white font-medium rounded-lg transition-all duration-300 shadow-md hover:shadow-lg group-hover:scale-105 flex items-center justify-center gap-1 text-xs`} onClick={(e) => { e.stopPropagation(); onClick?.(); }}>
+          <span className="truncate">{cta}</span>
+          <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform flex-shrink-0" />
+        </button>
+      </div>
     </div>
   )
 }

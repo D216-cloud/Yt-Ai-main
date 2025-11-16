@@ -14,6 +14,7 @@ import {
   TrendingUp, 
   Search, 
   BarChart3, 
+  Upload,
   Clock,
   Trophy,
   Lightbulb,
@@ -532,7 +533,7 @@ export default function ComparePage() {
     { icon: GitCompare, label: "Compare", href: "/compare", id: "compare" },
     { icon: Video, label: "Content", href: "#", id: "content" },
     { icon: BarChart3Icon, label: "Analytics", href: "#", id: "analytics" },
-    { icon: Sparkles, label: "AI Tools", href: "#", id: "ai-tools" },
+    { icon: Upload, label: "Bulk Upload", href: "/ai-tools", id: "ai-tools" },
     { icon: Settings, label: "Settings", href: "#", id: "settings" },
   ]
 
