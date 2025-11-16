@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import {
@@ -21,6 +21,7 @@ import {
   Sparkles,
   Mail,
   ChevronRight,
+  ChevronLeft,
   Youtube,
   User,
   GitCompare,
@@ -53,6 +54,7 @@ interface YouTubeChannel {
 
 export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [activePage, setActivePage] = useState("dashboard")
   const [isLoading, setIsLoading] = useState(false)
   const [youtubeChannel, setYoutubeChannel] = useState<YouTubeChannel | null>(null)
@@ -66,6 +68,40 @@ export default function DashboardPage() {
     setYoutubeChannel(channel)
     localStorage.setItem("youtube_channel", JSON.stringify(channel))
   }
+
+  // Ref to store scroll position when mobile sidebar opens (to lock background scroll)
+  const sidebarScrollYRef = useRef<number>(0)
+
+  // Lock body scroll when mobile sidebar is open and restore on close
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    if (sidebarOpen) {
+      // Save current scroll position
+      sidebarScrollYRef.current = window.scrollY || window.pageYOffset || 0
+      // Lock scroll by fixing body
+      document.body.style.position = 'fixed'
+      document.body.style.top = `-${sidebarScrollYRef.current}px`
+      document.body.style.left = '0'
+      document.body.style.right = '0'
+    } else {
+      // Restore
+      const y = sidebarScrollYRef.current
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.left = ''
+      document.body.style.right = ''
+      window.scrollTo(0, y)
+    }
+
+    // Cleanup on unmount
+    return () => {
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.left = ''
+      document.body.style.right = ''
+    }
+  }, [sidebarOpen])
 
   // Check for page parameter in URL and set active page
   useEffect(() => {
@@ -373,51 +409,132 @@ export default function DashboardPage() {
       </header>
 
       <div className="flex">
-        {/* Mobile sidebar and mobile bottom nav removed for simplified mobile UI */}
+        {/* Mobile Sidebar Overlay - restored so hamburger toggles slide-in menu on small screens */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 bg-black/50 md:hidden z-30 top-16" onClick={() => setSidebarOpen(false)}></div>
+        )}
 
-        {/* Desktop Sidebar (narrow icon column centered inside the existing width) */}
-        <aside className="hidden md:block w-64 border-r border-gray-200 fixed left-0 top-16 bottom-0 bg-slate-900 text-slate-100">
-          <div className="h-full flex flex-col items-center py-6">
-            <div className="mb-6">
-              <Link href="/" className="flex items-center flex-col gap-2">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center shadow-lg">
-                  <Play className="w-5 h-5 text-white fill-white" />
-                </div>
-                <span className="text-xs font-semibold text-slate-200">YouTubeAI</span>
-              </Link>
-            </div>
+        {/* Mobile Sidebar - slide-in */}
+        <aside
+          className={`fixed left-0 top-16 bottom-0 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 md:hidden z-40 overflow-y-auto ${
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+          style={{ WebkitOverflowScrolling: 'touch' as any }}
+        >
+          <nav className="p-4 space-y-2">
+            {navLinks.map((link) => {
+              const Icon = link.icon
+              return (
+                <button
+                  key={link.id}
+                  onClick={() => { handleNavClick(link.id); setSidebarOpen(false) }}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
+                    activePage === link.id
+                      ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <Icon className="w-5 h-5 flex-shrink-0" />
+                  <span className="font-medium">{link.label}</span>
+                </button>
+              )
+            })}
+          </nav>
 
-            <nav className="flex-1 flex flex-col items-center gap-3 w-full">
-              {navLinks.map((link) => {
-                const Icon = link.icon
-                const active = activePage === link.id
-                return (
-                  <button
-                    key={link.id}
-                    onClick={() => handleNavClick(link.id)}
-                    className={`w-full flex flex-col items-center gap-1 py-3 transition-all ${active ? 'text-blue-400' : 'text-slate-400 hover:text-slate-100'}`}
-                    title={link.label}
-                  >
-                    <div className={`w-10 h-10 flex items-center justify-center rounded-lg ${active ? 'bg-white/10 ring-1 ring-white/20' : 'bg-transparent'} hover:bg-white/5 transition`}>
-                      <Icon className={`w-5 h-5 ${active ? 'text-white' : 'text-slate-300'}`} />
-                    </div>
-                    <span className="text-[11px] mt-1 uppercase tracking-wide font-medium">{link.label}</span>
-                  </button>
-                )
-              })}
-            </nav>
+          <div className="absolute bottom-4 left-4 right-4">
+            <Button
+              onClick={() => { setSidebarOpen(false); handleSignOut() }}
+              disabled={isLoading}
+              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg bg-transparent border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              {isLoading ? (
+                <>
+                  <span className="w-4 h-4 mr-2 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></span>
+                  Signing Out...
+                </>
+              ) : (
+                <>
+                  <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <span>Sign Out</span>
+                </>
+              )}
+            </Button>
+          </div>
+        </aside>
 
-            <div className="mt-6 w-full px-4">
+        {/* Desktop Sidebar - improved visuals */}
+        <aside className={`hidden md:flex flex-col ${sidebarCollapsed ? 'w-20' : 'w-64'} border-r border-gray-200 bg-white fixed left-0 top-16 bottom-0 overflow-y-auto`}>
+          {/* Collapse toggle header (logo removed per request) */}
+          <div className="px-3 py-2 flex items-center justify-end border-b border-gray-100">
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className="p-2 rounded-md hover:bg-gray-100"
+            >
+              {sidebarCollapsed ? <ChevronRight className="w-5 h-5 text-gray-600" /> : <ChevronLeft className="w-5 h-5 text-gray-600" />}
+            </button>
+          </div>
+
+          <nav className="p-4 space-y-1 flex-1">
+            {navLinks.map((link) => {
+              const Icon = link.icon
+              const isActive = activePage === link.id
+              return (
+                <button
+                  key={link.id}
+                  onClick={() => handleNavClick(link.id)}
+                  title={link.label}
+                  className={`relative w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-lg transition-all text-sm overflow-hidden ${
+                    isActive
+                      ? 'bg-gradient-to-r from-blue-600/10 to-purple-600/10 text-gray-900 shadow-sm'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  {/* Active indicator (only when expanded) */}
+                  {isActive && !sidebarCollapsed && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-500 to-purple-500 rounded-r-md" />}
+
+                  <div className="relative z-10 flex items-center w-6 justify-center">
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-gray-500'}`} />
+                  </div>
+                  <span className={`relative z-10 font-medium text-sm truncate ${sidebarCollapsed ? 'hidden' : ''}`}>{link.label}</span>
+                </button>
+              )
+            })}
+          </nav>
+
+          <div className="px-4 py-4 border-t border-gray-100">
+            {sidebarCollapsed ? (
               <button
-                onClick={() => router.push('/upgrade')}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold shadow-md hover:opacity-95 transition"
+                title="Sign Out"
+                onClick={handleSignOut}
+                disabled={isLoading}
+                className="w-full flex items-center justify-center p-2 rounded-full bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h4l3 9 4-18 3 9h4" />
-                </svg>
-                <span className="text-sm">Upgrade</span>
+                {isLoading ? (
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <LogOut className="w-5 h-5" />
+                )}
               </button>
-            </div>
+            ) : (
+              <Button
+                onClick={handleSignOut}
+                disabled={isLoading}
+                className="w-full justify-center bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold rounded-lg hover:from-red-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <>
+                    <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    Signing Out...
+                  </>
+                ) : (
+                  <>
+                    <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span>Sign Out</span>
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </aside>
 
@@ -425,7 +542,7 @@ export default function DashboardPage() {
       
       {/* Footer with Terms and Privacy Links */}
         {/* Main Content */}
-        <main className="flex-1 md:ml-64 pb-20 md:pb-0">
+        <main className={`flex-1 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'} pb-20 md:pb-0`}>
           {activePage === "dashboard" && <DashboardView stats={stats} isLoading={isLoading} youtubeChannel={youtubeChannel} channelLoading={channelLoading} router={router} />}
           {activePage === "profile" && <ProfileView youtubeChannel={youtubeChannel} channelLoading={channelLoading} session={session} onChannelChange={updateCurrentChannel} />}
           {activePage === "compare" && <CompareView />}

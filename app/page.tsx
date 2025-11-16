@@ -6,7 +6,7 @@ import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { BeforeAfterSection } from "@/components/before-after-section"
 import { VideoDemoSection } from "@/components/video-demo-section"
-import { TwitterGrowthShowcase } from "@/components/twitter-growth-showcase"
+import { YouTubeGrowthShowcase } from "@/components/youtube-growth-showcase"
 
 export default function HomePage() {
   return (
@@ -16,7 +16,7 @@ export default function HomePage() {
         <HeroSection />
         <HowItWorksSection />
         <FeaturesSection />
-        <TwitterGrowthShowcase />
+        <YouTubeGrowthShowcase />
         <BeforeAfterSection />
         <VideoDemoSection />
         <PricingSection />

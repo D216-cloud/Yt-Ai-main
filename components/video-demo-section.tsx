@@ -22,12 +22,12 @@ export function VideoDemoSection() {
           <h2 className="text-4xl md:text-5xl font-bold mb-6">
             See{" "}
             <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              TwitterGrow
+              YouTubeAI
             </span>{" "}
             in Action
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Watch how our AI-powered platform transforms your Twitter presence in just minutes
+            Watch how our AI-powered platform helps you optimize videos, thumbnails and metadata for YouTube
           </p>
         </div>
 
@@ -86,11 +86,10 @@ export function VideoDemoSection() {
           <div className="space-y-8">
             <div>
               <h3 className="text-3xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Complete Twitter Automation
+                Complete YouTube Optimization
               </h3>
               <p className="text-lg text-gray-600 mb-8">
-                Our demo showcases the full power of AI-driven Twitter management, from content creation to performance
-                optimization.
+                Our demo showcases the full power of AI-driven YouTube optimization, from titles and thumbnails to analytics.
               </p>
             </div>
 
@@ -100,7 +99,7 @@ export function VideoDemoSection() {
                   key={index}
                   className="flex items-center gap-4 p-4 bg-white/80 backdrop-blur-sm rounded-lg border border-gray-200"
                 >
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                  <div className="w-8 h-8 bg-linear-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
                     {index + 1}
                   </div>
                   <span className="text-gray-700 font-medium">{feature}</span>
@@ -111,7 +110,7 @@ export function VideoDemoSection() {
             <div className="flex gap-4">
               <Button
                 size="lg"
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                className="bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
               >
                 Watch Full Demo
               </Button>
