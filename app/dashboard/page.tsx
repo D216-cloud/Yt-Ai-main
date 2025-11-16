@@ -2384,34 +2384,44 @@ function FrontActionCard({
 
   const getColors = (title: string) => {
     if (title.includes('Keywords')) return {
-      bg: 'from-blue-500 to-blue-600',
-      icon: 'text-blue-600',
-      border: 'border-blue-200',
-      hover: 'hover:border-blue-300'
+      bg: 'from-cyan-500 via-blue-500 to-indigo-600',
+      icon: 'text-cyan-600',
+      border: 'border-cyan-200',
+      hover: 'hover:border-cyan-300',
+      shadow: 'shadow-cyan-100',
+      bgHover: 'group-hover:shadow-cyan-200'
     }
     if (title.includes('Thumbnails')) return {
-      bg: 'from-purple-500 to-purple-600',
-      icon: 'text-purple-600',
-      border: 'border-purple-200',
-      hover: 'hover:border-purple-300'
+      bg: 'from-violet-500 via-purple-500 to-fuchsia-600',
+      icon: 'text-violet-600',
+      border: 'border-violet-200',
+      hover: 'hover:border-violet-300',
+      shadow: 'shadow-violet-100',
+      bgHover: 'group-hover:shadow-violet-200'
     }
     if (title.includes('Videos')) return {
-      bg: 'from-green-500 to-green-600',
-      icon: 'text-green-600',
-      border: 'border-green-200',
-      hover: 'hover:border-green-300'
+      bg: 'from-emerald-500 via-green-500 to-teal-600',
+      icon: 'text-emerald-600',
+      border: 'border-emerald-200',
+      hover: 'hover:border-emerald-300',
+      shadow: 'shadow-emerald-100',
+      bgHover: 'group-hover:shadow-emerald-200'
     }
     if (title.includes('unique features')) return {
-      bg: 'from-orange-500 to-orange-600',
-      icon: 'text-orange-600',
-      border: 'border-orange-200',
-      hover: 'hover:border-orange-300'
+      bg: 'from-amber-500 via-orange-500 to-red-600',
+      icon: 'text-amber-600',
+      border: 'border-amber-200',
+      hover: 'hover:border-amber-300',
+      shadow: 'shadow-amber-100',
+      bgHover: 'group-hover:shadow-amber-200'
     }
     return {
       bg: 'from-gray-500 to-gray-600',
       icon: 'text-gray-600',
       border: 'border-gray-200',
-      hover: 'hover:border-gray-300'
+      hover: 'hover:border-gray-300',
+      shadow: 'shadow-gray-100',
+      bgHover: 'group-hover:shadow-gray-200'
     }
   }
 
@@ -2424,86 +2434,88 @@ function FrontActionCard({
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={(e) => { if (onClick && (e.key === 'Enter' || e.key === ' ')) onClick() }}
       onClick={() => onClick?.()}
-      className={`group bg-white border-2 ${colors.border} rounded-xl p-3 hover:shadow-lg ${colors.hover} hover:scale-105 transition-all duration-300 cursor-pointer relative overflow-hidden`}
+      className={`group bg-gradient-to-br from-gray-50 via-white to-gray-100 border-2 ${colors.border} rounded-xl p-2 md:p-4 ${colors.hover} ${colors.shadow} hover:shadow-xl ${colors.bgHover} transition-all duration-300 cursor-pointer relative overflow-hidden backdrop-blur-sm`}
     >
-      {/* Background gradient effect */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${colors.bg} opacity-0 group-hover:opacity-5 transition-opacity duration-300 rounded-xl`}></div>
+      {/* Channel card style background pattern */}
+      <div className="absolute inset-0 opacity-10">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-100 via-purple-50 to-pink-100"></div>
+        <div className="absolute top-0 right-0 w-16 h-16 md:w-24 md:h-24 bg-gradient-to-bl from-indigo-200/30 to-transparent rounded-full transform translate-x-8 -translate-y-8 md:translate-x-12 md:-translate-y-12"></div>
+        <div className="absolute bottom-0 left-0 w-12 h-12 md:w-16 md:h-16 bg-gradient-to-tr from-purple-200/20 to-transparent rounded-full transform -translate-x-6 translate-y-6 md:-translate-x-8 md:translate-y-8"></div>
+      </div>
 
-      {/* Icon container */}
-      <div className="relative flex items-center justify-center mb-2">
-        <div className={`p-2 rounded-lg bg-gradient-to-br ${colors.bg} shadow-md group-hover:scale-110 transition-transform duration-300`}>
-          <Icon className="w-5 h-5 text-white" />
+      {/* Icon container - compact */}
+      <div className="relative flex items-center justify-center mb-1 md:mb-3">
+        <div className={`p-1.5 md:p-3 rounded-lg md:rounded-xl bg-gradient-to-br ${colors.bg} shadow-lg group-hover:shadow-2xl transition-all duration-300 relative`}>
+          <Icon className="w-4 h-4 md:w-6 md:h-6 text-white drop-shadow-sm" />
+          {/* Subtle glow effect */}
+          <div className={`absolute inset-0 rounded-lg md:rounded-xl bg-gradient-to-br ${colors.bg} opacity-0 group-hover:opacity-20 blur-md transition-opacity duration-300`}></div>
         </div>
       </div>
 
       {/* Content */}
       <div className="relative text-center">
-        <h4 className="text-sm font-bold text-gray-900 mb-1 group-hover:text-blue-600 transition-colors truncate">
+        <h4 className="text-xs font-bold text-gray-800 mb-0.5 md:mb-2 group-hover:text-gray-900 transition-colors leading-tight">
           {title}
         </h4>
-        <p className="text-xs text-gray-600 mb-2 leading-tight line-clamp-2">
-          {title.includes('Keywords') && 'Discover trending keywords to boost visibility'}
-          {title.includes('Thumbnails') && 'Create eye-catching thumbnails for more clicks'}
-          {title.includes('Videos') && 'Find trending videos to analyze'}
-          {title.includes('unique features') && 'Access exclusive AI tools'}
-        </p>
 
-        {/* Stats or benefits - compact version */}
-        <div className="flex items-center justify-center gap-2 mb-2 text-xs text-gray-500">
+        {/* Stats or benefits - ultra compact */}
+        <div className="flex items-center justify-center gap-1 md:gap-3 mb-2 md:mb-4 text-xs">
           {title.includes('Keywords') && (
             <>
-              <span className="flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" />
-                +150%
-              </span>
-              <span className="flex items-center gap-1">
-                <Users className="w-3 h-3" />
-                Live
-              </span>
+              <div className="flex items-center gap-0.5 bg-cyan-50 px-1 md:px-2 py-0.5 rounded-full border border-cyan-100">
+                <TrendingUp className="w-2 h-2 md:w-3 md:h-3 text-cyan-600" />
+                <span className="text-cyan-700 font-medium text-xs">+150%</span>
+              </div>
+              <div className="flex items-center gap-0.5 bg-cyan-50 px-1 md:px-2 py-0.5 rounded-full border border-cyan-100">
+                <Users className="w-2 h-2 md:w-3 md:h-3 text-cyan-600" />
+                <span className="text-cyan-700 font-medium text-xs">Live</span>
+              </div>
             </>
           )}
           {title.includes('Thumbnails') && (
             <>
-              <span className="flex items-center gap-1">
-                <Eye className="w-3 h-3" />
-                +200%
-              </span>
-              <span className="flex items-center gap-1">
-                <Sparkles className="w-3 h-3" />
-                AI
-              </span>
+              <div className="flex items-center gap-0.5 bg-violet-50 px-1 md:px-2 py-0.5 rounded-full border border-violet-100">
+                <Eye className="w-2 h-2 md:w-3 md:h-3 text-violet-600" />
+                <span className="text-violet-700 font-medium text-xs">+200%</span>
+              </div>
+              <div className="flex items-center gap-0.5 bg-violet-50 px-1 md:px-2 py-0.5 rounded-full border border-violet-100">
+                <Sparkles className="w-2 h-2 md:w-3 md:h-3 text-violet-600" />
+                <span className="text-violet-700 font-medium text-xs">AI</span>
+              </div>
             </>
           )}
           {title.includes('Videos') && (
             <>
-              <span className="flex items-center gap-1">
-                <Video className="w-3 h-3" />
-                Top
-              </span>
-              <span className="flex items-center gap-1">
-                <BarChart3 className="w-3 h-3" />
-                Data
-              </span>
+              <div className="flex items-center gap-0.5 bg-emerald-50 px-1 md:px-2 py-0.5 rounded-full border border-emerald-100">
+                <Video className="w-2 h-2 md:w-3 md:h-3 text-emerald-600" />
+                <span className="text-emerald-700 font-medium text-xs">Top</span>
+              </div>
+              <div className="flex items-center gap-0.5 bg-emerald-50 px-1 md:px-2 py-0.5 rounded-full border border-emerald-100">
+                <BarChart3 className="w-2 h-2 md:w-3 md:h-3 text-emerald-600" />
+                <span className="text-emerald-700 font-medium text-xs">Data</span>
+              </div>
             </>
           )}
           {title.includes('unique features') && (
             <>
-              <span className="flex items-center gap-1">
-                <Zap className="w-3 h-3" />
-                Excl
-              </span>
-              <span className="flex items-center gap-1">
-                <CheckCircle className="w-3 h-3" />
-                Prem
-              </span>
+              <div className="flex items-center gap-0.5 bg-amber-50 px-1 md:px-2 py-0.5 rounded-full border border-amber-100">
+                <Zap className="w-2 h-2 md:w-3 md:h-3 text-amber-600" />
+                <span className="text-amber-700 font-medium text-xs">Excl</span>
+              </div>
+              <div className="flex items-center gap-0.5 bg-amber-50 px-1 md:px-2 py-0.5 rounded-full border border-amber-100">
+                <CheckCircle className="w-2 h-2 md:w-3 md:h-3 text-amber-600" />
+                <span className="text-amber-700 font-medium text-xs">Prem</span>
+              </div>
             </>
           )}
         </div>
 
-        {/* CTA Button */}
-        <button className={`w-full py-2 px-3 bg-gradient-to-r ${colors.bg} hover:opacity-90 text-white font-medium rounded-lg transition-all duration-300 shadow-md hover:shadow-lg group-hover:scale-105 flex items-center justify-center gap-1 text-xs`} onClick={(e) => { e.stopPropagation(); onClick?.(); }}>
-          <span className="truncate">{cta}</span>
-          <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform flex-shrink-0" />
+        {/* CTA Button - mobile optimized */}
+        <button className={`w-full py-2 md:py-2.5 px-3 md:px-4 bg-gradient-to-r ${colors.bg} hover:opacity-90 text-white font-semibold rounded-lg md:rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-1 text-xs relative overflow-hidden`} onClick={(e) => { e.stopPropagation(); onClick?.(); }}>
+          <span className="relative z-10 truncate">{cta}</span>
+          <ChevronRight className="w-2 h-2 md:w-3 md:h-3 relative z-10 flex-shrink-0" />
+          {/* Button shine effect */}
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 hover:opacity-20 transform -skew-x-12 translate-x-[-100%] hover:translate-x-[100%] transition-all duration-700"></div>
         </button>
       </div>
     </div>
