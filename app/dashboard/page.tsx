@@ -1113,7 +1113,7 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
         setLoadingVideos(true)
 
         // Request region-specific trending videos
-        const response = await fetch(`/api/youtube/trending?maxResults=50&regionCode=${selectedCountry}`)
+        const response = await fetch(`/api/youtube/trending?maxResults=200&regionCode=${selectedCountry}`)
         const data = await response.json()
 
         if (data.success) {
@@ -1267,11 +1267,7 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
               front: true,
               image: '/images/trending-keywords-preview.svg',
               cta: 'Find Trending Keywords',
-              onClick: () => {
-              // Scroll to the trending keywords section
-              const el = document.getElementById('trending-keywords')
-              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            }
+              onClick: () => router.push('/dashboard/trending')
           },
           {
             icon: Sparkles,
