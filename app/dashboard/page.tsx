@@ -1102,6 +1102,7 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
   const [loadingKeywords, setLoadingKeywords] = useState(true)
   const [trendingVideos, setTrendingVideos] = useState<any[]>([])
   const [loadingVideos, setLoadingVideos] = useState(true)
+  const [selectedCountry, setSelectedCountry] = useState<string>("US")
   const [latestVideo, setLatestVideo] = useState<any | null>(null)
   const [loadingLatest, setLoadingLatest] = useState(true)
 
@@ -1109,23 +1110,48 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
     const fetchTrendingKeywords = async () => {
       try {
         setLoadingKeywords(true)
-        const response = await fetch('/api/youtube/trending?maxResults=20')
+        setLoadingVideos(true)
+
+        // Request region-specific trending videos
+        const response = await fetch(`/api/youtube/trending?maxResults=50&regionCode=${selectedCountry}`)
         const data = await response.json()
-        
+
         if (data.success) {
           if (data.keywords) setTrendingKeywords(data.keywords)
-          if (data.videos) setTrendingVideos(data.videos)
+
+          // Filter videos to those published in the last 24 hours ("today") and sort by view count desc
+          if (data.videos && Array.isArray(data.videos)) {
+            const now = Date.now()
+            const oneDayMs = 24 * 60 * 60 * 1000
+
+            const todays = data.videos.filter((v: any) => {
+              if (!v.publishedAt) return false
+              const published = new Date(v.publishedAt).getTime()
+              return (now - published) <= oneDayMs
+            })
+
+            // try to parse numeric viewCount, fallback to 0
+            todays.sort((a: any, b: any) => {
+              const va = parseInt(a.viewCount || 0) || 0
+              const vb = parseInt(b.viewCount || 0) || 0
+              return vb - va
+            })
+
+            setTrendingVideos(todays)
+          } else {
+            setTrendingVideos([])
+          }
         }
       } catch (error) {
         console.error('Error fetching trending keywords:', error)
-        } finally {
+      } finally {
         setLoadingKeywords(false)
         setLoadingVideos(false)
       }
     }
 
     fetchTrendingKeywords()
-  }, [])
+  }, [selectedCountry])
 
   // Fetch latest video from connected channel (if available)
   useEffect(() => {
@@ -1277,15 +1303,15 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
             }
           },
           {
-            icon: Zap,
-            label: "Add unique features",
-            value: 'Exclusive',
-            change: "Add things other platforms don't have",
+            icon: Upload,
+            label: 'Bulk Upload',
+            value: 'Batch Upload',
+            change: 'Upload many videos at once',
             color: 'from-orange-500 to-orange-600',
             front: true,
-            image: '/images/create-thumbnails-preview.svg',
-            cta: 'Get Video Ideas',
-            onClick: () => router.push('/ai-tools')
+            image: '/images/bulk-upload-preview.svg',
+            cta: 'Bulk Upload',
+            onClick: () => router.push('/upload/bulk')
           }
         ].map((card, idx) => (
           card.front ? (
@@ -1322,7 +1348,26 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
 
           {/* Trending videos area (used by action card scroll) */}
           <div id="trending-videos" className="mt-6">
-            <h3 className="text-sm font-bold text-gray-900 mb-3">Trending Videos</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-gray-900">Trending Videos</h3>
+              <div className="flex items-center gap-2">
+                <label htmlFor="region" className="text-xs text-gray-500 hidden sm:inline">Country</label>
+                <select
+                  id="region"
+                  value={selectedCountry}
+                  onChange={(e) => setSelectedCountry(e.target.value)}
+                  className="text-sm border border-gray-200 rounded-md p-1 bg-white"
+                >
+                  <option value="US">United States</option>
+                  <option value="IN">India</option>
+                  <option value="GB">United Kingdom</option>
+                  <option value="CA">Canada</option>
+                  <option value="AU">Australia</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="text-xs text-gray-500 mb-3">Showing most-viewed videos published in the last 24 hours for the selected country.</div>
             <TrendingVideosCard trendingVideos={trendingVideos} loadingVideos={loadingVideos} />
           </div>
         </div>
@@ -1338,9 +1383,11 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
           </div>
         </div>
 
-        {/* AI Tools Preview - easier access from the Dashboard */}
-        <div className="lg:col-span-1">
-          <AiToolsSection />
+        {/* AI Tools Preview - make full-width on large screens so it's much wider */}
+        <div className="lg:col-span-3">
+          <div className="h-full">
+            <AiToolsSection />
+          </div>
         </div>
       </div>
 
