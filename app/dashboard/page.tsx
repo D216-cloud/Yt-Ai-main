@@ -35,7 +35,7 @@ import {
   Hash,
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
-import AiToolsSection from '@/components/ai-tools-section'
+// AiToolsSection removed per request (Analytics / AI Tools / Settings are no longer shown)
 import { useSession, signOut } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import TrendingVideosCard from '@/components/TrendingVideosCard'
@@ -54,7 +54,6 @@ interface YouTubeChannel {
 
 export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [activePage, setActivePage] = useState("dashboard")
   const [isLoading, setIsLoading] = useState(false)
   const [youtubeChannel, setYoutubeChannel] = useState<YouTubeChannel | null>(null)
@@ -66,7 +65,13 @@ export default function DashboardPage() {
   // Function to update the current channel (used by ProfileView)
   const updateCurrentChannel = (channel: YouTubeChannel) => {
     setYoutubeChannel(channel)
-    localStorage.setItem("youtube_channel", JSON.stringify(channel))
+    try {
+      localStorage.setItem("youtube_channel", JSON.stringify(channel))
+      // Persist the selected channel id so the selection survives reloads
+      localStorage.setItem("selected_channel_id", channel.id)
+    } catch (e) {
+      console.error('Failed to persist selected channel:', e)
+    }
   }
 
   // Ref to store scroll position when mobile sidebar opens (to lock background scroll)
@@ -120,20 +125,26 @@ export default function DashboardPage() {
         setChannelLoading(true)
         // Try to get channel data from localStorage first
         const storedChannel = localStorage.getItem("youtube_channel")
+        let mainChannel: YouTubeChannel | null = null
         if (storedChannel) {
-          setYoutubeChannel(JSON.parse(storedChannel))
+          try {
+            mainChannel = JSON.parse(storedChannel)
+          } catch (e) {
+            console.error('Failed to parse stored youtube_channel', e)
+            mainChannel = null
+          }
         }
-        
-        // Always fetch fresh data from API to ensure it's up to date
+
+        // Always fetch fresh data from API to ensure it's up to date (if we have a token)
         const storedToken = localStorage.getItem("youtube_access_token")
         if (storedToken) {
           const response = await fetch(`/api/youtube/channel?access_token=${storedToken}`)
           const data = await response.json()
-          
+
           if (data.success && data.channel) {
-            setYoutubeChannel(data.channel)
+            mainChannel = data.channel
             // Store in localStorage for quick access
-            localStorage.setItem("youtube_channel", JSON.stringify(data.channel))
+            try { localStorage.setItem("youtube_channel", JSON.stringify(data.channel)) } catch (e) { console.error(e) }
           } else if (data.expired) {
             // Token expired, try to refresh it
             const refreshToken = localStorage.getItem("youtube_refresh_token")
@@ -158,8 +169,8 @@ export default function DashboardPage() {
                   const retryData = await retryResponse.json()
                   
                   if (retryData.success && retryData.channel) {
-                    setYoutubeChannel(retryData.channel)
-                    localStorage.setItem("youtube_channel", JSON.stringify(retryData.channel))
+                    mainChannel = retryData.channel
+                    try { localStorage.setItem("youtube_channel", JSON.stringify(retryData.channel)) } catch (e) { console.error(e) }
                   }
                 }
               } catch (refreshError) {
@@ -168,9 +179,45 @@ export default function DashboardPage() {
                 localStorage.removeItem("youtube_access_token")
                 localStorage.removeItem("youtube_refresh_token")
                 localStorage.removeItem("youtube_channel")
-                setYoutubeChannel(null)
+                mainChannel = null
               }
             }
+          }
+        }
+
+        // Load additional channels (if any)
+        const channels: YouTubeChannel[] = []
+        if (mainChannel) channels.push(mainChannel)
+        const storedAdditional = localStorage.getItem('additional_youtube_channels')
+        if (storedAdditional) {
+          try {
+            const extra = JSON.parse(storedAdditional)
+            extra.forEach((ch: YouTubeChannel) => {
+              if (!channels.find(c => c.id === ch.id)) channels.push(ch)
+            })
+          } catch (e) {
+            console.error('Failed to parse additional_youtube_channels', e)
+          }
+        }
+
+        // If user previously selected a channel, respect that choice
+        const savedSelectedId = localStorage.getItem('selected_channel_id')
+        if (savedSelectedId) {
+          const selected = channels.find(c => c.id === savedSelectedId)
+          if (selected) {
+            setYoutubeChannel(selected)
+            try { localStorage.setItem('youtube_channel', JSON.stringify(selected)) } catch (e) { console.error(e) }
+          } else if (mainChannel) {
+            setYoutubeChannel(mainChannel)
+          } else {
+            setYoutubeChannel(null)
+          }
+        } else {
+          // No explicit selection, use mainChannel if available
+          if (mainChannel) {
+            setYoutubeChannel(mainChannel)
+          } else {
+            setYoutubeChannel(null)
           }
         }
       } catch (error) {
@@ -195,11 +242,11 @@ export default function DashboardPage() {
       if (storedToken) {
         const response = await fetch(`/api/youtube/channel?access_token=${storedToken}`)
         const data = await response.json()
-        
+
+        let mainChannel: YouTubeChannel | null = null
         if (data.success && data.channel) {
-          setYoutubeChannel(data.channel)
-          // Store in localStorage for quick access
-          localStorage.setItem("youtube_channel", JSON.stringify(data.channel))
+          mainChannel = data.channel
+          try { localStorage.setItem("youtube_channel", JSON.stringify(data.channel)) } catch (e) { console.error(e) }
         } else if (data.expired) {
           // Token expired, try to refresh it
           const refreshToken = localStorage.getItem("youtube_refresh_token")
@@ -224,8 +271,8 @@ export default function DashboardPage() {
                 const retryData = await retryResponse.json()
                 
                 if (retryData.success && retryData.channel) {
-                  setYoutubeChannel(retryData.channel)
-                  localStorage.setItem("youtube_channel", JSON.stringify(retryData.channel))
+                  mainChannel = retryData.channel
+                  try { localStorage.setItem("youtube_channel", JSON.stringify(retryData.channel)) } catch (e) { console.error(e) }
                 }
               }
             } catch (refreshError) {
@@ -234,9 +281,40 @@ export default function DashboardPage() {
               localStorage.removeItem("youtube_access_token")
               localStorage.removeItem("youtube_refresh_token")
               localStorage.removeItem("youtube_channel")
-              setYoutubeChannel(null)
+              mainChannel = null
             }
           }
+        }
+
+        // Build channel list and respect saved selected channel
+        const channels: YouTubeChannel[] = []
+        if (mainChannel) channels.push(mainChannel)
+        const storedAdditional = localStorage.getItem('additional_youtube_channels')
+        if (storedAdditional) {
+          try {
+            const extra = JSON.parse(storedAdditional)
+            extra.forEach((ch: YouTubeChannel) => {
+              if (!channels.find(c => c.id === ch.id)) channels.push(ch)
+            })
+          } catch (e) {
+            console.error('Failed to parse additional_youtube_channels', e)
+          }
+        }
+
+        const savedSelectedId = localStorage.getItem('selected_channel_id')
+        if (savedSelectedId) {
+          const selected = channels.find(c => c.id === savedSelectedId)
+          if (selected) {
+            setYoutubeChannel(selected)
+            try { localStorage.setItem('youtube_channel', JSON.stringify(selected)) } catch (e) { console.error(e) }
+          } else if (mainChannel) {
+            setYoutubeChannel(mainChannel)
+          } else {
+            setYoutubeChannel(null)
+          }
+        } else {
+          if (mainChannel) setYoutubeChannel(mainChannel)
+          else setYoutubeChannel(null)
         }
       }
     } catch (error) {
@@ -315,12 +393,10 @@ export default function DashboardPage() {
 
   const navLinks = [
     { icon: Home, label: "Dashboard", href: "#", id: "dashboard", active: true },
-    { icon: User, label: "Profile", href: "#", id: "profile", active: false },
-    { icon: GitCompare, label: "Compare", href: "#", id: "compare", active: false },
-    { icon: Video, label: "Content", href: "#", id: "content", active: false },
-    { icon: BarChart3, label: "Analytics", href: "#", id: "analytics", active: false },
-    { icon: Sparkles, label: "AI Tools", href: "#", id: "ai-tools", active: false },
-    { icon: Settings, label: "Settings", href: "#", id: "settings", active: false },
+    // Profile removed from sidebar - accessible via header avatar
+    { icon: GitCompare, label: "Compare", href: "/compare", id: "compare", active: false },
+    { icon: Video, label: "Content", href: "/content", id: "content", active: false },
+    { icon: Upload, label: "Bulk Upload", href: "/bulk-upload", id: "bulk-upload", active: false },
   ]
 
   const handleNavClick = (pageId: string) => {
@@ -358,7 +434,12 @@ export default function DashboardPage() {
 
           <div className="flex items-center space-x-2">
             {session && (
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-purple-600 shadow-md">
+              <div
+                role="button"
+                title="Profile"
+                onClick={() => { setActivePage('profile'); setSidebarOpen(false) }}
+                className="cursor-pointer flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-purple-600 shadow-md"
+              >
                 <span className="text-white text-sm font-bold uppercase">
                   {session.user?.email?.substring(0, 2) || "U"}
                 </span>
@@ -398,7 +479,12 @@ export default function DashboardPage() {
                 <p className="text-sm font-medium text-gray-900">{session?.user?.name || "Creator Studio"}</p>
                 <p className="text-xs text-gray-500">{session?.user?.email || "Premium Plan"}</p>
               </div>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 border-2 border-blue-200 shadow-md flex items-center justify-center flex-shrink-0">
+              <div
+                role="button"
+                title="Profile"
+                onClick={() => setActivePage('profile')}
+                className="cursor-pointer w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 border-2 border-blue-200 shadow-md flex items-center justify-center flex-shrink-0"
+              >
                 <span className="text-white text-sm font-semibold">
                   {session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || "U"}
                 </span>
@@ -424,10 +510,19 @@ export default function DashboardPage() {
           <nav className="p-4 space-y-2">
             {navLinks.map((link) => {
               const Icon = link.icon
+              const isExternal = typeof link.href === 'string' && link.href.startsWith('/')
               return (
                 <button
                   key={link.id}
-                  onClick={() => { handleNavClick(link.id); setSidebarOpen(false) }}
+                  onClick={() => {
+                    if (isExternal) {
+                      router.push(link.href)
+                      setSidebarOpen(false)
+                    } else {
+                      handleNavClick(link.id)
+                      setSidebarOpen(false)
+                    }
+                  }}
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
                     activePage === link.id
                       ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50'
@@ -462,79 +557,57 @@ export default function DashboardPage() {
           </div>
         </aside>
 
-        {/* Desktop Sidebar - improved visuals */}
-        <aside className={`hidden md:flex flex-col ${sidebarCollapsed ? 'w-20' : 'w-64'} border-r border-gray-200 bg-white fixed left-0 top-16 bottom-0 overflow-y-auto`}>
-          {/* Collapse toggle header (logo removed per request) */}
-          <div className="px-3 py-2 flex items-center justify-end border-b border-gray-100">
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              className="p-2 rounded-md hover:bg-gray-100"
-            >
-              {sidebarCollapsed ? <ChevronRight className="w-5 h-5 text-gray-600" /> : <ChevronLeft className="w-5 h-5 text-gray-600" />}
-            </button>
-          </div>
-
+        {/* Desktop Sidebar - fixed expanded layout */}
+        <aside className="hidden md:flex flex-col w-64 border-r border-gray-200 bg-white fixed left-0 top-16 bottom-0 overflow-y-auto">
           <nav className="p-4 space-y-1 flex-1">
             {navLinks.map((link) => {
               const Icon = link.icon
               const isActive = activePage === link.id
+              const isExternal = typeof link.href === 'string' && link.href.startsWith('/')
               return (
                 <button
                   key={link.id}
-                  onClick={() => handleNavClick(link.id)}
+                  onClick={() => {
+                    if (isExternal) router.push(link.href)
+                    else handleNavClick(link.id)
+                  }}
                   title={link.label}
-                  className={`relative w-full flex items-center ${sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-4'} py-3 rounded-lg transition-all text-sm overflow-hidden ${
+                  className={`relative w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-sm overflow-hidden ${
                     isActive
                       ? 'bg-gradient-to-r from-blue-600/10 to-purple-600/10 text-gray-900 shadow-sm'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
-                  {/* Active indicator (only when expanded) */}
-                  {isActive && !sidebarCollapsed && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-500 to-purple-500 rounded-r-md" />}
+                  {/* Active indicator */}
+                  {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-500 to-purple-500 rounded-r-md" />}
 
                   <div className="relative z-10 flex items-center w-6 justify-center">
                     <Icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-gray-500'}`} />
                   </div>
-                  <span className={`relative z-10 font-medium text-sm truncate ${sidebarCollapsed ? 'hidden' : ''}`}>{link.label}</span>
+                  <span className="relative z-10 font-medium text-sm truncate">{link.label}</span>
                 </button>
               )
             })}
           </nav>
 
           <div className="px-4 py-4 border-t border-gray-100">
-            {sidebarCollapsed ? (
-              <button
-                title="Sign Out"
-                onClick={handleSignOut}
-                disabled={isLoading}
-                className="w-full flex items-center justify-center p-2 rounded-full bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <LogOut className="w-5 h-5" />
-                )}
-              </button>
-            ) : (
-              <Button
-                onClick={handleSignOut}
-                disabled={isLoading}
-                className="w-full justify-center bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold rounded-lg hover:from-red-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <>
-                    <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                    Signing Out...
-                  </>
-                ) : (
-                  <>
-                    <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
-                    <span>Sign Out</span>
-                  </>
-                )}
-              </Button>
-            )}
+            <Button
+              onClick={handleSignOut}
+              disabled={isLoading}
+              className="w-full justify-center bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold rounded-lg hover:from-red-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? (
+                <>
+                  <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  Signing Out...
+                </>
+              ) : (
+                <>
+                  <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <span>Sign Out</span>
+                </>
+              )}
+            </Button>
           </div>
         </aside>
 
@@ -542,14 +615,9 @@ export default function DashboardPage() {
       
       {/* Footer with Terms and Privacy Links */}
         {/* Main Content */}
-        <main className={`flex-1 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-64'} pb-20 md:pb-0`}>
-          {activePage === "dashboard" && <DashboardView stats={stats} isLoading={isLoading} youtubeChannel={youtubeChannel} channelLoading={channelLoading} router={router} />}
+        <main className="flex-1 md:ml-64 pb-20 md:pb-0">
+          {activePage === "dashboard" && <DashboardView stats={stats} isLoading={isLoading} youtubeChannel={youtubeChannel} channelLoading={channelLoading} router={router} onChannelChange={updateCurrentChannel} />}
           {activePage === "profile" && <ProfileView youtubeChannel={youtubeChannel} channelLoading={channelLoading} session={session} onChannelChange={updateCurrentChannel} />}
-          {activePage === "compare" && <CompareView />}
-          {activePage === "content" && <ContentStudioView youtubeChannel={youtubeChannel} />}
-          {activePage === "analytics" && <AnalyticsView />}
-          {activePage === "ai-tools" && <AIToolsView />}
-          {activePage === "settings" && <SettingsView />}
         </main>
       </div>
 
@@ -1097,7 +1165,7 @@ function CompareView() {
   )
 }
 
-function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, router }: { stats: any[]; isLoading: boolean; youtubeChannel: YouTubeChannel | null; channelLoading: boolean; router: any }) {
+function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, router, onChannelChange }: { stats: any[]; isLoading: boolean; youtubeChannel: YouTubeChannel | null; channelLoading: boolean; router: any; onChannelChange?: (ch: YouTubeChannel) => void }) {
   const [trendingKeywords, setTrendingKeywords] = useState<{keyword: string, frequency: number}[]>([])
   const [loadingKeywords, setLoadingKeywords] = useState(true)
   const [trendingVideos, setTrendingVideos] = useState<any[]>([])
@@ -1105,6 +1173,41 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
   const [selectedCountry, setSelectedCountry] = useState<string>("US")
   const [latestVideo, setLatestVideo] = useState<any | null>(null)
   const [loadingLatest, setLoadingLatest] = useState(true)
+  // Local channel management for Quick Actions card
+  const [allChannelsLocal, setAllChannelsLocal] = useState<YouTubeChannel[]>([])
+  const [showManageChannels, setShowManageChannels] = useState(false)
+
+  const formatNumber = (num: string | number): string => {
+    const n = typeof num === 'string' ? parseInt(num) : num
+    if (isNaN(n)) return '0'
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K'
+    return n.toString()
+  }
+
+  useEffect(() => {
+    const loadChannels = () => {
+      const channels: YouTubeChannel[] = []
+      if (youtubeChannel) channels.push(youtubeChannel)
+
+      const stored = localStorage.getItem('additional_youtube_channels')
+      if (stored) {
+        try {
+          const extra = JSON.parse(stored)
+          extra.forEach((ch: YouTubeChannel) => {
+            if (!channels.find(c => c.id === ch.id)) channels.push(ch)
+          })
+        } catch (e) {
+          console.error('Failed to parse additional channels', e)
+        }
+      }
+
+      setAllChannelsLocal(channels)
+    }
+
+    // run on mount and when youtubeChannel changes
+    loadChannels()
+  }, [youtubeChannel])
 
   useEffect(() => {
     const fetchTrendingKeywords = async () => {
@@ -1179,7 +1282,7 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
     }
 
     fetchLatest()
-  }, [youtubeChannel])
+  }, [youtubeChannel]);
 
   return (
     <div className="p-4 md:p-6 lg:p-8">
@@ -1194,6 +1297,240 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
           <p className="text-sm md:text-base text-gray-700">Here's what's happening with your YouTube channel today.</p>
         </div>
       )}
+
+      {/* Hero-style Dashboard Preview Card (matches hero-section preview) */}
+      <div className="mb-6 rounded-xl sm:rounded-2xl bg-card/95 backdrop-blur-sm border shadow-xl sm:shadow-2xl overflow-hidden">
+        {/* Desktop Header */}
+        <div className="hidden sm:flex bg-muted/50 px-4 sm:px-6 py-3 sm:py-4 border-b items-center justify-between">
+          <div className="flex items-center space-x-3 sm:space-x-4">
+            <div className="flex items-center space-x-2">
+              <div className="h-2 w-2 sm:h-3 sm:w-3 rounded-full bg-destructive"></div>
+              <div className="h-2 w-2 sm:h-3 sm:w-3 rounded-full bg-yellow-500"></div>
+              <div className="h-2 w-2 sm:h-3 sm:w-3 rounded-full bg-green-500"></div>
+            </div>
+            <div className="inline-flex items-center space-x-2">
+              <div className="bg-white/90 rounded-full px-2 py-1 border shadow-sm flex items-center gap-2">
+                <Youtube className="h-4 w-4 text-red-500" />
+                <span className="text-xs sm:text-sm font-medium text-muted-foreground">youtube-growth.ai</span>
+              </div>
+              <span className="text-xs sm:text-sm text-muted-foreground">/dashboard</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground">Preview</span>
+            <div className="bg-green-100 text-green-700 text-xs rounded-md px-2 py-1 inline-flex items-center gap-2">
+              <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+              Live Data
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Header: show pill with YouTube icon and gradient URL */}
+        <div className="sm:hidden bg-muted/50 px-4 py-3 border-b">
+          <div className="text-center">
+            <div className="inline-flex items-center rounded-full bg-white/95 shadow-sm px-3 py-2 border border-muted">
+              <div className="flex items-center justify-center w-7 h-7 rounded-md bg-red-50 border border-red-200 mr-2">
+                <Youtube className="h-4 w-4 text-red-500" />
+              </div>
+              <span className="text-sm font-semibold text-transparent bg-clip-text bg-linear-to-r from-primary via-secondary to-primary animate-pulse-glow">
+                youtube-growth.ai/dashboard
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Dashboard Content: simplified preview to match hero preview pattern */}
+        <div className="p-4 sm:p-8">
+          {/* Mobile simplified preview */}
+          <div className="sm:hidden grid grid-cols-3 gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-white/90 border text-center shadow-sm">
+              <div className="flex items-center justify-center mb-1">
+                <TrendingUp className="h-4 w-4 text-primary" />
+              </div>
+              <div className="text-base font-bold text-primary animate-pulse">+127%</div>
+              <div className="text-xs text-muted-foreground">Growth</div>
+            </div>
+            <div className="p-2 rounded-lg bg-white/90 border text-center shadow-sm">
+              <div className="flex items-center justify-center mb-1">
+                <Users className="h-4 w-4 text-secondary" />
+              </div>
+              <div className="text-base font-bold text-secondary animate-pulse">45.2K</div>
+              <div className="text-xs text-muted-foreground">New Subs</div>
+            </div>
+            <div className="p-2 rounded-lg bg-white/90 border text-center shadow-sm">
+              <div className="flex items-center justify-center mb-1">
+                <Sparkles className="h-4 w-4 text-yellow-500" />
+              </div>
+              <div className="text-base font-bold text-yellow-500 animate-pulse">4.8★</div>
+              <div className="text-xs text-muted-foreground">Rating</div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+            {/* Stats Cards */}
+            <div className="lg:col-span-1 space-y-3 sm:space-y-4">
+              <div className="bg-linear-to-r from-primary/10 to-secondary/10 p-3 sm:p-4 rounded-lg sm:rounded-xl border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
+                    <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+                    <div>
+                      <div className="text-lg sm:text-xl font-bold text-primary">+127%</div>
+                      <div className="text-xs sm:text-sm text-muted-foreground">Growth Rate</div>
+                    </div>
+                  </div>
+                  <div className="hidden sm:block w-16 h-5 bg-muted rounded-md">
+                    <svg viewBox="0 0 26 5" className="w-full h-full">
+                      <polyline points="0,4 6,2 12,3 18,1 26,0" fill="none" stroke="#5b21b6" strokeWidth="1.2" strokeLinejoin="round" strokeLinecap="round" opacity="0.6" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-linear-to-r from-secondary/10 to-primary/10 p-3 sm:p-4 rounded-lg sm:rounded-xl border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
+                    <Users className="h-6 w-6 sm:h-8 sm:w-8 text-secondary" />
+                    <div>
+                      <div className="text-lg sm:text-xl font-bold text-secondary">45.2K</div>
+                      <div className="text-xs sm:text-sm text-muted-foreground">New Subs</div>
+                    </div>
+                  </div>
+                  <div className="hidden sm:block w-16 h-5 bg-muted rounded-md">
+                    <svg viewBox="0 0 26 5" className="w-full h-full">
+                      <polyline points="0,3 6,1 12,2 18,0 26,2" fill="none" stroke="#059669" strokeWidth="1.2" strokeLinejoin="round" strokeLinecap="round" opacity="0.6" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Content area for preview */}
+            <div className="lg:col-span-3">
+              <div className="bg-muted/30 p-4 sm:p-6 rounded-lg sm:rounded-xl border mb-4 sm:mb-6">
+                <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 flex items-center">
+                  <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-primary mr-2" />
+                  AI Content Suggestions
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Link href="/bulk-upload" className="block">
+                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border hover:shadow-md cursor-pointer h-20">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm">
+                          <Hash className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="text-sm sm:text-base font-semibold">Bulk Upload</div>
+                          <div className="text-xs text-gray-500">Upload many videos at once</div>
+                        </div>
+                      </div>
+                      <div className="text-sm text-purple-600 font-semibold">Try Now &gt;</div>
+                    </div>
+                  </Link>
+
+                  <Link href="/dashboard/trending" className="block">
+                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border hover:shadow-md cursor-pointer h-20">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center text-white shadow-sm">
+                          <Video className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="text-sm sm:text-base font-semibold">Find Trending Videos</div>
+                          <div className="text-xs text-gray-500">Top trending vids</div>
+                        </div>
+                      </div>
+                      <div className="text-sm text-purple-600 font-semibold">Try Now &gt;</div>
+                    </div>
+                  </Link>
+
+                  <Link href="/tools/optimize-title" className="block">
+                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border hover:shadow-md cursor-pointer h-20">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-sm">
+                          <Sparkles className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="text-sm sm:text-base font-semibold">Optimize Title</div>
+                          <div className="text-xs text-gray-500">Improve click-through rate</div>
+                        </div>
+                      </div>
+                      <div className="text-sm text-purple-600 font-semibold">Try Now &gt;</div>
+                    </div>
+                  </Link>
+
+                  <Link href="/tools/thumbnail-generator" className="block">
+                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border hover:shadow-md cursor-pointer h-20">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-lg bg-yellow-500 flex items-center justify-center text-white shadow-sm">
+                          <Play className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="text-sm sm:text-base font-semibold">Thumbnail Generator</div>
+                          <div className="text-xs text-gray-500">Create high-converting thumbnails</div>
+                        </div>
+                      </div>
+                      <div className="text-sm text-purple-600 font-semibold">Try Now &gt;</div>
+                    </div>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Analytics Preview */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+                        <div className="bg-white p-4 sm:p-5 rounded-2xl border shadow-sm">
+                          <div className="text-xs sm:text-sm text-muted-foreground mb-1">Views</div>
+                          <div className="text-2xl sm:text-3xl font-extrabold text-gray-900">
+                            {youtubeChannel ? formatNumber(stats[1].value) : '12,847'}
+                          </div>
+                          <div className="flex items-center gap-2 mt-2">
+                            {youtubeChannel && (
+                              <img src={youtubeChannel.thumbnail} alt={youtubeChannel.title} className="w-4 h-4 rounded-full object-cover" />
+                            )}
+                            <div className="text-xs sm:text-sm text-muted-foreground truncate">
+                              {youtubeChannel ? `${youtubeChannel.title}` : ''}
+                            </div>
+                            <div className="text-xs sm:text-sm text-green-600 ml-auto">
+                              {youtubeChannel ? stats[1].change : '+23% vs yesterday'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="bg-white p-4 sm:p-5 rounded-2xl border shadow-sm">
+                          <div className="text-xs sm:text-sm text-muted-foreground mb-1">Avg Views</div>
+                          <div className="text-2xl sm:text-3xl font-extrabold text-gray-900">
+                            {youtubeChannel ? stats[3].value : '8.2hrs'}
+                          </div>
+                          <div className="flex items-center gap-2 mt-2">
+                            {youtubeChannel && (
+                              <img src={youtubeChannel.thumbnail} alt={youtubeChannel.title} className="w-4 h-4 rounded-full object-cover" />
+                            )}
+                            <div className="text-xs sm:text-sm text-muted-foreground truncate">
+                              {youtubeChannel ? `${youtubeChannel.title}` : ''}
+                            </div>
+                            <div className="text-xs sm:text-sm text-green-600 ml-auto">
+                              {youtubeChannel ? stats[3].change : '+18% vs yesterday'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="bg-white p-4 sm:p-5 rounded-2xl border shadow-sm">
+                          <div className="text-xs sm:text-sm text-muted-foreground mb-1">Subscribers</div>
+                          <div className="text-2xl sm:text-3xl font-extrabold text-primary">
+                            {youtubeChannel ? formatNumber(stats[0].value) : '+127'}
+                          </div>
+                          <div className="flex items-center gap-2 mt-2">
+                            {youtubeChannel && (
+                              <img src={youtubeChannel.thumbnail} alt={youtubeChannel.title} className="w-4 h-4 rounded-full object-cover" />
+                            )}
+                            <div className="text-xs sm:text-sm text-muted-foreground truncate">
+                              {youtubeChannel ? `${youtubeChannel.title}` : ''}
+                            </div>
+                            <div className="text-xs sm:text-sm text-green-600 ml-auto">
+                              {youtubeChannel ? stats[0].change : '+45% vs yesterday'}
+                            </div>
+                          </div>
+                        </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* YouTube Channel Info */}
       {channelLoading ? (
@@ -1235,6 +1572,28 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
             </div>
           </div>
         </div>
+        {/* Quick action buttons under the channel card */}
+        <div className="mb-6 flex flex-col sm:flex-row gap-3">
+          <Link href="/bulk-upload" className="w-full sm:w-auto">
+            <div className="flex items-center gap-3 px-4 py-3 rounded-lg border bg-white hover:shadow-md cursor-pointer">
+              <div className="w-9 h-9 rounded-md bg-blue-600 flex items-center justify-center text-white">
+                <Upload className="w-4 h-4" />
+              </div>
+              <div className="text-sm font-semibold">Bulk Upload</div>
+              <div className="ml-auto text-sm text-purple-600 font-semibold">Try Now &gt;</div>
+            </div>
+          </Link>
+
+          <Link href="/dashboard/trending" className="w-full sm:w-auto">
+            <div className="flex items-center gap-3 px-4 py-3 rounded-lg border bg-white hover:shadow-md cursor-pointer">
+              <div className="w-9 h-9 rounded-md bg-green-500 flex items-center justify-center text-white">
+                <Hash className="w-4 h-4" />
+              </div>
+              <div className="text-sm font-semibold">Find Trending Keywords</div>
+              <div className="ml-auto text-sm text-purple-600 font-semibold">Try Now &gt;</div>
+            </div>
+          </Link>
+        </div>
       ) : (
         <div className="mb-6 rounded-2xl bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 p-6 backdrop-blur-sm shadow-sm">
           <div className="flex items-center gap-4">
@@ -1256,7 +1615,7 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
 
       {/* Stats Grid - Mobile Optimized */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-8">
-        {/* Custom action cards as requested */}
+        {/* Kept: Trending Keywords and Trending Videos actions. Removed AI Thumbnails and Bulk Upload. */}
         {[
           {
             icon: Hash,
@@ -1264,25 +1623,9 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
             value: trendingKeywords?.length ? `${trendingKeywords.length}` : 'Explore',
             change: 'Discover hot terms',
             color: 'from-blue-500 to-blue-600',
-              front: true,
-              image: '/images/trending-keywords-preview.svg',
-              cta: 'Find Trending Keywords',
-              onClick: () => router.push('/dashboard/trending')
-          },
-          {
-            icon: Sparkles,
-            label: 'Enhance Your Thumbnails',
-            value: 'Improve CTR',
-            change: 'AI thumbnail generator',
-            color: 'from-purple-500 to-purple-600',
             front: true,
-            image: '/images/ai-thumbnails-preview.svg',
-            cta: 'Create Thumbnails',
-            onClick: () => {
-              const el = document.getElementById('ai-thumbnails')
-              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-              else router.push('/ai-tools')
-            }
+            cta: 'Find Trending Keywords',
+            onClick: () => router.push('/dashboard/trending')
           },
           {
             icon: Video,
@@ -1291,23 +1634,11 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
             change: 'Top trending vids',
             color: 'from-green-500 to-green-600',
             front: true,
-            image: '/images/trending-videos-preview.svg',
             cta: 'Find Trending Videos',
             onClick: () => {
               const el = document.getElementById('trending-videos')
               if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
             }
-          },
-          {
-            icon: Upload,
-            label: 'Bulk Upload',
-            value: 'Batch Upload',
-            change: 'Upload many videos at once',
-            color: 'from-orange-500 to-orange-600',
-            front: true,
-            image: '/images/bulk-upload-preview.svg',
-            cta: 'Bulk Upload',
-            onClick: () => router.push('/upload/bulk')
           }
         ].map((card, idx) => (
           card.front ? (
@@ -1371,20 +1702,178 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
         {/* Quick Actions */}
         <div className="bg-white border border-gray-200 rounded-xl md:rounded-2xl p-4 md:p-6 backdrop-blur-sm shadow-sm hover:shadow-md transition">
           <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-4 md:mb-6">Quick Actions</h2>
-          <div className="space-y-2 md:space-y-3">
-            <QuickActionButton icon={Video} label="Upload Video" color="from-blue-500 to-blue-600" />
-            <QuickActionButton icon={Eye} label="View Analytics" color="from-purple-500 to-purple-600" />
-            <QuickActionButton icon={GitCompare} label="Compare Channels" color="from-orange-500 to-orange-600" />
-            <QuickActionButton icon={MessageSquare} label="Generate Scripts" color="from-green-500 to-green-600" />
-          </div>
+            <div className="space-y-3">
+              <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900">Connected Channels</h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowManageChannels(true)}
+                      className="text-sm px-3 py-1 bg-indigo-50 text-indigo-700 rounded-md border border-indigo-100 hover:bg-indigo-100"
+                    >
+                      Manage
+                    </button>
+                    <button
+                      onClick={() => {
+                        // open connect flow in popup similar to Connect page
+                        const width = 600
+                        const height = 700
+                        const left = (window.screen.width - width) / 2
+                        const top = (window.screen.height - height) / 2
+                        window.open('/api/youtube/auth', 'YouTube OAuth', `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`)
+                      }}
+                      className="text-sm px-3 py-1 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-md hover:opacity-95"
+                    >
+                      Connect Channel
+                    </button>
+                  </div>
+                </div>
+
+                {allChannelsLocal.length > 0 ? (
+                  <div className="space-y-2">
+                    {allChannelsLocal.map((ch) => (
+                      <div key={ch.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-50">
+                        <img src={ch.thumbnail} alt={ch.title} className="w-10 h-10 rounded-full object-cover border" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{ch.title}</p>
+                          <p className="text-xs text-gray-500 truncate">{formatNumber(ch.subscriberCount)} subscribers</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <a href={`https://youtube.com/channel/${ch.id}`} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
+                          <button
+                            onClick={() => {
+                              // set this channel as active across app
+                              try {
+                                localStorage.setItem('selected_channel_id', ch.id)
+                                if (onChannelChange) onChannelChange(ch)
+                                else window.location.reload()
+                              } catch (e) { console.error(e) }
+                            }}
+                            className={`text-xs px-2 py-1 ${youtubeChannel && youtubeChannel.id === ch.id ? 'bg-green-50 text-green-600' : 'bg-indigo-50 text-indigo-700'} rounded-md border`}
+                          >
+                            {youtubeChannel && youtubeChannel.id === ch.id ? 'Active' : 'Use'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              // disconnect channel locally
+                              if (youtubeChannel && youtubeChannel.id === ch.id) {
+                                localStorage.removeItem('youtube_access_token')
+                                localStorage.removeItem('youtube_refresh_token')
+                                localStorage.removeItem('youtube_channel')
+                                setAllChannelsLocal((prev) => prev.filter(c => c.id !== ch.id))
+                                alert('Main channel disconnected. You may need to reconnect.')
+                              } else {
+                                const stored = localStorage.getItem('additional_youtube_channels')
+                                if (stored) {
+                                  try {
+                                    const extra = JSON.parse(stored)
+                                    const filtered = extra.filter((ec: YouTubeChannel) => ec.id !== ch.id)
+                                    localStorage.setItem('additional_youtube_channels', JSON.stringify(filtered))
+                                    setAllChannelsLocal((prev) => prev.filter(c => c.id !== ch.id))
+                                  } catch (e) { console.error(e) }
+                                }
+                              }
+                            }}
+                            className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded-md border border-red-100 hover:bg-red-100"
+                          >
+                            Disconnect
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <p className="text-sm text-gray-600">No channels connected yet</p>
+                    <div className="mt-3">
+                      <button
+                        onClick={() => {
+                          const width = 600
+                          const height = 700
+                          const left = (window.screen.width - width) / 2
+                          const top = (window.screen.height - height) / 2
+                          window.open('/api/youtube/auth', 'YouTube OAuth', `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`)
+                        }}
+                        className="text-sm px-4 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-md"
+                      >
+                        Connect Your First Channel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Manage Channels Modal (simple) */}
+              {showManageChannels && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                  <div className="absolute inset-0 bg-black/50" onClick={() => setShowManageChannels(false)} />
+                  <div className="relative bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl z-10">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold">Manage Channels</h3>
+                      <button onClick={() => setShowManageChannels(false)} className="text-gray-500">Close</button>
+                    </div>
+                    <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+                      {allChannelsLocal.length > 0 ? allChannelsLocal.map((ch) => (
+                        <div key={ch.id} className="flex items-center gap-3 p-3 border rounded-md">
+                          <img src={ch.thumbnail} alt={ch.title} className="w-12 h-12 rounded-full object-cover" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold truncate">{ch.title}</p>
+                            <p className="text-xs text-gray-500 truncate">{formatNumber(ch.subscriberCount)} subscribers</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <a href={`https://youtube.com/channel/${ch.id}`} target="_blank" rel="noreferrer" className="text-sm text-blue-600">Open</a>
+                            <button
+                              onClick={() => {
+                                // set active
+                                try {
+                                  localStorage.setItem('selected_channel_id', ch.id)
+                                  if (onChannelChange) onChannelChange(ch)
+                                  else window.location.reload()
+                                } catch (e) { console.error(e) }
+                              }}
+                              className={`text-sm px-3 py-1 ${youtubeChannel && youtubeChannel.id === ch.id ? 'bg-green-50 text-green-600' : 'bg-indigo-50 text-indigo-700'} rounded-md`}
+                            >
+                              {youtubeChannel && youtubeChannel.id === ch.id ? 'Active' : 'Set Active'}
+                            </button>
+                            <button
+                              onClick={() => {
+                                // disconnect same as above
+                                if (youtubeChannel && youtubeChannel.id === ch.id) {
+                                  localStorage.removeItem('youtube_access_token')
+                                  localStorage.removeItem('youtube_refresh_token')
+                                  localStorage.removeItem('youtube_channel')
+                                  setAllChannelsLocal((prev) => prev.filter(c => c.id !== ch.id))
+                                  alert('Main channel disconnected.')
+                                } else {
+                                  const stored = localStorage.getItem('additional_youtube_channels')
+                                  if (stored) {
+                                    try {
+                                      const extra = JSON.parse(stored)
+                                      const filtered = extra.filter((ec: YouTubeChannel) => ec.id !== ch.id)
+                                      localStorage.setItem('additional_youtube_channels', JSON.stringify(filtered))
+                                      setAllChannelsLocal((prev) => prev.filter(c => c.id !== ch.id))
+                                    } catch (e) { console.error(e) }
+                                  }
+                                }
+                              }}
+                              className="text-sm px-3 py-1 bg-red-50 text-red-600 rounded-md"
+                            >
+                              Disconnect
+                            </button>
+                          </div>
+                        </div>
+                      )) : (
+                        <div className="text-center py-6 text-gray-600">No channels to manage</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
         </div>
 
         {/* AI Tools Preview - make full-width on large screens so it's much wider */}
-        <div className="lg:col-span-3">
-          <div className="h-full">
-            <AiToolsSection />
-          </div>
-        </div>
+        {/* AI Tools preview removed per request */}
       </div>
 
       {/* Engagement Distribution */}

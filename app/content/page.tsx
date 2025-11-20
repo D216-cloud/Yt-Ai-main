@@ -32,7 +32,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { Breadcrumb } from "@/components/breadcrumb"
 import { NavMenu } from "@/components/nav-menu"
 import AiToolsSection from '@/components/ai-tools-section'
@@ -72,6 +72,7 @@ export default function ContentPage() {
   const [isUploading, setIsUploading] = useState(false)
   const { data: session } = useSession()
   const router = useRouter()
+  const pathname = usePathname()
 
   // Add useEffect to check if user is authenticated
   useEffect(() => {
@@ -396,12 +397,9 @@ export default function ContentPage() {
 
   const navLinks = [
     { icon: Home, label: "Dashboard", href: "/dashboard", id: "dashboard" },
-    { icon: User, label: "Profile", href: "/dashboard?page=profile", id: "profile" },
     { icon: GitCompare, label: "Compare", href: "/compare", id: "compare" },
     { icon: Video, label: "Content", href: "/content", id: "content" },
-    { icon: BarChart3, label: "Analytics", href: "/analytics", id: "analytics" },
-    { icon: Upload, label: "Bulk Upload", href: "/ai-tools", id: "ai-tools" },
-    { icon: Settings, label: "Settings", href: "/settings", id: "settings" },
+    { icon: Upload, label: "Bulk Upload", href: "/bulk-upload", id: "bulk-upload" },
   ]
 
   return (
@@ -493,14 +491,15 @@ export default function ContentPage() {
           <nav className="p-4 space-y-2">
             {navLinks.map((link) => {
               const Icon = link.icon
+              const isActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href))
               return (
                 <Link
                   key={link.id}
                   href={link.href}
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                    link.id === "content"
-                      ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    isActive
+                      ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />
@@ -536,14 +535,15 @@ export default function ContentPage() {
           <nav className="p-4 space-y-1">
             {navLinks.map((link) => {
               const Icon = link.icon
+              const isActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href))
               return (
                 <Link
                   key={link.id}
                   href={link.href}
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                    link.id === "content"
-                      ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50 shadow-sm"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    isActive
+                      ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />

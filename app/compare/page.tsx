@@ -34,7 +34,7 @@ import {
   BarChart3Icon,
 } from "lucide-react"
 import { useSession, signOut } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 
 interface YouTubeChannel {
   id: string
@@ -516,6 +516,7 @@ function EnhancedAnalyticsCard({
 export default function ComparePage() {
   const { data: session } = useSession()
   const router = useRouter()
+  const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [channel1Id, setChannel1Id] = useState("")
   const [channel2Id, setChannel2Id] = useState("")
@@ -531,10 +532,8 @@ export default function ComparePage() {
   const navLinks = [
     { icon: Home, label: "Dashboard", href: "/dashboard", id: "dashboard" },
     { icon: GitCompare, label: "Compare", href: "/compare", id: "compare" },
-    { icon: Video, label: "Content", href: "#", id: "content" },
-    { icon: BarChart3Icon, label: "Analytics", href: "#", id: "analytics" },
-    { icon: Upload, label: "Bulk Upload", href: "/ai-tools", id: "ai-tools" },
-    { icon: Settings, label: "Settings", href: "#", id: "settings" },
+    { icon: Video, label: "Content", href: "/content", id: "content" },
+    { icon: Upload, label: "Bulk Upload", href: "/bulk-upload", id: "bulk-upload" },
   ]
 
   const handleNavClick = (href: string, id: string) => {
@@ -869,25 +868,26 @@ export default function ComparePage() {
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <nav className="p-4 space-y-2">
-            {navLinks.map((link) => {
-              const Icon = link.icon
-              return (
-                <button
-                  key={link.id}
-                  onClick={() => handleNavClick(link.href, link.id)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                    link.id === "compare"
-                      ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium">{link.label}</span>
-                </button>
-              )
-            })}
-          </nav>
+            <nav className="p-4 space-y-2">
+              {navLinks.map((link) => {
+                const Icon = link.icon
+                const isActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href))
+                return (
+                  <button
+                    key={link.id}
+                    onClick={() => handleNavClick(link.href, link.id)}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
+                      isActive
+                        ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5 flex-shrink-0" />
+                    <span className="font-medium">{link.label}</span>
+                  </button>
+                )
+              })}
+            </nav>
 
           <div className="absolute bottom-4 left-4 right-4">
             <Button
@@ -905,14 +905,15 @@ export default function ComparePage() {
           <nav className="p-4 space-y-1">
             {navLinks.map((link) => {
               const Icon = link.icon
+              const isActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href))
               return (
                 <button
                   key={link.id}
                   onClick={() => handleNavClick(link.href, link.id)}
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                    link.id === "compare"
-                      ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50 shadow-sm"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    isActive
+                      ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                 >
                   <Icon className="w-5 h-5 flex-shrink-0" />

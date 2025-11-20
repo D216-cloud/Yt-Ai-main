@@ -77,9 +77,14 @@ export default function NormalUploadPage() {
   const [description, setDescription] = useState("")
   const [tags, setTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState("")
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [privacyStatus, setPrivacyStatus] = useState<'public' | 'unlisted' | 'private'>('public')
   const [scheduledTime, setScheduledTime] = useState("")
   const [thumbnail, setThumbnail] = useState<File | null>(null)
+  const [category, setCategory] = useState<string>('22')
+  const [madeForKids, setMadeForKids] = useState<boolean>(false)
+  const [language, setLanguage] = useState<string>('en')
+  const [license, setLicense] = useState<string>('standard')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const thumbnailInputRef = useRef<HTMLInputElement>(null)
   const { data: session } = useSession()
@@ -139,7 +144,7 @@ export default function NormalUploadPage() {
     { icon: GitCompare, label: "Compare", href: "/compare", id: "compare" },
     { icon: Video, label: "Content", href: "/content", id: "content" },
     { icon: BarChart3, label: "Analytics", href: "/analytics", id: "analytics" },
-    { icon: Upload, label: "Bulk Upload", href: "/ai-tools", id: "ai-tools" },
+    { icon: Upload, label: "Bulk Upload", href: "/upload/normal", id: "ai-tools" },
     { icon: Settings, label: "Settings", href: "/settings", id: "settings" },
   ]
 
@@ -187,22 +192,104 @@ export default function NormalUploadPage() {
 
   const handleUpload = async () => {
     if (!videoFile || !selectedChannel) return
-    
+
     setIsUploading(true)
     setUploadProgress(0)
-    
-    // Simulate upload progress
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          setIsUploading(false)
-          return 100
-        }
-        return prev + 10
+
+    try {
+      const formData = new FormData()
+      formData.append('video', videoFile.file)
+      formData.append('title', title)
+      formData.append('description', description)
+      formData.append('tags', JSON.stringify(tags))
+      formData.append('privacy', privacyStatus)
+      formData.append('madeForKids', String(madeForKids))
+      formData.append('category', category)
+      formData.append('language', language)
+      formData.append('license', license)
+      // selectedChannel id
+      formData.append('channelIds', JSON.stringify([selectedChannel.id]))
+
+      await new Promise<void>((resolve, reject) => {
+        try {
+          const xhr = new XMLHttpRequest()
+          xhr.open('POST', '/api/youtube/upload')
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const pct = Math.round((e.loaded / e.total) * 100)
+              setUploadProgress(pct)
+            }
+          }
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const data = JSON.parse(xhr.responseText)
+                if (data.success) {
+                  setUploadProgress(100)
+                  alert('Upload successful!')
+                  resolve()
+                } else {
+                  reject(new Error(data.error || 'Upload failed'))
+                }
+              } catch (err) { reject(err) }
+            } else {
+              reject(new Error('Upload failed with status ' + xhr.status))
+            }
+          }
+          xhr.onerror = () => reject(new Error('Network error during upload'))
+          xhr.send(formData)
+        } catch (err) { reject(err) }
       })
-    }, 300)
+      // reset after successful upload
+      setVideoFile(null)
+      setTitle('')
+      setDescription('')
+      setTags([])
+      setThumbnail(null)
+    } catch (err: any) {
+      console.error(err)
+      alert('Upload failed: ' + (err?.message || 'Please try again'))
+    } finally {
+      setIsUploading(false)
+      setUploadProgress(0)
+    }
   }
+
+  const saveDraftNormal = async () => {
+    if (!videoFile) { alert('No video selected to save as draft'); return }
+    try {
+      // store metadata and a preview reference in localStorage (note: file contents are not persisted)
+      const draft = {
+        title: title || videoFile.name.replace(/\.[^/.]+$/, ''),
+        description,
+        tags,
+        fileName: videoFile.name,
+        size: videoFile.size,
+        category,
+        madeForKids,
+        language,
+        license,
+        savedAt: Date.now()
+      }
+      localStorage.setItem('normal_upload_draft', JSON.stringify(draft))
+      // clear selection to avoid giving impression file persisted
+      setVideoFile(null)
+      setPreviewSrc(null)
+      alert('Draft saved (metadata only). File contents are not stored — keep the original file to upload later.')
+    } catch (err) {
+      console.error('Failed to save draft', err)
+      alert('Failed to save draft')
+    }
+  }
+
+  useEffect(() => {
+    if (!videoFile || !videoFile.file) { setPreviewSrc(null); return }
+    try {
+      const url = URL.createObjectURL(videoFile.file)
+      setPreviewSrc(url)
+      return () => { try { URL.revokeObjectURL(url) } catch (e) {} }
+    } catch (e) { setPreviewSrc(null) }
+  }, [videoFile])
 
   return (
     <div className="min-h-screen bg-white">
@@ -357,11 +444,11 @@ export default function NormalUploadPage() {
             <Button
               onClick={handleSignOut}
               disabled={isLoading}
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg bg-transparent border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              className="w-full justify-center bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold rounded-lg hover:from-red-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <>
-                  <span className="w-4 h-4 mr-2 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></span>
+                  <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   Signing Out...
                 </>
               ) : (
@@ -386,7 +473,7 @@ export default function NormalUploadPage() {
               <p className="text-sm md:text-base text-gray-700">
                 Upload a single video with custom settings
               </p>
-              <Breadcrumb items={[{ label: 'Bulk Upload', href: '/ai-tools' }, { label: 'Normal Upload' }]} />
+              <Breadcrumb items={[{ label: 'Bulk Upload', href: '/upload/normal' }, { label: 'Normal Upload' }]} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -494,11 +581,22 @@ export default function NormalUploadPage() {
                 {/* Video Details */}
                 {videoFile && (
                   <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                    <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                      <Type className="w-5 h-5 text-blue-600" />
-                      Video Details
-                    </h2>
-                    
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2"><Type className="w-5 h-5 text-blue-600" />Video Details</h2>
+                      <div className="flex items-center gap-3">
+                        <button onClick={saveDraftNormal} className="px-3 py-1 border rounded-md text-sm">Save draft</button>
+                        <button onClick={handleUpload} disabled={isUploading} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm">{isUploading ? 'Uploading...' : 'Upload to YouTube'}</button>
+                      </div>
+                    </div>
+
+                    <div className="mb-4 rounded-lg overflow-hidden bg-black">
+                      {previewSrc ? (
+                        <video src={previewSrc} controls className="w-full h-56 object-cover" />
+                      ) : (
+                        <div className="w-full h-56 flex items-center justify-center text-gray-400">No preview</div>
+                      )}
+                    </div>
+
                     <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
@@ -533,38 +631,93 @@ export default function NormalUploadPage() {
                           <Tag className="w-4 h-4" />
                           Tags
                         </label>
-                        <div className="flex gap-2 mb-2">
-                          <input
-                            type="text"
-                            value={newTag}
-                            onChange={(e) => setNewTag(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="Add a tag"
-                          />
-                          <Button 
-                            onClick={addTag}
-                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </Button>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {tags.map((tag, index) => (
-                            <span 
-                              key={index} 
-                              className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                          <div className="flex gap-2 mb-2">
+                            <input
+                              type="text"
+                              value={newTag}
+                              onChange={(e) => setNewTag(e.target.value)}
+                              onKeyDown={handleKeyDown}
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Add a tag"
+                            />
+                            <Button 
+                              onClick={addTag}
+                              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
                             >
-                              {tag}
-                              <button 
-                                onClick={() => removeTag(tag)}
-                                className="hover:text-blue-900"
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {tags.map((tag, index) => (
+                              <span 
+                                key={index} 
+                                className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
                               >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
+                                {tag}
+                                <button 
+                                  onClick={() => removeTag(tag)}
+                                  className="hover:text-blue-900"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                <option value="22">People & Blogs</option>
+                                <option value="1">Film & Animation</option>
+                                <option value="2">Autos & Vehicles</option>
+                                <option value="10">Music</option>
+                                <option value="15">Pets & Animals</option>
+                                <option value="17">Sports</option>
+                                <option value="20">Gaming</option>
+                                <option value="24">Entertainment</option>
+                                <option value="25">News & Politics</option>
+                                <option value="26">Howto & Style</option>
+                                <option value="27">Education</option>
+                                <option value="28">Science & Technology</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Made for kids</label>
+                              <div className="flex items-center gap-3">
+                                <label className="inline-flex items-center gap-2">
+                                  <input type="radio" name="nfk" checked={madeForKids === true} onChange={() => setMadeForKids(true)} />
+                                  <span className="text-sm">Yes</span>
+                                </label>
+                                <label className="inline-flex items-center gap-2">
+                                  <input type="radio" name="nfk" checked={madeForKids === false} onChange={() => setMadeForKids(false)} />
+                                  <span className="text-sm">No</span>
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Language</label>
+                              <select value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                <option value="en">English</option>
+                                <option value="es">Spanish</option>
+                                <option value="hi">Hindi</option>
+                                <option value="fr">French</option>
+                                <option value="de">German</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">License</label>
+                              <select value={license} onChange={(e) => setLicense(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                                <option value="standard">Standard YouTube License</option>
+                                <option value="creative">Creative Commons</option>
+                              </select>
+                            </div>
+                          </div>
                       </div>
                     </div>
                   </div>
@@ -684,24 +837,27 @@ export default function NormalUploadPage() {
                 {videoFile && selectedChannel && (
                   <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
                     <h2 className="text-xl font-bold text-gray-900 mb-4">Upload</h2>
-                    
-                    <Button
-                      onClick={handleUpload}
-                      disabled={isUploading}
-                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3"
-                    >
-                      {isUploading ? (
-                        <>
-                          <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                          Uploading... {uploadProgress}%
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-4 h-4 mr-2" />
-                          Upload Video
-                        </>
-                      )}
-                    </Button>
+
+                    <div className="flex gap-3 mb-3">
+                      <button onClick={saveDraftNormal} className="flex-1 px-4 py-3 border rounded-lg">Save draft</button>
+                      <Button
+                        onClick={handleUpload}
+                        disabled={isUploading}
+                        className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 rounded-lg"
+                      >
+                        {isUploading ? (
+                          <>
+                            <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                            Uploading... {uploadProgress}%
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4 mr-2" />
+                            Upload to YouTube
+                          </>
+                        )}
+                      </Button>
+                    </div>
                     
                     {isUploading && (
                       <div className="mt-4">

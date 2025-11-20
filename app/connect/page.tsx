@@ -8,6 +8,7 @@ import { useSession, signOut } from "next-auth/react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Play, ChevronRight, Lock, Loader2, Youtube, CheckCircle, User, LogOut, RefreshCw, AlertCircle, X } from "lucide-react"
+import { Header } from "@/components/header"
 
 interface YouTubeChannel {
   id: string
@@ -216,8 +217,8 @@ export default function ConnectPage() {
         }
       }
       
-      // Fetch channel data
-      fetchYouTubeChannel(token)
+        // Fetch channel data
+        fetchYouTubeChannel(token)
     } else {
       // Try to load from localStorage
       const storedToken = localStorage.getItem("youtube_access_token")

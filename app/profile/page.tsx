@@ -54,6 +54,9 @@ export default function ProfilePage() {
   const [channelLoading, setChannelLoading] = useState(true)
   const [videos, setVideos] = useState<any[]>([])
   const [videosLoading, setVideosLoading] = useState(false)
+  const [allChannels, setAllChannels] = useState<YouTubeChannel[]>([])
+  const [selectedChannel, setSelectedChannel] = useState<YouTubeChannel | null>(null)
+  const [showChannelDropdown, setShowChannelDropdown] = useState(false)
   const { data: session } = useSession()
   const router = useRouter()
 
@@ -92,7 +95,36 @@ export default function ProfilePage() {
   // Fetch videos when channel is loaded
   useEffect(() => {
     if (youtubeChannel) {
+      // sync selected channel and load videos
+      setSelectedChannel(youtubeChannel)
       fetchVideos()
+    }
+  }, [youtubeChannel])
+
+  // Load additional channels and keep a combined list
+  useEffect(() => {
+    const channels: YouTubeChannel[] = []
+    if (youtubeChannel) channels.push(youtubeChannel)
+
+    const stored = localStorage.getItem('additional_youtube_channels')
+    if (stored) {
+      try {
+        const extra = JSON.parse(stored)
+        extra.forEach((ch: YouTubeChannel) => {
+          if (!channels.find(c => c.id === ch.id)) channels.push(ch)
+        })
+      } catch (e) {
+        console.error('Failed to parse additional_youtube_channels', e)
+      }
+    }
+
+    setAllChannels(channels)
+
+    // restore selected channel if saved
+    const saved = localStorage.getItem('selected_channel_id')
+    if (saved) {
+      const sel = channels.find(c => c.id === saved)
+      if (sel) setSelectedChannel(sel)
     }
   }, [youtubeChannel])
 
@@ -101,11 +133,13 @@ export default function ProfilePage() {
     
     try {
       setVideosLoading(true)
-      const response = await fetch(`/api/youtube/videos?channelId=${youtubeChannel.id}&maxResults=12`)
+      // Request the first 20 videos for the profile page (default UX)
+      const response = await fetch(`/api/youtube/videos?channelId=${youtubeChannel.id}&maxResults=20`)
       const data = await response.json()
       
       if (data.success && data.videos) {
-        setVideos(data.videos)
+        // Ensure we only show the first 20 videos on the profile page
+        setVideos(Array.isArray(data.videos) ? data.videos.slice(0, 20) : [])
       }
     } catch (error) {
       console.error("Error fetching videos:", error)
@@ -147,7 +181,7 @@ export default function ProfilePage() {
     { icon: GitCompare, label: "Compare", href: "/compare", id: "compare" },
     { icon: Video, label: "Content", href: "#", id: "content" },
     { icon: BarChart3, label: "Analytics", href: "#", id: "analytics" },
-    { icon: Upload, label: "Bulk Upload", href: "/ai-tools", id: "ai-tools" },
+    { icon: Upload, label: "Bulk Upload", href: "/upload/normal", id: "ai-tools" },
     { icon: Settings, label: "Settings", href: "#", id: "settings" },
   ]
 
@@ -501,7 +535,111 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-          {/* Account Info Card */}
+                  {/* Connected Channels / Quick Actions */}
+                  <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold text-gray-900">Connected Channels</h3>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setShowChannelDropdown(true)}
+                          className="text-sm px-3 py-1 bg-indigo-50 text-indigo-700 rounded-md border border-indigo-100 hover:bg-indigo-100"
+                        >
+                          Manage
+                        </button>
+                        <button
+                          onClick={() => {
+                            const width = 600
+                            const height = 700
+                            const left = (window.screen.width - width) / 2
+                            const top = (window.screen.height - height) / 2
+                            window.open('/api/youtube/auth', 'YouTube OAuth', `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`)
+                          }}
+                          className="text-sm px-3 py-1 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-md hover:opacity-95"
+                        >
+                          Connect Channel
+                        </button>
+                      </div>
+                    </div>
+
+                    {allChannels.length > 0 ? (
+                      <div className="space-y-2">
+                        {allChannels.map((ch) => (
+                          <div key={ch.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-50">
+                            <img src={ch.thumbnail} alt={ch.title} className="w-10 h-10 rounded-full object-cover border" />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{ch.title}</p>
+                              <p className="text-xs text-gray-500 truncate">{formatNumber(ch.subscriberCount)} subscribers</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <a href={`https://youtube.com/channel/${ch.id}`} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
+                              <button
+                                onClick={() => {
+                                  try {
+                                    localStorage.setItem('selected_channel_id', ch.id)
+                                    setSelectedChannel(ch)
+                                    // update main local cache
+                                    localStorage.setItem('youtube_channel', JSON.stringify(ch))
+                                    alert('Selected channel switched')
+                                  } catch (e) {
+                                    console.error(e)
+                                  }
+                                }}
+                                className={`text-xs px-2 py-1 ${selectedChannel && selectedChannel.id === ch.id ? 'bg-green-50 text-green-600' : 'bg-indigo-50 text-indigo-700'} rounded-md border`}
+                              >
+                                {selectedChannel && selectedChannel.id === ch.id ? 'Active' : 'Use'}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  // disconnect locally
+                                  if (youtubeChannel && youtubeChannel.id === ch.id) {
+                                    localStorage.removeItem('youtube_access_token')
+                                    localStorage.removeItem('youtube_refresh_token')
+                                    localStorage.removeItem('youtube_channel')
+                                    setAllChannels(prev => prev.filter(c => c.id !== ch.id))
+                                    setSelectedChannel(null)
+                                    alert('Main channel disconnected. You may need to reconnect.')
+                                  } else {
+                                    const stored = localStorage.getItem('additional_youtube_channels')
+                                    if (stored) {
+                                      try {
+                                        const extra = JSON.parse(stored)
+                                        const filtered = extra.filter((ec: YouTubeChannel) => ec.id !== ch.id)
+                                        localStorage.setItem('additional_youtube_channels', JSON.stringify(filtered))
+                                        setAllChannels(prev => prev.filter(c => c.id !== ch.id))
+                                      } catch (e) { console.error(e) }
+                                    }
+                                  }
+                                }}
+                                className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded-md border border-red-100 hover:bg-red-100"
+                              >
+                                Disconnect
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6">
+                        <p className="text-sm text-gray-600">No channels connected yet</p>
+                        <div className="mt-3">
+                          <button
+                            onClick={() => {
+                              const width = 600
+                              const height = 700
+                              const left = (window.screen.width - width) / 2
+                              const top = (window.screen.height - height) / 2
+                              window.open('/api/youtube/auth', 'YouTube OAuth', `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`)
+                            }}
+                            className="text-sm px-4 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-md"
+                          >
+                            Connect Your First Channel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Account Info Card */}
           <div className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:border-blue-300">
             <div className="flex items-center gap-3 mb-6">
               <div className="relative">
@@ -570,7 +708,7 @@ export default function ProfilePage() {
                     <Video className="w-6 h-6 text-white" />
                   </div>
                 </div>
-                <h3 className="text-xl md:text-2xl font-bold text-gray-900">Latest Videos</h3>
+                <h3 className="text-xl md:text-2xl font-bold text-gray-900">My Latest YouTube Videos</h3>
               </div>
               {videos.length > 0 && (
                 <div className="flex items-center gap-2 bg-gradient-to-r from-blue-100 to-purple-100 border border-blue-300 rounded-full px-4 py-2">
@@ -578,6 +716,7 @@ export default function ProfilePage() {
                   <span className="text-sm font-bold text-blue-900">{videos.length} videos</span>
                 </div>
               )}
+              <div className="text-xs text-gray-500 ml-4">(API returned: {videos.length})</div>
             </div>                  {videosLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {[1, 2, 3, 4, 5, 6].map((i) => (

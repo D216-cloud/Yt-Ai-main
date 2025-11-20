@@ -28,9 +28,8 @@ export function NavMenu({ activePage }: NavMenuProps) {
     { id: "profile", icon: User, label: "Profile", href: "/dashboard?page=profile" },
     { id: "compare", icon: GitCompare, label: "Compare", href: "/compare" },
     { id: "content", icon: Video, label: "Content", href: "/content" },
-    { id: "analytics", icon: BarChart3, label: "Analytics", href: "/analytics" },
-    { id: "ai-tools", icon: Upload, label: "Bulk Upload", href: "/ai-tools" },
-    { id: "settings", icon: Settings, label: "Settings", href: "/settings" },
+    { id: "bulk-upload", icon: Upload, label: "Bulk Upload", href: "/bulk-upload" },
+    // Removed Analytics, AI Tools (Bulk Upload), and Settings per request
   ]
 
   return (

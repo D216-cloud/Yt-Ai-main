@@ -10,10 +10,16 @@ import { useRouter } from 'next/navigation'
 export default function TrendingPage() {
   const [keywords, setKeywords] = useState<string[]>([])
   const [rawKeywords, setRawKeywords] = useState<any[]>([])
+  const [originalRawKeywords, setOriginalRawKeywords] = useState<any[] | null>(null)
   const [popularKeywords, setPopularKeywords] = useState<any[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
+  const pageSize = 20
+  const [totalCount, setTotalCount] = useState<number | null>(null)
+  const [serverSearching, setServerSearching] = useState(false)
+  const [sortByFreq, setSortByFreq] = useState(true)
   const [selected, setSelected] = useState<any | null>(null)
   const [panelPos, setPanelPos] = useState<{left: number; top: number}>({ left: 0, top: 0 })
   const [isMobilePanel, setIsMobilePanel] = useState(false)
@@ -48,34 +54,24 @@ export default function TrendingPage() {
     const fetchTrending = async () => {
       try {
         setLoading(true)
-        const res = await fetch('/api/youtube/trending?maxResults=200')
+        const res = await fetch('/api/youtube/trending?maxResults=1000')
         const data = await res.json()
-        if (data.success && data.keywords) {
-          // keep raw objects if provided
-          const raw = data.keywords.map((k: any) => (typeof k === 'string' ? { keyword: k, frequency: 0 } : k))
-          setRawKeywords(raw)
-          setKeywords(raw.map((r: any) => r.keyword))
+        const items = data?.keywords || data || []
+        const raw = items.map((k: any) => (typeof k === 'string' ? { keyword: k, frequency: 0 } : k))
+        setRawKeywords(raw)
+        // store original snapshot for restoring after search
+        if (!originalRawKeywords) setOriginalRawKeywords(raw)
+        setKeywords(raw.map((r: any) => r.keyword))
+        setTotalCount(raw.length)
 
-          // determine max frequency for scoring
-          const freqs = raw.map((r: any) => parseInt(r.frequency || r.count || 0) || 0)
-          const maxF = freqs.length ? Math.max(...freqs) : 1
-          setMaxFrequency(maxF || 1)
-          // popularKeywords from API (if present)
-          if (data.popularKeywords && Array.isArray(data.popularKeywords)) {
-            setPopularKeywords(data.popularKeywords.map((k: any) => (typeof k === 'string' ? { keyword: k } : k)))
-          } else {
-            setPopularKeywords([])
-          }
-        } else if (data.keywords) {
-          const raw = data.keywords.map((k: any) => (typeof k === 'string' ? { keyword: k, frequency: 0 } : k))
-          setRawKeywords(raw)
-          setKeywords(raw.map((r: any) => r.keyword))
-          setMaxFrequency(1)
-          setPopularKeywords([])
+        // determine max frequency for scoring
+        const freqs = raw.map((r: any) => parseInt(r.frequency || r.count || 0) || 0)
+        const maxF = freqs.length ? Math.max(...freqs) : 1
+        setMaxFrequency(maxF || 1)
+
+        if (data.popularKeywords && Array.isArray(data.popularKeywords)) {
+          setPopularKeywords(data.popularKeywords.map((k: any) => (typeof k === 'string' ? { keyword: k } : k)))
         } else {
-          setKeywords([])
-          setRawKeywords([])
-          setMaxFrequency(1)
           setPopularKeywords([])
         }
       } catch (err) {
@@ -161,7 +157,66 @@ export default function TrendingPage() {
     return () => document.removeEventListener('click', onDocClick)
   }, [selected])
 
+  // server-side search: debounce query and call API when query is present
+  useEffect(() => {
+    const controller = new AbortController()
+    const q = query.trim()
+    if (!q) {
+      // reset to client-side view: restore original fetched keywords
+      setServerSearching(false)
+      setPage(1)
+      if (originalRawKeywords) {
+        setRawKeywords(originalRawKeywords)
+        setKeywords(originalRawKeywords.map((r: any) => r.keyword))
+        setTotalCount(originalRawKeywords.length)
+      } else {
+        setTotalCount(rawKeywords.length)
+      }
+      return () => controller.abort()
+    }
+
+    const id = setTimeout(async () => {
+      try {
+        setServerSearching(true)
+        setLoading(true)
+        const res = await fetch(`/api/youtube/trending?maxResults=1000&query=${encodeURIComponent(q)}`, { signal: controller.signal })
+        const data = await res.json()
+        const items = data?.keywords || []
+        const raw = items.map((k: any) => (typeof k === 'string' ? { keyword: k, frequency: 0 } : k))
+        setRawKeywords(raw)
+        setKeywords(raw.map((r: any) => r.keyword))
+        setTotalCount(raw.length)
+        setPage(1)
+      } catch (e) {
+        if ((e as any).name === 'AbortError') return
+        console.error('Search failed', e)
+      } finally {
+        setLoading(false)
+        setServerSearching(false)
+      }
+    }, 400)
+
+    return () => {
+      clearTimeout(id)
+      controller.abort()
+    }
+  }, [query])
+
+  // client-side filter when not searching server-side; server-side search will replace rawKeywords/keywords
   const filtered = keywords.filter(k => k.toLowerCase().includes(query.toLowerCase()))
+  // pagination: compute displayed list
+  const start = 0
+  const displayed = (() => {
+    const list = filtered.slice() // clone
+    if (sortByFreq) {
+      list.sort((a, b) => {
+        const ra = rawKeywords.find((r: any) => r.keyword === a) || { frequency: 0 }
+        const rb = rawKeywords.find((r: any) => r.keyword === b) || { frequency: 0 }
+        return (parseInt(rb.frequency || rb.count || 0) || 0) - (parseInt(ra.frequency || ra.count || 0) || 0)
+      })
+    }
+    return list.slice(0, page * pageSize)
+  })()
 
   return (
     <div className="min-h-screen bg-white">
@@ -218,7 +273,7 @@ export default function TrendingPage() {
             <BarChart3 className="w-5 h-5" />
             <span>Analytics</span>
           </button>
-          <button onClick={() => { router.push('/ai-tools'); setSidebarOpen(false) }} className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm hover:bg-gray-50">
+          <button onClick={() => { router.push('/upload/normal'); setSidebarOpen(false) }} className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm hover:bg-gray-50">
             <Sparkles className="w-5 h-5" />
             <span>AI Tools</span>
           </button>
@@ -276,7 +331,7 @@ export default function TrendingPage() {
               <BarChart3 className="w-5 h-5 text-gray-600" />
               <span className="font-medium">Analytics</span>
             </Link>
-            <Link href="/ai-tools" className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50">
+            <Link href="/upload/normal" className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50">
               <Sparkles className="w-5 h-5 text-gray-600" />
               <span className="font-medium">AI Tools</span>
             </Link>
@@ -316,7 +371,10 @@ export default function TrendingPage() {
                     <Search className="w-4 h-4" />
                   </div>
                 </div>
-                <Button onClick={() => setQuery('')} aria-label="Clear search">Clear</Button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setSortByFreq(!sortByFreq)} className="px-3 py-2 bg-gray-100 rounded-md text-sm">{sortByFreq ? 'Sort: Frequency' : 'Sort: Alphabet'}</button>
+                  <Button onClick={() => setQuery('')} aria-label="Clear search">Clear</Button>
+                </div>
               </div>
             </div>
           </div>
@@ -326,7 +384,7 @@ export default function TrendingPage() {
               <p className="text-gray-500">Loading keywords…</p>
             ) : (
               <div>
-                <p className="text-sm text-gray-500 mb-4">Showing {filtered.length} keywords</p>
+                <p className="text-sm text-gray-500 mb-4">Showing {displayed.length}{totalCount ? ` of ${totalCount}` : ''} keywords {serverSearching && <span className="text-xs text-gray-400">(server search)</span>}</p>
 
                 {/* Popular keywords card: those used in million+ view videos */}
                 {popularKeywords && popularKeywords.length > 0 && (
@@ -343,59 +401,41 @@ export default function TrendingPage() {
                 )}
 
                 {/* If user is searching show a single column list (better for mobile) */}
-                {query.trim() ? (
-                  <div className="flex flex-col gap-3">
-                    {filtered.length === 0 && <div className="text-gray-500">No results</div>}
-                    {filtered.map((kw, idx) => {
-                      const raw = rawKeywords.find((r: any) => r.keyword === kw) || { keyword: kw, frequency: 0 }
-                      return (
-                        <button
-                          key={idx}
-                          onClick={(e) => {
-                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                            const left = rect.left
-                            const top = rect.bottom + 8 + window.scrollY
-                            setPanelPos({ left, top })
-                            setIsMobilePanel(window.innerWidth < 768)
-                            setSelected(raw)
-                          }}
-                          aria-label={`Keyword ${kw}`}
-                          className="keyword-button w-full p-4 rounded-lg border border-gray-100 bg-gray-50 text-base md:text-sm text-gray-900 text-left hover:bg-gray-100 transition"
-                        >
-                          <div className="flex items-center gap-3">
-                            <Hash className="w-5 h-5 text-gray-500 shrink-0" />
-                            <div className="flex-1">
-                              <div className="font-medium">{kw}</div>
-                              <div className="text-xs text-gray-500 mt-1">Frequency: {raw.frequency ?? raw.count ?? 'N/A'}</div>
-                            </div>
-                            <div className="text-sm text-gray-500">View</div>
+                {displayed.length === 0 && <div className="text-gray-500">No results</div>}
+                <div className={query.trim() ? 'flex flex-col gap-3' : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3'}>
+                  {displayed.map((kw, idx) => {
+                    const raw = rawKeywords.find((r: any) => r.keyword === kw) || { keyword: kw, frequency: 0 }
+                    return (
+                      <button
+                        key={idx}
+                        onClick={(e) => {
+                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                          const left = rect.left
+                          const top = rect.bottom + 8 + window.scrollY
+                          setPanelPos({ left, top })
+                          setIsMobilePanel(window.innerWidth < 768)
+                          setSelected(raw)
+                        }}
+                        aria-label={`Keyword ${kw}`}
+                        className={query.trim() ? "keyword-button w-full p-4 rounded-lg border border-gray-100 bg-gray-50 text-base md:text-sm text-gray-900 text-left hover:bg-gray-100 transition" : "keyword-button p-3 rounded-lg border border-gray-100 bg-gray-50 text-sm text-gray-900 text-left hover:bg-gray-100 transition"}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Hash className="w-5 h-5 text-gray-500 shrink-0" />
+                          <div className="flex-1">
+                            <div className="font-medium">{kw}</div>
+                            <div className="text-xs text-gray-500 mt-1">Frequency: {raw.frequency ?? raw.count ?? 'N/A'}</div>
                           </div>
-                        </button>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                    {filtered.map((kw, idx) => {
-                      const raw = rawKeywords.find((r: any) => r.keyword === kw) || { keyword: kw, frequency: 0 }
-                      return (
-                        <button
-                          key={idx}
-                          onClick={(e) => {
-                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                            const left = rect.left
-                            const top = rect.bottom + 8 + window.scrollY
-                            setPanelPos({ left, top })
-                            setIsMobilePanel(window.innerWidth < 768)
-                            setSelected(raw)
-                          }}
-                          className="keyword-button p-3 rounded-lg border border-gray-100 bg-gray-50 text-sm text-gray-900 text-left hover:bg-gray-100 transition"
-                        >
-                          <Hash className="w-4 h-4 inline-block mr-2 text-gray-500" />
-                          {kw}
-                        </button>
-                      )
-                    })}
+                          <div className="text-sm text-gray-500">View</div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Load more control when available */}
+                {displayed.length > 0 && totalCount && displayed.length < totalCount && (
+                  <div className="mt-4 flex justify-center">
+                    <button onClick={() => setPage((p) => p + 1)} className="px-4 py-2 bg-blue-600 text-white rounded-md">Load more</button>
                   </div>
                 )}
                 {/* Details panel: desktop popover and mobile bottom sheet */}

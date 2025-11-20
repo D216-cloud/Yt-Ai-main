@@ -18,6 +18,12 @@ export async function POST(req: NextRequest) {
     console.log('Expected Channel ID:', expectedChannelId)
     console.log('Access Token (first 20 chars):', accessToken?.substring(0, 20))
 
+    // Sanity-check required environment variables
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      console.error('Missing Google OAuth client env vars')
+      return NextResponse.json({ success: false, error: 'Server misconfigured: missing Google OAuth client ID/secret' }, { status: 500 })
+    }
+
     if (!accessToken) {
       return NextResponse.json({ success: false, error: "No access token provided" }, { status: 401 })
     }
@@ -46,35 +52,26 @@ export async function POST(req: NextRequest) {
       auth: oauth2Client,
     })
 
-    // Verify which channel this token belongs to
+    // Verify which channel this token belongs to (optional, best-effort)
     try {
-      const channelResponse = await youtube.channels.list({
-        part: ["snippet"],
-        mine: true,
-      })
-
+      const channelResponse = await youtube.channels.list({ part: ["snippet"], mine: true })
       if (channelResponse.data.items && channelResponse.data.items.length > 0) {
         const actualChannelId = channelResponse.data.items[0].id
         const actualChannelName = channelResponse.data.items[0].snippet?.title
-        
         console.log('Actual Channel ID from token:', actualChannelId)
         console.log('Actual Channel Name:', actualChannelName)
-        
         if (expectedChannelId && actualChannelId !== expectedChannelId) {
-          console.error('❌ CHANNEL MISMATCH!')
-          console.error('Expected:', expectedChannelId)
-          console.error('Got:', actualChannelId)
+          console.error('❌ CHANNEL MISMATCH! Expected:', expectedChannelId, 'Got:', actualChannelId)
           return NextResponse.json({
             success: false,
-            error: `Token mismatch! This token belongs to "${actualChannelName}" but you're trying to upload to a different channel. Please reconnect the correct channel.`,
-            channelMismatch: true
+            error: `Token mismatch: token belongs to "${actualChannelName}" (id=${actualChannelId}) but expected channel id ${expectedChannelId}`,
+            channelMismatch: true,
           }, { status: 400 })
         }
-        
         console.log('✅ Channel verified:', actualChannelName)
       }
-    } catch (error) {
-      console.error('Failed to verify channel:', error)
+    } catch (verifyErr: any) {
+      console.warn('Channel verification failed (continuing):', verifyErr?.message || verifyErr)
     }
 
     // Convert File to Buffer
@@ -88,25 +85,33 @@ export async function POST(req: NextRequest) {
 
     // Upload video
     console.log('Starting video upload...')
-    const response = await youtube.videos.insert({
-      part: ["snippet", "status"],
-      requestBody: {
-        snippet: {
-          title: title,
-          description: description || "",
-          tags: tagArray,
-          categoryId: category || "22", // Default to People & Blogs
+    let response
+    try {
+      response = await youtube.videos.insert({
+        part: ["snippet", "status"],
+        requestBody: {
+          snippet: {
+            title: title,
+            description: description || "",
+            tags: tagArray,
+            categoryId: category || "22",
+          },
+          status: {
+            privacyStatus: (privacy as "public" | "private" | "unlisted") || "unlisted",
+            selfDeclaredMadeForKids: madeForKids,
+          },
         },
-        status: {
-          privacyStatus: privacy as "public" | "private" | "unlisted",
-          selfDeclaredMadeForKids: madeForKids,
+        media: {
+          body: require("stream").Readable.from(buffer),
+          mimeType: videoFile.type,
         },
-      },
-      media: {
-        body: require("stream").Readable.from(buffer),
-        mimeType: videoFile.type,
-      },
-    })
+      })
+    } catch (uploadErr: any) {
+      console.error('youtube.videos.insert failed:', uploadErr)
+      // Try to extract details from Google's error response
+      const details = uploadErr?.response?.data || uploadErr?.message || String(uploadErr)
+      return NextResponse.json({ success: false, error: 'YouTube upload failed', details }, { status: 500 })
+    }
 
     console.log('✅ Upload successful! Video ID:', response.data.id)
     console.log('Video URL:', `https://youtube.com/watch?v=${response.data.id}`)

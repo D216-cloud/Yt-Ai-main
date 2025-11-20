@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Menu, X, Play, LogOut, User, Mail } from "lucide-react"
+import { Menu, X, Play, LogOut, User, Mail, Sparkles, DollarSign, Cog, Youtube } from "lucide-react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter, usePathname } from "next/navigation"
 
@@ -15,6 +15,9 @@ export function Header() {
 
   // Check if we're on signup/signin page
   const isAuthPage = pathname === "/signup" || pathname === "/signin"
+  // Hide the CTA Get Started when on connect page (it's redundant)
+  const hideGetStarted = pathname === "/connect"
+  const showGetStarted = !isAuthPage && !hideGetStarted && !session
 
   const handleGetStarted = () => {
     if (session) {
@@ -30,38 +33,43 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur-xl supports-[backdrop-filter]:bg-white/90 shadow-sm">
+    <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur-xl supports-backdrop-filter:bg-white/90 shadow-sm">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center space-x-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg">
-              <Play className="h-6 w-6 text-white fill-white" />
+            <div className="flex items-center">
+              <div className="h-8 px-2 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center">
+                <Youtube className="h-4 w-4 text-red-500" />
+              </div>
             </div>
             <div className="flex flex-col">
-              <span className="text-xl font-bold text-gray-900">YouTubeAI Pro</span>
-              <span className="text-xs text-gray-600 hidden sm:block">Powered by AI</span>
+              <span className="text-xl font-bold text-transparent bg-clip-text bg-linear-to-r from-primary via-secondary to-primary animate-pulse-glow">YouTubeAI Pro</span>
+              <span className="text-xs text-gray-600 hidden sm:block"></span>
             </div>
           </Link>
 
           {/* Only show navigation links if NOT on auth pages */}
           {!isAuthPage && (
-            <nav className="hidden md:flex items-center space-x-2">
+            <nav className="hidden md:flex items-center space-x-1">
               <Link
                 href="#features"
-                className="flex items-center px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200"
+                className="group flex items-center px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-700 hover:text-white hover:bg-linear-to-r hover:from-primary hover:to-secondary transition-all duration-300 shadow-sm hover:shadow-lg transform hover:scale-105"
               >
+                <Sparkles className="h-4 w-4 mr-2 text-primary group-hover:text-white transition-colors" />
                 Features
               </Link>
               <Link
                 href="#pricing"
-                className="flex items-center px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200"
+                className="group flex items-center px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-700 hover:text-white hover:bg-linear-to-r hover:from-primary hover:to-secondary transition-all duration-300 shadow-sm hover:shadow-lg transform hover:scale-105"
               >
+                <DollarSign className="h-4 w-4 mr-2 text-primary group-hover:text-white transition-colors" />
                 Pricing
               </Link>
               <Link
                 href="#how-it-works"
-                className="flex items-center px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200"
+                className="group flex items-center px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-700 hover:text-white hover:bg-linear-to-r hover:from-primary hover:to-secondary transition-all duration-300 shadow-sm hover:shadow-lg transform hover:scale-105"
               >
+                <Cog className="h-4 w-4 mr-2 text-primary group-hover:text-white transition-colors" />
                 How It Works
               </Link>
             </nav>
@@ -70,28 +78,29 @@ export function Header() {
           <div className="hidden md:flex items-center space-x-3">
             {session ? (
               <>
-                <div className="flex items-center space-x-3 px-4 py-2 rounded-xl bg-gray-100">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-purple-600 text-white font-semibold text-sm">
+                <div className="group flex items-center space-x-3 px-4 py-2 rounded-xl bg-gray-100 hover:bg-linear-to-r hover:from-primary hover:to-secondary hover:text-white transition-all duration-300 shadow-sm hover:shadow-lg transform hover:scale-105 cursor-pointer">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-linear-to-br from-blue-600 to-purple-600 text-white font-semibold text-sm group-hover:from-white group-hover:to-white group-hover:text-primary transition-colors">
                     {session.user?.name?.[0]?.toUpperCase() || session.user?.email?.[0]?.toUpperCase() || "U"}
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-sm font-medium text-gray-900">{session.user?.name || "User"}</span>
-                    <span className="text-xs text-gray-600">{session.user?.email}</span>
+                    <span className="text-sm font-medium text-gray-900 group-hover:text-white transition-colors">{session.user?.name || "User"}</span>
+                    <span className="text-xs text-gray-600 group-hover:text-white/80 transition-colors">{session.user?.email}</span>
                   </div>
                 </div>
                 <Button
                   onClick={handleLogout}
                   variant="outline"
-                  className="text-gray-600 hover:text-gray-900"
+                  className="group flex items-center px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-700 hover:text-white hover:bg-linear-to-r hover:from-primary hover:to-secondary transition-all duration-300 shadow-sm hover:shadow-lg transform hover:scale-105 border-gray-300 hover:border-transparent"
                 >
-                  <LogOut className="h-4 w-4 mr-2" />
+                  <LogOut className="h-4 w-4 mr-2 text-primary group-hover:text-white transition-colors" />
                   Logout
                 </Button>
               </>
-            ) : (
+            ) : null}
+            {showGetStarted && (
               <Button
                 onClick={handleGetStarted}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg"
+                className="bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg"
               >
                 Get Started
               </Button>
@@ -100,7 +109,7 @@ export function Header() {
 
           <div className="md:hidden flex items-center space-x-2">
             {session && (
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-purple-600 shadow-md">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-linear-to-br from-blue-600 to-purple-600 shadow-md">
                 <span className="text-white text-sm font-bold uppercase">
                   {session.user?.email?.substring(0, 2) || "U"}
                 </span>
@@ -149,28 +158,29 @@ export function Header() {
               <div className="px-4 py-2 space-y-2">
                 {session ? (
                   <>
-                    <div className="flex items-center space-x-3 px-4 py-3 rounded-xl bg-gray-100">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-purple-600 text-white font-semibold">
+                    <div className="group flex items-center space-x-3 px-4 py-3 rounded-xl bg-gray-100 hover:bg-linear-to-r hover:from-primary hover:to-secondary hover:text-white transition-all duration-300 shadow-sm hover:shadow-lg transform hover:scale-105 cursor-pointer">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br from-blue-600 to-purple-600 text-white font-semibold group-hover:from-white group-hover:to-white group-hover:text-primary transition-colors">
                         {session.user?.name?.[0]?.toUpperCase() || session.user?.email?.[0]?.toUpperCase() || "U"}
                       </div>
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium text-gray-900">{session.user?.name || "User"}</span>
-                        <span className="text-xs text-gray-600">{session.user?.email}</span>
+                        <span className="text-sm font-medium text-gray-900 group-hover:text-white transition-colors">{session.user?.name || "User"}</span>
+                        <span className="text-xs text-gray-600 group-hover:text-white/80 transition-colors">{session.user?.email}</span>
                       </div>
                     </div>
                     <Button
                       onClick={handleLogout}
                       variant="outline"
-                      className="w-full text-gray-600 hover:text-gray-900"
+                      className="w-full group flex items-center justify-center px-4 py-3 rounded-xl text-sm font-semibold text-gray-700 hover:text-white hover:bg-linear-to-r hover:from-primary hover:to-secondary transition-all duration-300 shadow-sm hover:shadow-lg transform hover:scale-105 border-gray-300 hover:border-transparent"
                     >
-                      <LogOut className="h-4 w-4 mr-2" />
+                      <LogOut className="h-4 w-4 mr-2 text-primary group-hover:text-white transition-colors" />
                       Logout
                     </Button>
                   </>
-                ) : (
+                ) : null}
+                {showGetStarted && (
                   <Button
                     onClick={handleGetStarted}
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                    className="w-full bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
                   >
                     Get Started
                   </Button>
