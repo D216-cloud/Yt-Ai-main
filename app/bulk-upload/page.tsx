@@ -1,10 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { Home, User, GitCompare, Video, Upload, Play, LogOut, Menu, X, CheckCircle } from "lucide-react"
+import SidebarButton from '@/components/ui/sidebar-button'
+import { Button } from '@/components/ui/button'
+import { Home, User, GitCompare, Video, Upload, Play, LogOut, Menu, X, CheckCircle, Plus, List, Settings } from "lucide-react"
 import { useRouter, usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { useState, useEffect, useRef, useMemo } from "react"
+import { MobileBottomNav } from '@/components/mobile-bottom-nav'
 
 export default function BulkUploadPage() {
   const router = useRouter()
@@ -35,12 +38,20 @@ export default function BulkUploadPage() {
   const [bulkFormChannelIds, setBulkFormChannelIds] = useState<string[]>([])
   const [bulkFiles, setBulkFiles] = useState<File[]>([])
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
+  const [editingPreviewSrc, setEditingPreviewSrc] = useState<string | null>(null)
+  const [bulkFilesPreviews, setBulkFilesPreviews] = useState<string[]>([])
   const [addIndex, setAddIndex] = useState<number>(0)
   const [addMetadata, setAddMetadata] = useState<Record<string, any>>({})
   const [editingBulkId, setEditingBulkId] = useState<string | null>(null)
   const [editingBulkData, setEditingBulkData] = useState<any>({ title: '', description: '', tags: '', category: '22', madeForKids: false, language: 'en', license: 'standard', privacy: 'unlisted' })
   // default to show everything (history) so re-open shows all uploaded items
   const [showOnlyUnlisted, setShowOnlyUnlisted] = useState<boolean>(false)
+  const [bulkSearch, setBulkSearch] = useState<string>('')
+  const [bulkSort, setBulkSort] = useState<'newest'|'oldest'|'progress'>('newest')
+  const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([])
+  const [privacyFilter, setPrivacyFilter] = useState<'all'|'public'|'unlisted'|'private'>('all')
+  const [myChannelOnly, setMyChannelOnly] = useState<boolean>(false)
+  const [isImportingPrivate, setIsImportingPrivate] = useState<boolean>(false)
 
   // persist UI state (modals / editing) so queue remains open after refresh
   useEffect(() => {
@@ -191,25 +202,59 @@ export default function BulkUploadPage() {
 
   useEffect(() => {
     return () => {
-      if (previewSrc) URL.revokeObjectURL(previewSrc)
+      if (previewSrc) try { URL.revokeObjectURL(previewSrc) } catch (e) {}
     }
   }, [previewSrc])
+
+  // Generate and manage preview blob URLs for files selected in the "Add Bulk Video" modal
+  useEffect(() => {
+    // revoke previous previews
+    try {
+      bulkFilesPreviews.forEach(u => { if (u && u.startsWith('blob:')) URL.revokeObjectURL(u) })
+    } catch (e) {}
+    if (!bulkFiles || bulkFiles.length === 0) {
+      setBulkFilesPreviews([])
+      return
+    }
+    const previews = bulkFiles.map((f) => {
+      try { return URL.createObjectURL(f) } catch (e) { return '' }
+    })
+    setBulkFilesPreviews(previews)
+    return () => {
+      try { previews.forEach(u => { if (u && u.startsWith('blob:')) URL.revokeObjectURL(u) }) } catch (e) {}
+    }
+  }, [bulkFiles])
 
   // transient map to hold File objects for preview (not stored in localStorage)
   const bulkFileMap = useRef<Record<string, File>>({})
   const modalFileInputRef = useRef<HTMLInputElement | null>(null)
 
-  // Sort bulk videos so unlisted appear first, then private, then public
+  // Sort/filter bulk videos: group by privacy (private first), then sort within groups according to user preference
   const sortedBulkVideos = useMemo(() => {
-    const order: Record<string, number> = { unlisted: 0, private: 1, public: 2 }
-    return [...bulkVideos].sort((a, b) => {
-      const pa = order[((a.privacy || 'unlisted') as string).toLowerCase()] ?? 0
-      const pb = order[((b.privacy || 'unlisted') as string).toLowerCase()] ?? 0
-      if (pa !== pb) return pa - pb
-      // fallback: show currently uploading/higher progress first
-      return (b.progress || 0) - (a.progress || 0)
-    })
-  }, [bulkVideos])
+    const groups: Record<string, any[]> = { private: [], unlisted: [], public: [], other: [] }
+    for (const v of bulkVideos) {
+      const p = ((v.privacy || v.privacyStatus || 'unlisted') as string).toString().toLowerCase()
+      if (p === 'private') groups.private.push(v)
+      else if (p === 'unlisted') groups.unlisted.push(v)
+      else if (p === 'public') groups.public.push(v)
+      else groups.other.push(v)
+    }
+
+    const sortGroup = (arr: any[]) => {
+      if (bulkSort === 'newest') return arr.sort((a, b) => (b.id || '').toString().localeCompare((a.id || '').toString()))
+      if (bulkSort === 'oldest') return arr.sort((a, b) => (a.id || '').toString().localeCompare((b.id || '').toString()))
+      if (bulkSort === 'progress') return arr.sort((a, b) => (b.progress || 0) - (a.progress || 0))
+      return arr
+    }
+
+    const res = [
+      ...sortGroup(groups.private),
+      ...sortGroup(groups.unlisted),
+      ...sortGroup(groups.public),
+      ...sortGroup(groups.other),
+    ]
+    return res
+  }, [bulkVideos, bulkSort])
 
   // If the user has 'unlisted only' enabled but there are no unlisted items in the queue,
   // fall back to showing all items so the queue remains useful (history view).
@@ -222,11 +267,56 @@ export default function BulkUploadPage() {
     } catch (e) { console.error('Failed to evaluate unlisted filter fallback', e) }
   }, [bulkVideos, showOnlyUnlisted])
 
-  // Apply filter after sorting
+  // Apply filter, privacy, channel-only and search after sorting
   const filteredBulkVideos = useMemo(() => {
-    if (showOnlyUnlisted) return sortedBulkVideos.filter(v => ((v.privacy || 'unlisted').toString().toLowerCase() === 'unlisted'))
-    return sortedBulkVideos
-  }, [sortedBulkVideos, showOnlyUnlisted])
+    let arr = [...sortedBulkVideos]
+    // privacy filter
+    if (privacyFilter && privacyFilter !== 'all') {
+      arr = arr.filter(v => ((v.privacy || v.privacyStatus || 'unlisted').toString().toLowerCase() === privacyFilter))
+    }
+    // my channel only filter
+    if (myChannelOnly && selectedUploadChannel && selectedUploadChannel.id) {
+      arr = arr.filter(v => {
+        if (Array.isArray(v.channelIds)) return v.channelIds.includes(selectedUploadChannel.id)
+        if (v.channelId) return v.channelId === selectedUploadChannel.id
+        return false
+      })
+    }
+    // search
+    if (bulkSearch && bulkSearch.trim()) {
+      const q = bulkSearch.trim().toLowerCase()
+      arr = arr.filter(v => (v.title || v.fileName || '').toString().toLowerCase().includes(q) || (v.fileName || '').toString().toLowerCase().includes(q))
+    }
+    return arr
+  }, [sortedBulkVideos, privacyFilter, myChannelOnly, bulkSearch])
+
+  const toggleSelectBulk = (id: string) => {
+    setSelectedBulkIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  const selectAllVisible = () => {
+    const ids = filteredBulkVideos.map(v => v.id)
+    setSelectedBulkIds(ids)
+  }
+
+  const clearSelection = () => setSelectedBulkIds([])
+
+  const bulkDeleteSelected = () => {
+    if (selectedBulkIds.length === 0) { alert('No items selected'); return }
+    if (!confirm(`Delete ${selectedBulkIds.length} selected items from the queue? This cannot be undone.`)) return
+    setBulkVideos(prev => prev.filter(v => !selectedBulkIds.includes(v.id)))
+    clearSelection()
+  }
+
+  const bulkPublishSelected = () => {
+    if (selectedBulkIds.length === 0) { alert('No items selected'); return }
+    // publish each selected item that has a file in memory
+    selectedBulkIds.forEach(id => {
+      const item = bulkVideos.find(b => b.id === id)
+      if (item) publishBulkItem(id)
+    })
+    clearSelection()
+  }
 
   // load persisted bulk items (metadata + thumbnail) from localStorage on mount
   useEffect(() => {
@@ -408,6 +498,15 @@ export default function BulkUploadPage() {
     router.push('/')
   }
 
+  // Add a body class to hide the mobile bottom nav while this page is mounted
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    document.body.classList.add('hide-mobile-nav')
+    return () => {
+      try { document.body.classList.remove('hide-mobile-nav') } catch (e) {}
+    }
+  }, [])
+
   useEffect(() => {
     // load channels from localStorage (same shape as other pages expect)
     const channels: any[] = []
@@ -439,6 +538,8 @@ export default function BulkUploadPage() {
     setUploadData((d) => ({ ...d, title: d.title || name }))
     setSelectedFile(file)
     try {
+      // revoke any previous blob URL we created
+      try { if (previewSrc && previewSrc.startsWith('blob:')) URL.revokeObjectURL(previewSrc) } catch (e) {}
       const url = URL.createObjectURL(file)
       setPreviewSrc(url)
     } catch (e) {}
@@ -580,6 +681,29 @@ export default function BulkUploadPage() {
   // helper to access the currently-editing bulk item (used in the details editor)
   const currentEditingItem = editingBulkId ? bulkVideos.find(b => b.id === editingBulkId) : null
 
+  // Manage a stable preview URL for the currently editing bulk item (if it has a File in memory)
+  useEffect(() => {
+    // clear previous
+    try { if (editingPreviewSrc && editingPreviewSrc.startsWith('blob:')) URL.revokeObjectURL(editingPreviewSrc) } catch (e) {}
+    setEditingPreviewSrc(null)
+    if (!editingBulkId) return
+    const f = bulkFileMap.current[editingBulkId]
+    if (f) {
+      try {
+        const url = URL.createObjectURL(f)
+        setEditingPreviewSrc(url)
+      } catch (e) { setEditingPreviewSrc(null) }
+    } else if (currentEditingItem?.cloudUrl) {
+      setEditingPreviewSrc(currentEditingItem.cloudUrl)
+    } else if (currentEditingItem?.thumbnail) {
+      setEditingPreviewSrc(currentEditingItem.thumbnail)
+    }
+    return () => {
+      try { if (editingPreviewSrc && editingPreviewSrc.startsWith('blob:')) URL.revokeObjectURL(editingPreviewSrc) } catch (e) {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingBulkId, currentEditingItem])
+
   return (
     <div>
       {/* Mobile Header */}
@@ -671,40 +795,39 @@ export default function BulkUploadPage() {
           <nav className="p-4 space-y-2">
             {navLinks.map((link) => {
               const Icon = link.icon as any
-              const isExternal = typeof link.href === 'string' && link.href.startsWith('/')
+              const isActive = activePage === link.id
               return (
-                <button
+                <SidebarButton
                   key={link.id}
-                  onClick={() => {
-                    if (isExternal) {
-                      router.push(link.href)
-                      setSidebarOpen(false)
-                    } else {
-                      setActivePage(link.id)
-                      setSidebarOpen(false)
-                    }
-                  }}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                    activePage === link.id
-                      ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium">{link.label}</span>
-                </button>
+                  id={link.id}
+                  href={link.href}
+                  label={link.label}
+                  Icon={Icon}
+                  isActive={isActive}
+                  onClick={() => setSidebarOpen(false)}
+                />
               )
             })}
           </nav>
 
           <div className="absolute bottom-4 left-4 right-4">
-            <button
+            <Button
               onClick={() => { setSidebarOpen(false); handleSignOut() }}
               disabled={isLoading}
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg bg-transparent border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm p-2"
+              className="w-full justify-start h-12 text-sm"
             >
-              Sign Out
-            </button>
+              {isLoading ? (
+                <>
+                  <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  Signing Out...
+                </>
+              ) : (
+                <>
+                  <LogOut className="w-4 h-4 mr-2" />
+                  <span>Sign Out</span>
+                </>
+              )}
+            </Button>
           </div>
         </aside>
 
@@ -714,54 +837,65 @@ export default function BulkUploadPage() {
             {navLinks.map((link) => {
               const Icon = link.icon as any
               const isActive = activePage === link.id
-              const isExternal = typeof link.href === 'string' && link.href.startsWith('/')
               return (
-                <button
+                <SidebarButton
                   key={link.id}
-                  onClick={() => { if (isExternal) router.push(link.href); else setActivePage(link.id) }}
-                  title={link.label}
-                  className={`relative w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-sm overflow-hidden ${
-                    isActive
-                      ? 'bg-gradient-to-r from-blue-600/10 to-purple-600/10 text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-500 to-purple-500 rounded-r-md" />}
-
-                  <div className="relative z-10 flex items-center w-6 justify-center">
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-gray-500'}`} />
-                  </div>
-                  <span className="relative z-10 font-medium text-sm truncate">{link.label}</span>
-                </button>
+                  id={link.id}
+                  href={link.href}
+                  label={link.label}
+                  Icon={Icon}
+                  isActive={isActive}
+                />
               )
             })}
           </nav>
 
           <div className="px-4 py-4 border-t border-gray-100">
-            <button
+            <Button
               onClick={handleSignOut}
               disabled={isLoading}
-              className="w-full justify-center bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold rounded-lg hover:from-red-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed p-2"
+              className="w-full justify-start h-12 text-sm"
             >
               {isLoading ? (
-                <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                <>
+                  <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  Signing Out...
+                </>
               ) : (
-                <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
+                <>
+                  <LogOut className="w-4 h-4 mr-2" />
+                  <span>Sign Out</span>
+                </>
               )}
-              <span className="hidden md:inline">Sign Out</span>
-            </button>
+            </Button>
           </div>
         </aside>
 
         {/* Main content */}
-        <main className={`flex-1 md:ml-64 md:mr-80 pb-20 md:pb-0 p-6`}>
-          <div className="max-w-5xl mx-auto">
+        <main className={`flex-1 md:ml-64 pb-6 md:pb-0 p-4 sm:p-6`}> 
+          <div className="w-full">
             <div className="mb-6 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 border border-gray-200 p-6">
               <h1 className="text-2xl font-bold">Bulk Upload</h1>
               <p className="text-sm text-gray-600 mt-1">Top-level bulk upload workspace (separate from Dashboard).</p>
             </div>
 
-            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+            <div className="mb-6 rounded-xl sm:rounded-2xl bg-card/95 backdrop-blur-sm border shadow-xl sm:shadow-2xl overflow-hidden lg:min-h-[420px] flex flex-col">
+              <div className="hidden sm:flex bg-muted/50 px-4 sm:px-6 py-3 sm:py-4 border-b items-center justify-between">
+                <div className="flex items-center space-x-3 sm:space-x-4">
+                  <div className="inline-flex items-center space-x-2">
+                    <div className="bg-white/150 rounded-full px-4 py-1 border shadow-sm flex items-center gap-5 min-w-[160px] justify-center">
+                      <Upload className="h-4 w-4 text-red-500" />
+                      <span className="text-xs sm:text-sm font-medium text-muted-foreground">youtube-growth.ai</span>
+                    </div>
+                    <span className="text-xs sm:text-sm text-muted-foreground">/bulk-upload</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground">Preview</span>
+                </div>
+              </div>
+              <div className="p-6 md:p-8 flex-1">
+                <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm h-full">
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-white">
                   <Upload className="w-6 h-6" />
@@ -772,87 +906,224 @@ export default function BulkUploadPage() {
                 </div>
               </div>
 
-              <div className="border-dashed border-2 border-gray-200 rounded-xl p-8 text-center">
+              <div className="border-dashed border-2 border-gray-200 rounded-xl p-6 text-center">
                 <p className="text-gray-600 mb-4">Upload batches to one or more connected channels. Select a channel and upload video files.</p>
-                <div className="flex justify-center gap-3">
+                <div className="flex flex-col sm:flex-row justify-center gap-3">
                   <button
                     onClick={() => setShowUploadModal(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg"
                   >
                     Upload Video
                   </button>
                   <button
                     onClick={() => setShowAddBulkModal(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded-lg"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded-lg"
                   >
                     Add Bulk Video
                   </button>
                   <Link href="/connect">
-                    <button className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg">
+                    <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg">
                       Connect Channels
                     </button>
                   </Link>
+                </div>
+              </div>
                 </div>
               </div>
             </div>
           </div>
         </main>
       </div>
-      {/* Bulk List Panel (desktop) */}
-      <aside className="hidden md:block w-80 fixed right-0 top-16 bottom-0 border-l border-gray-200 bg-white overflow-y-auto p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-bold">Bulk Upload Queue</h3>
-          <label className="text-xs flex items-center gap-2 text-gray-600">
-            <input type="checkbox" checked={showOnlyUnlisted} onChange={(e) => setShowOnlyUnlisted(e.target.checked)} className="w-4 h-4" />
-            <span>Unlisted only</span>
-          </label>
-        </div>
-        {filteredBulkVideos.length === 0 ? (
-          bulkVideos.length === 0 ? (
-            <div className="text-sm text-gray-500">No bulk videos added yet. Click "Add Bulk Video" to create items.</div>
-          ) : (
-            <div className="text-sm text-gray-500">No bulk videos match the current filter.
-              <button onClick={() => setShowOnlyUnlisted(false)} className="ml-2 text-sm text-blue-600 underline">Show all</button>
-            </div>
-          )
-        ) : (
-          <div className="space-y-3">
-            {filteredBulkVideos.map((v) => (
-              <div key={v.id} className="p-3 border rounded-md bg-gray-50">
-                <div className="flex items-start gap-3">
-                  <div className="w-20 h-12 rounded overflow-hidden bg-black flex items-center justify-center">
-                    {v.thumbnail ? (
-                      <img src={v.thumbnail} alt={v.title || v.fileName || 'thumb'} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="text-xs text-white px-2">No preview</div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold truncate">{v.title || v.fileName || 'Untitled'}</p>
-                    <p className="text-xs text-gray-500 truncate">{v.size ? `${(v.size/(1024*1024)).toFixed(1)} MB` : '—'}</p>
-                    <div className="mt-1">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${v.privacy === 'public' ? 'bg-blue-100 text-blue-700' : v.privacy === 'unlisted' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}`}>{(v.privacy || 'unlisted').toString().toUpperCase()}</span>
+      {/* Bulk List Panel (inline after hero card) */}
+          <div className="mt-6 p-4 sm:p-6 md:p-8">
+          <div className="grid grid-cols-1 lg:grid-cols-6 gap-6 items-stretch">
+          {/* Left: filler to match layout spacing; can host additional content */}
+          <div className="lg:col-span-1" />
+          {/* Right: Bulk Upload Queue as a card (now ~80% width on lg) */}
+          <div className="lg:col-span-5 lg:sticky lg:top-20 lg:self-start">
+            <div className="mb-6 rounded-xl sm:rounded-2xl bg-card/95 backdrop-blur-sm border shadow-xl sm:shadow-2xl overflow-hidden lg:min-h-[420px] flex flex-col">
+              <div className="hidden sm:flex bg-muted/50 px-4 sm:px-6 py-3 sm:py-4 border-b items-center justify-between">
+                <div className="flex items-center space-x-3 sm:space-x-4">
+                  <div className="inline-flex items-center space-x-2">
+                    <div className="bg-white/90 rounded-full px-4 py-1 border shadow-sm flex items-center gap-2 min-w-[160px] justify-center">
+                      <Upload className="h-4 w-4 text-red-500" />
+                      <span className="text-xs sm:text-sm font-medium text-muted-foreground">youtube-growth.ai</span>
                     </div>
-                    <div className="mt-2 h-2 bg-gray-200 rounded overflow-hidden">
-                      <div className="bg-green-500 h-2" style={{ width: `${v.progress || 0}%` }} />
-                    </div>
+                    <span className="text-xs sm:text-sm text-muted-foreground">/bulk-upload</span>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <button onClick={() => openPreviewForItem(v)} className="px-3 py-1 border rounded text-sm">Preview</button>
-                  <span className={"ml-auto text-xs font-semibold " + (v.status === 'error' ? 'text-red-600' : 'text-green-600')}>{v.status === 'error' ? 'Error' : 'Uploaded'}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground">Queue</span>
                 </div>
               </div>
-            ))}
+              <div className="p-2 sm:p-4 flex-1">
+                <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm h-full">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-3">
+                <div className="flex-1">
+                  <h3 className="font-bold mb-2 sm:mb-0">Bulk Upload Queue</h3>
+                  <div className="flex items-center gap-2">
+                    <input value={bulkSearch} onChange={(e) => setBulkSearch(e.target.value)} placeholder="Search title or filename" className="px-3 py-2 border rounded-md w-full sm:max-w-xs text-sm" />
+                    <select value={bulkSort} onChange={(e) => setBulkSort(e.target.value as any)} className="text-sm px-2 py-2 border rounded-md bg-white">
+                      <option value="newest">Newest</option>
+                      <option value="oldest">Oldest</option>
+                      <option value="progress">Progress</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <select value={privacyFilter} onChange={(e) => setPrivacyFilter(e.target.value as any)} className="text-sm px-2 py-2 border rounded-md bg-white">
+                    <option value="all">All</option>
+                    <option value="public">Public</option>
+                    <option value="unlisted">Unlisted</option>
+                    <option value="private">Private</option>
+                  </select>
+
+                  <label className="text-xs flex items-center gap-2 text-gray-600">
+                    <input type="checkbox" checked={myChannelOnly} onChange={(e) => setMyChannelOnly(e.target.checked)} className="w-4 h-4" />
+                    <span>My channel only</span>
+                  </label>
+                  <button
+                    onClick={() => { setPrivacyFilter('private'); setMyChannelOnly(false); setBulkSearch('') }}
+                    className="ml-2 px-3 py-2 bg-gray-900 text-white rounded text-sm"
+                  >
+                    Private only (all channels)
+                  </button>
+                  <button
+                    onClick={async () => {
+                      // load private videos for selected channel
+                      if (!selectedUploadChannel || !selectedUploadChannel.id) { alert('Select a channel first'); return }
+                      const token = localStorage.getItem('youtube_access_token')
+                      if (!token) { alert('You must connect a channel (owner token) to load private videos'); return }
+                      setIsImportingPrivate(true)
+                      try {
+                        const res = await fetch(`/api/youtube/videos?channelId=${selectedUploadChannel.id}&fetchAll=true&access_token=${encodeURIComponent(token)}`)
+                        const data = await res.json()
+                        if (data && Array.isArray(data.videos)) {
+                          const privateVideos = data.videos.filter((v:any) => ((v.privacy || v.privacyStatus || '').toString().toLowerCase()) === 'private')
+                          if (privateVideos.length === 0) { alert('No private videos found for the selected channel') }
+                          const toAdd = privateVideos.map((v:any) => ({ id: 'yt-'+(v.id||v.videoId||Math.random()), title: v.title || 'Untitled', fileName: '', size: 0, thumbnail: v.thumbnail || v.thumbnails?.high?.url || '', cloudUrl: '', public_id: '', status: 'fetched', progress: 100, privacy: 'private', youtubeId: v.id || v.videoId, channelIds: [selectedUploadChannel.id] }))
+                          // avoid duplicates by youtubeId
+                          setBulkVideos(prev => {
+                            const existingIds = new Set(prev.map(p => p.youtubeId || p.id))
+                            const merged = [...prev]
+                            for (const item of toAdd) {
+                              if (!existingIds.has(item.youtubeId)) merged.push(item)
+                            }
+                            return merged
+                          })
+                        } else {
+                          alert('Failed to load videos from API')
+                        }
+                      } catch (err) {
+                        console.error('Failed to import private videos', err)
+                        alert('Failed to import private videos: ' + (err as any)?.message || '')
+                      } finally { setIsImportingPrivate(false) }
+                    }}
+                    disabled={isImportingPrivate}
+                    className="ml-2 px-3 py-2 bg-blue-600 text-white rounded text-sm"
+                  >
+                    {isImportingPrivate ? 'Loading…' : 'Load private (selected channel)'}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      // load private videos for all connected channels
+                      const token = localStorage.getItem('youtube_access_token')
+                      if (!token) { alert('You must connect a channel (owner token) to load private videos'); return }
+                      if (!allChannels || allChannels.length === 0) { alert('No connected channels available'); return }
+                      setIsImportingPrivate(true)
+                      try {
+                        for (const ch of allChannels) {
+                          try {
+                            const res = await fetch(`/api/youtube/videos?channelId=${ch.id}&fetchAll=true&access_token=${encodeURIComponent(token)}`)
+                            const data = await res.json()
+                            if (data && Array.isArray(data.videos)) {
+                              const privateVideos = data.videos.filter((v:any) => ((v.privacy || v.privacyStatus || '').toString().toLowerCase()) === 'private')
+                              const toAdd = privateVideos.map((v:any) => ({ id: 'yt-'+(v.id||v.videoId||Math.random()), title: v.title || 'Untitled', fileName: '', size: 0, thumbnail: v.thumbnail || v.thumbnails?.high?.url || '', cloudUrl: '', public_id: '', status: 'fetched', progress: 100, privacy: 'private', youtubeId: v.id || v.videoId, channelIds: [ch.id] }))
+                              setBulkVideos(prev => {
+                                const existingIds = new Set(prev.map(p => p.youtubeId || p.id))
+                                const merged = [...prev]
+                                for (const item of toAdd) {
+                                  if (!existingIds.has(item.youtubeId)) merged.push(item)
+                                }
+                                return merged
+                              })
+                            }
+                          } catch (e) { console.error('Failed to fetch for channel', ch, e) }
+                        }
+                      } finally { setIsImportingPrivate(false); alert('Import complete') }
+                    }}
+                    disabled={isImportingPrivate}
+                    className="ml-2 px-3 py-2 bg-indigo-600 text-white rounded text-sm"
+                  >
+                    {isImportingPrivate ? 'Loading…' : 'Load private (all channels)'}
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button onClick={selectAllVisible} className="px-3 py-2 border rounded text-sm">Select all</button>
+                    <button onClick={clearSelection} className="px-3 py-2 border rounded text-sm">Clear</button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={bulkPublishSelected} className="px-3 py-2 bg-red-600 text-white rounded text-sm">Publish selected</button>
+                    <button onClick={bulkDeleteSelected} className="px-3 py-2 border rounded text-sm">Delete selected</button>
+                  </div>
+                </div>
+              </div>
+              {filteredBulkVideos.length === 0 ? (
+                bulkVideos.length === 0 ? (
+                  <div className="text-sm text-gray-500">No bulk videos added yet. Click "Add Bulk Video" to create items.</div>
+                ) : (
+                  <div className="text-sm text-gray-500">No bulk videos match the current filter.
+                    <button onClick={() => setShowOnlyUnlisted(false)} className="ml-2 text-sm text-blue-600 underline">Show all</button>
+                  </div>
+                )
+              ) : (
+                <div className="space-y-3">
+                  {filteredBulkVideos.map((v) => (
+                    <div key={v.id} className="p-3 border rounded-md bg-gray-50">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                        <div className="flex items-center gap-3">
+                          <input type="checkbox" checked={selectedBulkIds.includes(v.id)} onChange={() => toggleSelectBulk(v.id)} className="w-5 h-5" />
+                        </div>
+                        <div className="w-20 sm:w-24 h-12 sm:h-14 rounded overflow-hidden bg-black flex items-center justify-center flex-shrink-0">
+                          {v.thumbnail ? (
+                            <img src={v.thumbnail} alt={v.title || v.fileName || 'thumb'} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="text-xs text-white px-2">No preview</div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold truncate">{v.title || v.fileName || 'Untitled'}</p>
+                          <p className="text-xs text-gray-500 truncate">{v.size ? `${(v.size/(1024*1024)).toFixed(1)} MB` : '—'}</p>
+                          <div className="mt-1">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded ${v.privacy === 'public' ? 'bg-blue-100 text-blue-700' : v.privacy === 'unlisted' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}`}>{(v.privacy || 'unlisted').toString().toUpperCase()}</span>
+                          </div>
+                          <div className="mt-2 h-2 bg-gray-200 rounded overflow-hidden">
+                            <div className="bg-green-500 h-2" style={{ width: `${v.progress || 0}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                        <div className="flex gap-2 w-full sm:w-auto">
+                          <button onClick={() => openPreviewForItem(v)} className="w-full sm:w-auto px-3 py-2 border rounded text-sm">Preview</button>
+                        </div>
+                        <span className={"ml-0 sm:ml-auto text-xs font-semibold " + (v.status === 'error' ? 'text-red-600' : 'text-green-600')}>{v.status === 'error' ? 'Error' : 'Uploaded'}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+                </div>
+              </div>
+            </div>
           </div>
-        )}
-      </aside>
+        </div>
+      </div>
 
       {/* Upload Modal */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !isUploading && setShowUploadModal(false)}>
-          <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-red-500 via-pink-500 to-purple-500 p-6 flex items-center justify-between">
+          <div className="bg-white rounded-2xl w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-5xl overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-red-500 via-pink-500 to-purple-500 p-4 sm:p-6 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-white/20 backdrop-blur-sm rounded-full">
                   <Upload className="w-6 h-6 text-white" />
@@ -869,7 +1140,7 @@ export default function BulkUploadPage() {
               )}
             </div>
 
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+            <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(100vh-120px)] sm:max-h-[calc(90vh-200px)]">
               <input ref={modalFileInputRef} type="file" accept="video/*" onChange={(e) => {
                 // use existing handler to set selected file and open details panel for editing
                 handleFileSelect(e as React.ChangeEvent<HTMLInputElement>)
@@ -899,9 +1170,9 @@ export default function BulkUploadPage() {
               </div>
 
               {/* Animated Details panel - opens after a file is selected */}
-              <div className={`mt-6 overflow-hidden transition-all duration-500 ${showDetails ? 'max-h-[700px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                  <div className="flex items-start gap-6">
+                <div className={`mt-6 overflow-hidden transition-all duration-500 ${showDetails ? 'max-h-[900px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 shadow-sm">
+                  <div className="flex flex-col lg:flex-row items-start gap-6">
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-semibold">Video details</h3>
@@ -987,12 +1258,12 @@ export default function BulkUploadPage() {
                       </div>
                     </div>
 
-                    <div className="w-96">
+                    <div className="w-full lg:w-96">
                       <div className="w-full bg-gray-900 rounded-md overflow-hidden mb-3">
                         {previewSrc ? (
-                          <video src={previewSrc} controls className="w-full h-56 object-cover bg-black" />
+                          <video src={previewSrc} controls className="w-full h-40 lg:h-56 object-cover bg-black" />
                         ) : (
-                          <div className="w-full h-56 flex items-center justify-center text-gray-400">No preview</div>
+                          <div className="w-full h-40 lg:h-56 flex items-center justify-center text-gray-400">No preview</div>
                         )}
                       </div>
                       <div className="text-xs text-gray-600">Filename</div>
@@ -1002,15 +1273,15 @@ export default function BulkUploadPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 flex justify-between items-center gap-3">
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => { setShowDetails(false); setSelectedFile(null); setPreviewSrc(null) }} className="px-4 py-2 border rounded-lg">Cancel</button>
-                    <button onClick={saveDraft} className="px-4 py-2 border rounded-lg">Save draft</button>
+                <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+                  <div className="flex w-full sm:w-auto flex-col sm:flex-row items-center gap-3">
+                    <button onClick={() => { setShowDetails(false); setSelectedFile(null); setPreviewSrc(null) }} className="w-full sm:w-auto px-4 py-2 border rounded-lg">Cancel</button>
+                    <button onClick={saveDraft} className="w-full sm:w-auto px-4 py-2 border rounded-lg">Save draft</button>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="text-sm text-gray-500 mr-2">{isUploading ? `Uploading… ${uploadProgress}%` : ''}</div>
-                    <button onClick={handleUpload} disabled={!selectedFile || !uploadData.title.trim() || isUploading} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg">
+                  <div className="flex w-full sm:w-auto items-center gap-3">
+                    <div className="text-sm text-gray-500 mr-2 hidden sm:block">{isUploading ? `Uploading… ${uploadProgress}%` : ''}</div>
+                    <button onClick={handleUpload} disabled={!selectedFile || !uploadData.title.trim() || isUploading} className="w-full sm:w-auto px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg">
                       {isUploading ? 'Uploading...' : 'Upload to YouTube'}
                     </button>
                   </div>
@@ -1023,26 +1294,26 @@ export default function BulkUploadPage() {
 
       {/* Add Bulk Video Modal (Shorts-focused: multiple files, max 60, per-item preview) */}
       {showAddBulkModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !isUploading && setShowAddBulkModal(false)}>
-          <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="bg-gradient-to-r from-red-500 via-pink-500 to-purple-500 p-6 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => !isUploading && setShowAddBulkModal(false)}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-5xl h-[92vh] sm:h-auto max-h-[95vh] overflow-hidden shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-red-500 via-pink-500 to-purple-500 p-4 sm:p-6 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-white/20 backdrop-blur-sm rounded-full">
-                  <Upload className="w-6 h-6 text-white" />
+                <div className="p-2 sm:p-3 bg-white/20 backdrop-blur-sm rounded-full">
+                  <Upload className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-white">Add Bulk Video (Shorts)</h2>
-                  <p className="text-white/80 text-sm">Upload multiple short videos and add them to the Bulk queue</p>
+                <div className="flex flex-col">
+                  <h2 className="text-lg sm:text-2xl font-bold text-white">Add Bulk Video (Shorts)</h2>
+                  <p className="text-white/80 text-xs sm:text-sm">Upload multiple short videos and add them to the Bulk queue</p>
                 </div>
               </div>
               {!isUploading && (
                 <button onClick={() => setShowAddBulkModal(false)} className="p-2 rounded-full bg-white/20">
-                  <X className="w-6 h-6 text-white" />
+                  <X className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </button>
               )}
             </div>
 
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1">
               <input id="bulk-files-input" type="file" accept="video/*" multiple onChange={(e) => {
                 const files = Array.from(e.target.files || [])
                 if (files.length > 60) {
@@ -1068,19 +1339,23 @@ export default function BulkUploadPage() {
               {bulkFiles.length > 0 && (
                 <div className="mt-4 space-y-2">
                   {bulkFiles.map((f, idx) => (
-                    <div key={f.name + idx} className="flex items-center justify-between p-3 border rounded-md bg-gray-50">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-20 h-12 bg-black rounded overflow-hidden flex items-center justify-center">
-                          <video className="w-full h-full object-cover" src={URL.createObjectURL(f)} muted playsInline />
+                    <div key={f.name + idx} className="p-3 border rounded-md bg-gray-50">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                        <div className="w-24 sm:w-28 h-14 sm:h-16 bg-black rounded overflow-hidden flex items-center justify-center flex-shrink-0">
+                          {bulkFilesPreviews[idx] ? (
+                            <video className="w-full h-full object-cover" src={bulkFilesPreviews[idx]} muted playsInline />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No preview</div>
+                          )}
                         </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="font-medium truncate">{f.name}</p>
                           <p className="text-xs text-gray-500">{(f.size/(1024*1024)).toFixed(2)} MB</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => createDraftFromFile(f, idx)} className="px-3 py-1 border rounded text-sm">Add</button>
-                        <button onClick={() => setBulkFiles(prev => prev.filter((_, i) => i !== idx))} className="px-3 py-1 border rounded text-sm">Remove</button>
+                      <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                        <button onClick={() => createDraftFromFile(f, idx)} className="w-full sm:w-auto px-3 py-2 border rounded text-sm">Add</button>
+                        <button onClick={() => setBulkFiles(prev => prev.filter((_, i) => i !== idx))} className="w-full sm:w-auto px-3 py-2 border rounded text-sm">Remove</button>
                       </div>
                     </div>
                   ))}
@@ -1091,6 +1366,9 @@ export default function BulkUploadPage() {
                     <div className="mt-4 space-y-3">
                       {filteredBulkVideos.map(v => (
                     <div key={v.id} className="p-3 border rounded-md bg-gray-50 flex items-center gap-3">
+                      <div className="flex items-center gap-3">
+                        <input type="checkbox" checked={selectedBulkIds.includes(v.id)} onChange={() => toggleSelectBulk(v.id)} className="w-5 h-5" />
+                      </div>
                       <div className="w-20 h-12 rounded overflow-hidden bg-black flex items-center justify-center">
                         {v.thumbnail ? <img src={v.thumbnail} alt={v.title} className="w-full h-full object-cover" /> : <div className="text-xs text-white px-2">No preview</div>}
                       </div>
@@ -1122,13 +1400,20 @@ export default function BulkUploadPage() {
                   <div className="flex gap-6">
                     <div className="w-96">
                       <div className="w-full bg-gray-900 rounded-md overflow-hidden mb-3">
-                        {(() => {
-                          const f = bulkFileMap.current[editingBulkId]
-                          if (f) return <video src={URL.createObjectURL(f)} controls className="w-full h-56 object-cover bg-black" />
-                          if (currentEditingItem?.cloudUrl) return <video src={currentEditingItem.cloudUrl} controls className="w-full h-56 object-cover bg-black" />
-                          if (currentEditingItem?.thumbnail) return <img src={currentEditingItem.thumbnail} className="w-full h-56 object-cover" />
-                          return <div className="w-full h-56 flex items-center justify-center text-gray-400">No preview</div>
-                        })()}
+                        {editingPreviewSrc ? (
+                          editingPreviewSrc.startsWith('blob:') ? (
+                            <video src={editingPreviewSrc} controls className="w-full h-56 object-cover bg-black" />
+                          ) : (
+                            // cloudUrl or thumbnail
+                            editingPreviewSrc.endsWith('.jpg') || editingPreviewSrc.startsWith('data:') || editingPreviewSrc.includes('thumbnail') ? (
+                              <img src={editingPreviewSrc} className="w-full h-56 object-cover" />
+                            ) : (
+                              <video src={editingPreviewSrc} controls className="w-full h-56 object-cover bg-black" />
+                            )
+                          )
+                        ) : (
+                          <div className="w-full h-56 flex items-center justify-center text-gray-400">No preview</div>
+                        )}
                       </div>
                       <div className="text-xs text-gray-600">Filename</div>
                       <div className="text-sm font-medium mb-2">{currentEditingItem?.fileName || '—'}</div>

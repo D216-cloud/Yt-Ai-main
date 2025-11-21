@@ -123,3 +123,15 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Hide the mobile bottom nav when a page requests it by adding
+   the `hide-mobile-nav` class to the <body>. This is more robust
+   than querying DOM nodes directly. */
+body.hide-mobile-nav nav#mobile-bottom-nav {
+  display: none !important;
+}
+
+/* Slight visual polish for hero action buttons on mobile */
+.hero-action-btn:focus {
+  outline: 2px solid rgba(59,130,246,0.12);
+}

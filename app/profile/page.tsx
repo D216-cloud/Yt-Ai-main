@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import type React from "react"
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import SidebarButton from '@/components/ui/sidebar-button'
 import { Button } from "@/components/ui/button"
 import {
   Play,
@@ -130,16 +131,24 @@ export default function ProfilePage() {
 
   const fetchVideos = async () => {
     if (!youtubeChannel) return
-    
+
     try {
       setVideosLoading(true)
-      // Request the first 20 videos for the profile page (default UX)
-      const response = await fetch(`/api/youtube/videos?channelId=${youtubeChannel.id}&maxResults=20`)
+      // Request all pages from the API so we can show all videos (including unlisted/private if returned by the API)
+      // use `fetchAll=true` to instruct the server to aggregate paginated results
+      const storedToken = localStorage.getItem("youtube_access_token")
+      let response
+      if (storedToken) {
+        // When we have an OAuth access token, request the authenticated user's videos using mine=true
+        response = await fetch(`/api/youtube/videos?mine=true&fetchAll=true&access_token=${storedToken}`)
+      } else {
+        response = await fetch(`/api/youtube/videos?channelId=${youtubeChannel.id}&fetchAll=true`)
+      }
       const data = await response.json()
-      
+
       if (data.success && data.videos) {
-        // Ensure we only show the first 20 videos on the profile page
-        setVideos(Array.isArray(data.videos) ? data.videos.slice(0, 20) : [])
+        // Show all videos returned by the API (no slicing)
+        setVideos(Array.isArray(data.videos) ? data.videos : [])
       }
     } catch (error) {
       console.error("Error fetching videos:", error)
@@ -224,13 +233,12 @@ export default function ProfilePage() {
             <Button
               onClick={handleSignOut}
               disabled={isLoading}
-              variant="ghost"
               size="sm"
-              className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2"
+              className="p-2"
               title="Sign Out"
             >
               {isLoading ? (
-                <span className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></span>
+                <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
               ) : (
                 <LogOut className="w-5 h-5" />
               )}
@@ -282,19 +290,15 @@ export default function ProfilePage() {
               const Icon = link.icon
               const isActive = link.id === "profile"
               return (
-                <Link
+                <SidebarButton
                   key={link.id}
+                  id={link.id}
                   href={link.href}
+                  label={link.label}
+                  Icon={Icon}
+                  isActive={isActive}
                   onClick={() => setSidebarOpen(false)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                    isActive
-                      ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium">{link.label}</span>
-                </Link>
+                />
               )
             })}
           </nav>
@@ -303,16 +307,16 @@ export default function ProfilePage() {
             <Button
               onClick={handleSignOut}
               disabled={isLoading}
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg bg-transparent border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              className="w-full justify-start h-12 text-sm"
             >
               {isLoading ? (
                 <>
-                  <span className="w-4 h-4 mr-2 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></span>
+                  <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   Signing Out...
                 </>
               ) : (
                 <>
-                  <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <LogOut className="w-4 h-4 mr-2" />
                   <span>Sign Out</span>
                 </>
               )}
@@ -327,18 +331,14 @@ export default function ProfilePage() {
               const Icon = link.icon
               const isActive = link.id === "profile"
               return (
-                <Link
+                <SidebarButton
                   key={link.id}
+                  id={link.id}
                   href={link.href}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                    isActive
-                      ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50 shadow-sm"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium">{link.label}</span>
-                </Link>
+                  label={link.label}
+                  Icon={Icon}
+                  isActive={isActive}
+                />
               )
             })}
           </nav>
@@ -347,16 +347,16 @@ export default function ProfilePage() {
             <Button
               onClick={handleSignOut}
               disabled={isLoading}
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg bg-transparent border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              className="w-full justify-start h-12 text-sm"
             >
               {isLoading ? (
                 <>
-                  <span className="w-4 h-4 mr-2 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></span>
+                  <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   Signing Out...
                 </>
               ) : (
                 <>
-                  <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <LogOut className="w-4 h-4 mr-2" />
                   <span>Sign Out</span>
                 </>
               )}
@@ -756,9 +756,16 @@ export default function ProfilePage() {
 
                             {/* Video Info */}
                             <div className="p-3">
-                              <h4 className="font-semibold text-gray-900 text-sm line-clamp-2 mb-2 group-hover:text-red-600 transition-colors">
-                                {video.title}
-                              </h4>
+                              <div className="flex items-center gap-2 mb-2">
+                                <h4 className="font-semibold text-gray-900 text-sm line-clamp-2 group-hover:text-red-600 transition-colors">
+                                  {video.title}
+                                </h4>
+                                {video.privacyStatus && video.privacyStatus !== 'public' && (
+                                  <span className={`text-xs font-medium px-2 py-0.5 rounded ${video.privacyStatus === 'private' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-yellow-50 text-yellow-800 border border-yellow-100'}`}>
+                                    {video.privacyStatus.charAt(0).toUpperCase() + video.privacyStatus.slice(1)}
+                                  </span>
+                                )}
+                              </div>
                               
                               {/* Stats */}
                               <div className="flex items-center gap-3 text-xs text-gray-600 mb-2">

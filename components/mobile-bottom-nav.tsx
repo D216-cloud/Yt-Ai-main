@@ -18,7 +18,7 @@ export function MobileBottomNav({ activePage, onNavigate, onSignOut }: MobileBot
   ]
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 md:hidden bg-white border-t border-gray-200 shadow-2xl z-50">
+    <nav id="mobile-bottom-nav" className="fixed bottom-0 left-0 right-0 md:hidden bg-white border-t border-gray-200 shadow-2xl z-50">
       <div className="flex items-center justify-between">
         {navItems.map((item) => {
           const Icon = item.icon

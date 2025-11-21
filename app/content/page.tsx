@@ -31,6 +31,7 @@ import {
   TrendingUp
 } from "lucide-react"
 import Link from "next/link"
+import SidebarButton from '@/components/ui/sidebar-button'
 import { useSession, signOut } from "next-auth/react"
 import { useRouter, usePathname } from "next/navigation"
 import { Breadcrumb } from "@/components/breadcrumb"
@@ -493,18 +494,15 @@ export default function ContentPage() {
               const Icon = link.icon
               const isActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href))
               return (
-                <Link
+                <SidebarButton
                   key={link.id}
+                  id={link.id}
                   href={link.href}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                    isActive
-                      ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium">{link.label}</span>
-                </Link>
+                  label={link.label}
+                  Icon={Icon}
+                  isActive={isActive}
+                  onClick={() => setSidebarOpen(false)}
+                />
               )
             })}
           </nav>
@@ -513,16 +511,16 @@ export default function ContentPage() {
             <Button
               onClick={handleSignOut}
               disabled={isLoading}
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg bg-transparent border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              className="w-full justify-start h-12 text-sm"
             >
               {isLoading ? (
                 <>
-                  <span className="w-4 h-4 mr-2 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></span>
+                  <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   Signing Out...
                 </>
               ) : (
                 <>
-                  <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <LogOut className="w-4 h-4 mr-2" />
                   <span>Sign Out</span>
                 </>
               )}
@@ -537,18 +535,14 @@ export default function ContentPage() {
               const Icon = link.icon
               const isActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href))
               return (
-                <Link
+                <SidebarButton
                   key={link.id}
+                  id={link.id}
                   href={link.href}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                    isActive
-                      ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium">{link.label}</span>
-                </Link>
+                  label={link.label}
+                  Icon={Icon}
+                  isActive={isActive}
+                />
               )
             })}
           </nav>
@@ -557,16 +551,16 @@ export default function ContentPage() {
             <Button
               onClick={handleSignOut}
               disabled={isLoading}
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg bg-transparent border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              className="w-full justify-start h-12 text-sm"
             >
               {isLoading ? (
                 <>
-                  <span className="w-4 h-4 mr-2 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></span>
+                  <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   Signing Out...
                 </>
               ) : (
                 <>
-                  <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <LogOut className="w-4 h-4 mr-2" />
                   <span>Sign Out</span>
                 </>
               )}

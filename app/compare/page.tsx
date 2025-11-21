@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState } from "react"
 import Link from "next/link"
+import SidebarButton from '@/components/ui/sidebar-button'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { 
@@ -869,32 +870,29 @@ export default function ComparePage() {
           }`}
         >
             <nav className="p-4 space-y-2">
-              {navLinks.map((link) => {
-                const Icon = link.icon
-                const isActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href))
-                return (
-                  <button
-                    key={link.id}
-                    onClick={() => handleNavClick(link.href, link.id)}
-                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                      isActive
-                        ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
-                    <span className="font-medium">{link.label}</span>
-                  </button>
-                )
-              })}
+                {navLinks.map((link) => {
+                  const Icon = link.icon
+                  const isActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href))
+                  return (
+                    <SidebarButton
+                      key={link.id}
+                      id={link.id}
+                      href={link.href}
+                      label={link.label}
+                      Icon={Icon}
+                      isActive={isActive}
+                      onClick={() => handleNavClick(link.href, link.id)}
+                    />
+                  )
+                })}
             </nav>
 
           <div className="absolute bottom-4 left-4 right-4">
             <Button
               onClick={handleSignOut}
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg bg-transparent border border-red-200 text-sm"
+              className="w-full justify-start h-12 text-sm"
             >
-              <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
+              <LogOut className="w-4 h-4 mr-2" />
               <span>Sign Out</span>
             </Button>
           </div>
@@ -907,18 +905,15 @@ export default function ComparePage() {
               const Icon = link.icon
               const isActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href))
               return (
-                <button
+                <SidebarButton
                   key={link.id}
+                  id={link.id}
+                  href={link.href}
+                  label={link.label}
+                  Icon={Icon}
+                  isActive={isActive}
                   onClick={() => handleNavClick(link.href, link.id)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                    isActive
-                      ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium">{link.label}</span>
-                </button>
+                />
               )
             })}
           </nav>
@@ -926,9 +921,9 @@ export default function ComparePage() {
           <div className="absolute bottom-4 left-4 right-4">
             <Button
               onClick={handleSignOut}
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg bg-transparent border border-red-200 text-sm"
+              className="w-full justify-start h-12 text-sm"
             >
-              <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
+              <LogOut className="w-4 h-4 mr-2" />
               <span>Sign Out</span>
             </Button>
           </div>

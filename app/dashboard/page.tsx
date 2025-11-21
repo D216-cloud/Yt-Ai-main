@@ -3,6 +3,7 @@
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
+import SidebarButton from '@/components/ui/sidebar-button'
 import { Button } from "@/components/ui/button"
 import {
   Play,
@@ -448,15 +449,16 @@ export default function DashboardPage() {
             <Button
               onClick={handleSignOut}
               disabled={isLoading}
-              variant="ghost"
-              size="sm"
-              className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2"
+              className="flex items-center gap-2 bg-gradient-to-br from-blue-600 to-purple-600 text-white px-3 py-2 rounded-md"
               title="Sign Out"
             >
               {isLoading ? (
-                <span className="w-5 h-5 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></span>
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
-                <LogOut className="w-5 h-5" />
+                <>
+                  <LogOut className="w-4 h-4" />
+                  <span className="text-sm">Sign Out</span>
+                </>
               )}
             </Button>
           </div>
@@ -512,8 +514,13 @@ export default function DashboardPage() {
               const Icon = link.icon
               const isExternal = typeof link.href === 'string' && link.href.startsWith('/')
               return (
-                <button
+                <SidebarButton
                   key={link.id}
+                  id={link.id}
+                  href={link.href}
+                  label={link.label}
+                  Icon={Icon}
+                  isActive={activePage === link.id}
                   onClick={() => {
                     if (isExternal) {
                       router.push(link.href)
@@ -523,15 +530,7 @@ export default function DashboardPage() {
                       setSidebarOpen(false)
                     }
                   }}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                    activePage === link.id
-                      ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium">{link.label}</span>
-                </button>
+                />
               )
             })}
           </nav>
@@ -540,16 +539,16 @@ export default function DashboardPage() {
             <Button
               onClick={() => { setSidebarOpen(false); handleSignOut() }}
               disabled={isLoading}
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg bg-transparent border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              className="w-full justify-center bg-gradient-to-br from-blue-600 to-purple-600 text-white font-semibold h-12 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <>
-                  <span className="w-4 h-4 mr-2 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></span>
+                  <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   Signing Out...
                 </>
               ) : (
                 <>
-                  <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <LogOut className="w-4 h-4 mr-2" />
                   <span>Sign Out</span>
                 </>
               )}
@@ -565,27 +564,18 @@ export default function DashboardPage() {
               const isActive = activePage === link.id
               const isExternal = typeof link.href === 'string' && link.href.startsWith('/')
               return (
-                <button
+                <SidebarButton
                   key={link.id}
+                  id={link.id}
+                  href={link.href}
+                  label={link.label}
+                  Icon={Icon}
+                  isActive={isActive}
                   onClick={() => {
                     if (isExternal) router.push(link.href)
                     else handleNavClick(link.id)
                   }}
-                  title={link.label}
-                  className={`relative w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-sm overflow-hidden ${
-                    isActive
-                      ? 'bg-gradient-to-r from-blue-600/10 to-purple-600/10 text-gray-900 shadow-sm'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  {/* Active indicator */}
-                  {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-blue-500 to-purple-500 rounded-r-md" />}
-
-                  <div className="relative z-10 flex items-center w-6 justify-center">
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-gray-500'}`} />
-                  </div>
-                  <span className="relative z-10 font-medium text-sm truncate">{link.label}</span>
-                </button>
+                />
               )
             })}
           </nav>
@@ -594,7 +584,7 @@ export default function DashboardPage() {
             <Button
               onClick={handleSignOut}
               disabled={isLoading}
-              className="w-full justify-center bg-gradient-to-r from-red-500 to-pink-500 text-white font-semibold rounded-lg hover:from-red-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full justify-center bg-gradient-to-br from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed h-12"
             >
               {isLoading ? (
                 <>
@@ -603,7 +593,7 @@ export default function DashboardPage() {
                 </>
               ) : (
                 <>
-                  <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <LogOut className="w-4 h-4 mr-2" />
                   <span>Sign Out</span>
                 </>
               )}
@@ -755,10 +745,12 @@ function ProfileView({ youtubeChannel, channelLoading, session, onChannelChange 
 
     try {
       setVideosLoading(true)
-      const response = await fetch(`/api/youtube/videos?channelId=${selectedChannel.id}&maxResults=12`)
+      // request more videos and filter to public videos only for Profile view
+      const response = await fetch(`/api/youtube/videos?channelId=${selectedChannel.id}&maxResults=200`)
       const data = await response.json()
 
-      if (data.success && data.videos) {
+      if (data.success && Array.isArray(data.videos)) {
+        // show all videos (public/unlisted/private) for Profile view
         setVideos(data.videos)
       }
     } catch (error) {
@@ -1050,7 +1042,7 @@ function ProfileView({ youtubeChannel, channelLoading, session, onChannelChange 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                   <div key={i} className="space-y-3">
-                    <Skeleton className="h-40 w-full rounded-lg" />
+                    <Skeleton className="h-40 w-full rounded-2xl" />
                     <Skeleton className="h-4 w-full" />
                     <Skeleton className="h-3 w-2/3" />
                   </div>
@@ -1173,6 +1165,13 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
   const [selectedCountry, setSelectedCountry] = useState<string>("US")
   const [latestVideo, setLatestVideo] = useState<any | null>(null)
   const [loadingLatest, setLoadingLatest] = useState(true)
+  // Engagement distribution: load all videos for the connected channel
+  const [engagementVideos, setEngagementVideos] = useState<any[]>([])
+  const [engagementLoading, setEngagementLoading] = useState(false)
+  const [engagementError, setEngagementError] = useState<string | null>(null)
+  const [engagementTab, setEngagementTab] = useState<'public'|'unlisted'|'private'>('public')
+  const [showEngModal, setShowEngModal] = useState(false)
+  const [modalVideos, setModalVideos] = useState<any[]>([])
   // Local channel management for Quick Actions card
   const [allChannelsLocal, setAllChannelsLocal] = useState<YouTubeChannel[]>([])
   const [showManageChannels, setShowManageChannels] = useState(false)
@@ -1282,6 +1281,42 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
     }
 
     fetchLatest()
+  }, [youtubeChannel])
+
+  // Fetch all videos for engagement distribution when channel changes
+  useEffect(() => {
+    const fetchEngagementVideos = async () => {
+      if (!youtubeChannel) {
+        setEngagementVideos([])
+        return
+      }
+
+      try {
+        setEngagementLoading(true)
+        // include OAuth access token when available so unlisted/private videos are returned for the owner
+        const storedToken = localStorage.getItem('youtube_access_token')
+        const tokenParam = storedToken ? `&access_token=${encodeURIComponent(storedToken)}` : ''
+        const response = await fetch(`/api/youtube/videos?channelId=${youtubeChannel.id}&fetchAll=true${tokenParam}`)
+        const data = await response.json()
+        if (data && data.success && Array.isArray(data.videos)) {
+          setEngagementVideos(data.videos)
+          setEngagementError(null)
+        } else {
+          setEngagementVideos([])
+          // surface API errors for debugging (e.g., 401 unauthorized, missing token, insufficient scope)
+          const err = data?.error || (data?.details && JSON.stringify(data.details)) || 'Unknown error from videos API'
+          setEngagementError(String(err))
+          console.warn('[Engagement] videos API error:', err)
+        }
+      } catch (err) {
+        console.error('Error fetching engagement videos:', err)
+        setEngagementVideos([])
+      } finally {
+        setEngagementLoading(false)
+      }
+    }
+
+    fetchEngagementVideos()
   }, [youtubeChannel])
 
   return (
@@ -1580,68 +1615,7 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
         </div>
       )}
 
-      {/* Stats Grid - Mobile Optimized */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-8">
-        {/* Kept: Trending Keywords and Trending Videos actions. Removed AI Thumbnails and Bulk Upload. */}
-        {[
-          {
-              icon: Hash,
-              label: 'Find Trending Keywords',
-              value: trendingKeywords?.length ? `${trendingKeywords.length}` : 'Explore',
-              change: 'Discover hot terms',
-              color: 'from-blue-500 to-blue-600',
-              front: true,
-              cta: 'Find Trending Keywords',
-              onClick: () => router.push('/dashboard/trending')
-            },
-            {
-              icon: Video,
-              label: 'Find Trending Videos',
-              value: trendingVideos?.length ? `${trendingVideos.length}` : 'Explore',
-              change: 'Top trending vids',
-              color: 'from-green-500 to-green-600',
-              front: true,
-              cta: 'Find Trending Videos',
-              onClick: () => {
-                const el = document.getElementById('trending-videos')
-                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-              }
-            },
-            {
-              icon: Upload,
-              label: 'Bulk Upload',
-              value: 'Upload',
-              change: 'Upload videos in batch',
-              color: 'from-red-500 to-pink-500',
-              front: true,
-              cta: 'Bulk Upload',
-              onClick: () => router.push('/bulk-upload')
-            },
-            {
-              icon: Hash,
-              label: 'Content Studio',
-              value: 'Studio',
-              change: 'Open content tools',
-              color: 'from-indigo-500 to-purple-500',
-              front: true,
-              cta: 'Content Studio',
-              onClick: () => router.push('/content')
-            }
-        ].map((card, idx) => (
-          card.front ? (
-            <AIToolButton
-              key={idx}
-              icon={card.icon}
-              title={card.label}
-              description={card.change}
-              gradient={card.color}
-              onClick={card.onClick}
-            />
-          ) : (
-            <StatCard key={idx} {...card} />
-          )
-        ))}
-      </div>
+      {/* Removed four quick-action buttons per request */}
 
       {/* Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
@@ -1863,15 +1837,147 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
         {/* AI Tools preview removed per request */}
       </div>
 
-      {/* Engagement Distribution */}
+      {/* Engagement Distribution: grouped by privacyStatus (Public / Unlisted / Private) */}
       <div className="mt-6 md:mt-8 bg-white border border-gray-200 rounded-xl md:rounded-2xl p-4 md:p-6 backdrop-blur-sm shadow-sm hover:shadow-md transition">
-        <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-4 md:mb-6">Engagement Distribution</h2>
-        <div className="h-48 md:h-64 bg-gradient-to-br from-blue-500/5 to-purple-500/5 rounded-lg flex items-center justify-center border border-gray-200">
-          <div className="text-center">
-            <BarChart3 className="w-10 h-10 md:w-12 md:h-12 text-gray-400 mx-auto mb-2 md:mb-3" />
-            <p className="text-gray-400 font-medium text-sm">Chart visualization</p>
-          </div>
+        <div className="flex items-center justify-between mb-3 md:mb-6">
+          <h2 className="text-lg md:text-xl font-bold text-gray-900">Engagement Distribution</h2>
+          <div className="text-sm text-gray-600">Showing all videos from connected channel</div>
         </div>
+
+        {engagementLoading ? (
+          <div className="h-40 md:h-56 flex items-center justify-center">
+            <div className="text-gray-500">Loading videos...</div>
+          </div>
+        ) : engagementVideos.length === 0 ? (
+          <div className="h-40 md:h-56 flex items-center justify-center text-gray-500">No videos available</div>
+        ) : (
+          (() => {
+            // group videos by privacyStatus
+            const publicVideos = engagementVideos.filter((v: any) => (v.privacyStatus || 'public') === 'public')
+            const unlistedVideos = engagementVideos.filter((v: any) => v.privacyStatus === 'unlisted')
+            const privateVideos = engagementVideos.filter((v: any) => v.privacyStatus === 'private')
+
+            const renderList = (videos: any[], label?: string, privacy?: 'public'|'unlisted'|'private') => (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <span className={`inline-flex items-center justify-center w-3 h-3 rounded-full ${privacy === 'public' ? 'bg-green-500' : privacy === 'unlisted' ? 'bg-yellow-500' : 'bg-gray-400'}`} />
+                    <h3 className="text-sm font-semibold">{label}</h3>
+                    <span className="text-xs text-gray-500">· {videos.length}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => { setModalVideos(videos); setShowEngModal(true) }}
+                      className="text-xs px-2 py-1 bg-white border rounded-md text-gray-600 hover:bg-gray-50"
+                    >
+                      View all
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3 max-h-56 overflow-y-auto">
+                  {videos.slice(0, 6).map((video: any, idx: number) => (
+                    <a key={video.id || idx} href={`https://youtube.com/watch?v=${video.id}`} target="_blank" rel="noreferrer" className="group flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                      <div className="flex-shrink-0">
+                        <img src={video.thumbnail || ''} alt={video.title} className="w-16 h-10 sm:w-20 sm:h-12 rounded-lg object-cover bg-gray-100" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-medium text-gray-900 truncate">{video.title || 'Untitled'}</div>
+                          {parseInt(video.viewCount || 0) > 50000 && (
+                            <span className="text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded">Trending</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                          <span>{formatNumber(video.viewCount || 0)} views</span>
+                          <span>•</span>
+                          <span>{new Date(video.publishedAt || Date.now()).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <div className="ml-2 hidden sm:flex sm:flex-col items-end gap-2">
+                        <div className="text-xs text-gray-500">{video.privacy ? video.privacy.toString().toUpperCase() : ''}</div>
+                        <div className="text-xs text-gray-500">{video.duration || ''}</div>
+                      </div>
+                    </a>
+                  ))}
+
+                  {videos.length > 6 && (
+                    <div className="text-center text-xs text-gray-500">Showing 6 of {videos.length} — click View all to see more</div>
+                  )}
+
+                  {videos.length === 0 && (
+                    <div className="text-center text-sm text-gray-500 py-6">No videos in this category</div>
+                  )}
+                </div>
+              </div>
+            )
+
+            return (
+              <>
+                {/* Mobile: tabs that toggle a single list for smaller viewports */}
+                <div className="sm:hidden mb-4">
+                  <div className="flex gap-2 overflow-x-auto">
+                    <button
+                      className={`px-3 py-2 rounded-md text-sm ${engagementTab === 'public' ? 'bg-gray-100 font-semibold' : 'bg-white'}`}
+                      onClick={() => setEngagementTab('public')}
+                    >
+                      Public • {publicVideos.length}
+                    </button>
+                    <button
+                      className={`px-3 py-2 rounded-md text-sm ${engagementTab === 'unlisted' ? 'bg-gray-100 font-semibold' : 'bg-white'}`}
+                      onClick={() => setEngagementTab('unlisted')}
+                    >
+                      Unlisted • {unlistedVideos.length}
+                    </button>
+                    <button
+                      className={`px-3 py-2 rounded-md text-sm ${engagementTab === 'private' ? 'bg-gray-100 font-semibold' : 'bg-white'}`}
+                      onClick={() => setEngagementTab('private')}
+                    >
+                      Private • {privateVideos.length}
+                    </button>
+                  </div>
+
+                  <div className="mt-3">
+                    {engagementTab === 'public' && renderList(publicVideos, 'Public')}
+                    {engagementTab === 'unlisted' && renderList(unlistedVideos, 'Unlisted')}
+                    {engagementTab === 'private' && renderList(privateVideos, 'Private')}
+                  </div>
+                </div>
+
+                {/* Desktop: three column grid */}
+                <div className="hidden sm:grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-3 border rounded-lg">{renderList(publicVideos, 'Public')}</div>
+                  <div className="p-3 border rounded-lg">{renderList(unlistedVideos, 'Unlisted')}</div>
+                  <div className="p-3 border rounded-lg">{renderList(privateVideos, 'Private')}</div>
+                </div>
+
+                {/* Modal: view all videos for selected category */}
+                {showEngModal && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50" onClick={() => setShowEngModal(false)} />
+                    <div className="relative bg-white rounded-2xl max-w-3xl w-full p-4 shadow-2xl z-10 max-h-[80vh] overflow-y-auto">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-lg font-semibold">All Videos</h3>
+                        <button onClick={() => setShowEngModal(false)} className="text-sm text-gray-500">Close</button>
+                      </div>
+                      <div className="space-y-3">
+                        {modalVideos.map((video: any) => (
+                          <a key={video.id} href={`https://youtube.com/watch?v=${video.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:bg-gray-50 p-3 rounded-md">
+                            <img src={video.thumbnail} alt={video.title} className="w-20 h-12 sm:w-24 sm:h-14 rounded object-cover flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium text-gray-900 truncate">{video.title}</div>
+                              <div className="text-xs text-gray-500 mt-1">{formatNumber(video.viewCount || 0)} views • {new Date(video.publishedAt).toLocaleDateString()}</div>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )
+          })()
+        )}
       </div>
     </div>
   )

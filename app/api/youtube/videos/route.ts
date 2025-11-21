@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
     console.log('[YouTube Videos] Route executed at runtime:', new Date().toISOString())
     const { searchParams } = new URL(req.url)
     const channelId = searchParams.get("channelId")
+    const mineParam = String(searchParams.get('mine') || 'false').toLowerCase() === 'true'
     // Default to 20 results, allow 1..50 per YouTube API
     const maxResultsRaw = searchParams.get("maxResults") || "20"
     let maxResults = parseInt(maxResultsRaw, 10)
@@ -23,18 +24,83 @@ export async function GET(req: NextRequest) {
     console.log('[YouTube Videos] params:', { channelId, maxResults, fetchAll, pageToken, pageCap })
     const initialMax = fetchAll ? 50 : maxResults
 
-    if (!channelId) {
-      return NextResponse.json({ error: "Channel ID is required" }, { status: 400 })
+    if (!channelId && !mineParam) {
+      return NextResponse.json({ error: "Channel ID is required unless using mine=true" }, { status: 400 })
     }
 
     const apiKey = process.env.YOUTUBE_API_KEY
-    if (!apiKey) {
-      return NextResponse.json({ error: "YouTube API key not configured" }, { status: 500 })
+    const accessToken = String(searchParams.get('access_token') || '') || undefined
+    const useAuth = !!accessToken
+    if (!apiKey && !useAuth) {
+      return NextResponse.json({ error: "YouTube API key not configured and no access token provided" }, { status: 500 })
+    }
+
+    // If caller requested authenticated user's videos (mine=true), use videos.list with mine=true
+    if (mineParam) {
+      if (!useAuth) {
+        return NextResponse.json({ error: 'Access token required for mine=true' }, { status: 401 })
+      }
+
+      // Request the authenticated user's videos directly — this returns private/unlisted items
+      const pageParam = pageToken ? `&pageToken=${pageToken}` : ''
+      const parts = 'statistics,contentDetails,snippet,status'
+      // Use the same pagination/fetchAll behavior as other branches
+      const initialUrl = `https://www.googleapis.com/youtube/v3/videos?part=${parts}&mine=true&maxResults=${initialMax}${pageParam}`
+      let videosResponse = await fetch(initialUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+      if (!videosResponse.ok) {
+        const err = await videosResponse.json().catch(() => ({}))
+        return NextResponse.json({ error: 'Failed to fetch videos (mine=true)', details: err }, { status: videosResponse.status })
+      }
+      let videosData = await videosResponse.json()
+
+      if (fetchAll) {
+        const items: any[] = []
+        if (Array.isArray(videosData.items)) items.push(...videosData.items)
+        let nextPageToken = videosData.nextPageToken
+        let pagesFetched = 0
+        while (nextPageToken && pagesFetched < pageCap) {
+          const pagedUrl = `https://www.googleapis.com/youtube/v3/videos?part=${parts}&mine=true&maxResults=50&pageToken=${nextPageToken}`
+          const pagedRes = await fetch(pagedUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+          if (!pagedRes.ok) break
+          const pagedData = await pagedRes.json()
+          if (Array.isArray(pagedData.items)) items.push(...pagedData.items)
+          nextPageToken = pagedData.nextPageToken
+          pagesFetched += 1
+        }
+        videosData = { items, nextPageToken: null, pageInfo: { totalResults: videosData.pageInfo?.totalResults || items.length } }
+      }
+
+      // Map items directly — videos.list already contains the fields we need
+      const videosWithStats = (videosData.items || []).map((item: any) => {
+        const snippet = item.snippet || {}
+        return {
+          id: item.id,
+          title: snippet.title || '',
+          thumbnail: snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url || '',
+          viewCount: item.statistics?.viewCount || 0,
+          likeCount: item.statistics?.likeCount || 0,
+          commentCount: item.statistics?.commentCount || 0,
+          publishedAt: snippet.publishedAt || '',
+          tags: item.snippet?.tags || [],
+          description: item.snippet?.description || '',
+          privacyStatus: item.status?.privacyStatus || null,
+        }
+      })
+
+      const totalResults = videosData.pageInfo?.totalResults || videosWithStats.length
+      return NextResponse.json({ success: true, videos: videosWithStats, totalResults, nextPageToken: videosData.nextPageToken || null, maxResults, fetchAll })
     }
 
     // Determine uploads playlist for the given channel and fetch up to maxResults
     // First, retrieve the channel's contentDetails to find the uploads playlist
-    const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}&key=${apiKey}`)
+    let channelRes
+    if (useAuth) {
+      channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      })
+    } else {
+      channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}&key=${apiKey}`)
+    }
     if (!channelRes.ok) {
       const err = await channelRes.json().catch(() => ({}))
       return NextResponse.json({ error: 'Failed to fetch channel details', details: err }, { status: channelRes.status })
@@ -47,15 +113,29 @@ export async function GET(req: NextRequest) {
     if (uploadsPlaylistId) {
       // If fetchAll requested, we'll handle pagination below; otherwise, request the requested maxResults
       const pageParam = pageToken ? `&pageToken=${pageToken}` : ''
-      videosResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=${initialMax}${pageParam}&key=${apiKey}`
-      )
+      if (useAuth) {
+        videosResponse = await fetch(
+          `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=${initialMax}${pageParam}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        )
+      } else {
+        videosResponse = await fetch(
+          `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=${initialMax}${pageParam}&key=${apiKey}`
+        )
+      }
     } else {
       // fallback: use search endpoint on the channel if uploads playlist can't be derived
       const pageParam = pageToken ? `&pageToken=${pageToken}` : ''
-      videosResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=${initialMax}${pageParam}&order=date&type=video&key=${apiKey}`
-      )
+      if (useAuth) {
+        videosResponse = await fetch(
+          `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=${initialMax}${pageParam}&order=date&type=video`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        )
+      } else {
+        videosResponse = await fetch(
+          `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=${initialMax}${pageParam}&order=date&type=video&key=${apiKey}`
+        )
+      }
     }
 
     if (!videosResponse.ok) {
@@ -79,13 +159,18 @@ export async function GET(req: NextRequest) {
       // Cap to avoid unbounded fetches; maximum permitted pages default-> 10 (50 * 10 = 500 videos)
       const pageCap = 10
       while (nextPageToken && pagesFetched < pageCap) {
-        let pagedUrl: string
+        let pagedRes
         if (uploadsPlaylistId) {
-          pagedUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=50&pageToken=${nextPageToken}&key=${apiKey}`
+          const pagedUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=50&pageToken=${nextPageToken}`
+          pagedRes = useAuth
+            ? await fetch(pagedUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+            : await fetch(pagedUrl + `&key=${apiKey}`)
         } else {
-          pagedUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=50&pageToken=${nextPageToken}&order=date&type=video&key=${apiKey}`
+          const pagedUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=50&pageToken=${nextPageToken}&order=date&type=video`
+          pagedRes = useAuth
+            ? await fetch(pagedUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+            : await fetch(pagedUrl + `&key=${apiKey}`)
         }
-        const pagedRes = await fetch(pagedUrl)
         if (!pagedRes.ok) break
         const pagedData = await pagedRes.json()
         if (Array.isArray(pagedData.items)) items.push(...pagedData.items)
@@ -115,9 +200,13 @@ export async function GET(req: NextRequest) {
       const statsResponses: any[] = []
       for (let i = 0; i < uniqueIds.length; i += 50) {
         const batch = uniqueIds.slice(i, i + 50).join(',')
-        const statsResponse = await fetch(
-          `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails,snippet&id=${batch}&key=${apiKey}`
-        )
+        let statsResponse
+        const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails,snippet,status&id=${batch}`
+        if (useAuth) {
+          statsResponse = await fetch(statsUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+        } else {
+          statsResponse = await fetch(statsUrl + `&key=${apiKey}`)
+        }
         if (statsResponse.ok) {
           const statsData = await statsResponse.json()
           statsResponses.push(...(statsData.items || []))
@@ -141,6 +230,7 @@ export async function GET(req: NextRequest) {
             publishedAt: snippet.publishedAt || '',
             tags: stats?.snippet?.tags || [],
             description: stats?.snippet?.description || snippet.description || '',
+            privacyStatus: stats?.status?.privacyStatus || null,
           }
         })
         
@@ -172,6 +262,7 @@ export async function GET(req: NextRequest) {
         publishedAt: snippet.publishedAt || '',
         tags: [],
         description: snippet.description || '',
+        privacyStatus: null,
       }
     })
 
