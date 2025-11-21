@@ -1282,7 +1282,7 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
     }
 
     fetchLatest()
-  }, [youtubeChannel]);
+  }, [youtubeChannel])
 
   return (
     <div className="p-4 md:p-6 lg:p-8">
@@ -1412,62 +1412,23 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Link href="/bulk-upload" className="block">
-                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border hover:shadow-md cursor-pointer h-20">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm">
-                          <Hash className="w-5 h-5" />
+                    <div className="flex items-center justify-center p-4 bg-background rounded-lg border hover:shadow-md cursor-pointer h-16 sm:h-20">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none"><path d="M4 7h16v2H4zM4 11h10v2H4zM4 15h16v2H4z" fill="currentColor"/></svg>
                         </div>
-                        <div>
-                          <div className="text-sm sm:text-base font-semibold">Bulk Upload</div>
-                          <div className="text-xs text-gray-500">Upload many videos at once</div>
-                        </div>
+                        <div className="text-sm sm:text-base font-semibold">Bulk Upload</div>
                       </div>
-                      <div className="text-sm text-purple-600 font-semibold">Try Now &gt;</div>
                     </div>
                   </Link>
-
                   <Link href="/dashboard/trending" className="block">
-                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border hover:shadow-md cursor-pointer h-20">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-green-500 flex items-center justify-center text-white shadow-sm">
-                          <Video className="w-5 h-5" />
+                    <div className="flex items-center justify-center p-4 bg-background rounded-lg border hover:shadow-md cursor-pointer h-16 sm:h-20">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <svg className="w-4 h-4 text-secondary" viewBox="0 0 24 24" fill="none"><path d="M12 2l4 8-4-2-4 2 4-8zM4 18h16v2H4z" fill="currentColor"/></svg>
                         </div>
-                        <div>
-                          <div className="text-sm sm:text-base font-semibold">Find Trending Videos</div>
-                          <div className="text-xs text-gray-500">Top trending vids</div>
-                        </div>
+                        <div className="text-sm sm:text-base font-semibold">Find Keywords</div>
                       </div>
-                      <div className="text-sm text-purple-600 font-semibold">Try Now &gt;</div>
-                    </div>
-                  </Link>
-
-                  <Link href="/tools/optimize-title" className="block">
-                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border hover:shadow-md cursor-pointer h-20">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-sm">
-                          <Sparkles className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="text-sm sm:text-base font-semibold">Optimize Title</div>
-                          <div className="text-xs text-gray-500">Improve click-through rate</div>
-                        </div>
-                      </div>
-                      <div className="text-sm text-purple-600 font-semibold">Try Now &gt;</div>
-                    </div>
-                  </Link>
-
-                  <Link href="/tools/thumbnail-generator" className="block">
-                    <div className="flex items-center justify-between p-4 bg-white rounded-lg border hover:shadow-md cursor-pointer h-20">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-yellow-500 flex items-center justify-center text-white shadow-sm">
-                          <Play className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="text-sm sm:text-base font-semibold">Thumbnail Generator</div>
-                          <div className="text-xs text-gray-500">Create high-converting thumbnails</div>
-                        </div>
-                      </div>
-                      <div className="text-sm text-purple-600 font-semibold">Try Now &gt;</div>
                     </div>
                   </Link>
                 </div>
@@ -1572,28 +1533,6 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
             </div>
           </div>
         </div>
-        {/* Quick action buttons under the channel card */}
-        <div className="mb-6 flex flex-col sm:flex-row gap-3">
-          <Link href="/bulk-upload" className="w-full sm:w-auto">
-            <div className="flex items-center gap-3 px-4 py-3 rounded-lg border bg-white hover:shadow-md cursor-pointer">
-              <div className="w-9 h-9 rounded-md bg-blue-600 flex items-center justify-center text-white">
-                <Upload className="w-4 h-4" />
-              </div>
-              <div className="text-sm font-semibold">Bulk Upload</div>
-              <div className="ml-auto text-sm text-purple-600 font-semibold">Try Now &gt;</div>
-            </div>
-          </Link>
-
-          <Link href="/dashboard/trending" className="w-full sm:w-auto">
-            <div className="flex items-center gap-3 px-4 py-3 rounded-lg border bg-white hover:shadow-md cursor-pointer">
-              <div className="w-9 h-9 rounded-md bg-green-500 flex items-center justify-center text-white">
-                <Hash className="w-4 h-4" />
-              </div>
-              <div className="text-sm font-semibold">Find Trending Keywords</div>
-              <div className="ml-auto text-sm text-purple-600 font-semibold">Try Now &gt;</div>
-            </div>
-          </Link>
-        </div>
       ) : (
         <div className="mb-6 rounded-2xl bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 p-6 backdrop-blur-sm shadow-sm">
           <div className="flex items-center gap-4">
@@ -1613,33 +1552,81 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
         </div>
       )}
 
+      {/* Quick link pills shown after channel card */}
+      {youtubeChannel && (
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <Link href="/bulk-upload" className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/95 border border-gray-200 shadow-sm hover:shadow-md">
+            <Upload className="w-4 h-4 text-red-500" />
+            <span className="text-sm font-semibold">Bulk Upload</span>
+          </Link>
+
+          <Link href="/content" className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/95 border border-gray-200 shadow-sm hover:shadow-md">
+            <Hash className="w-4 h-4 text-blue-600" />
+            <span className="text-sm font-semibold">Content Studio</span>
+          </Link>
+
+          <Link href="/dashboard/trending" className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/95 border border-gray-200 shadow-sm hover:shadow-md">
+            <Hash className="w-4 h-4 text-primary" />
+            <span className="text-sm font-semibold">Find Trending Keywords</span>
+          </Link>
+
+          <button onClick={() => {
+            const el = document.getElementById('trending-videos')
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/95 border border-gray-200 shadow-sm hover:shadow-md">
+            <Video className="w-4 h-4 text-green-500" />
+            <span className="text-sm font-semibold">Find Trending Videos</span>
+          </button>
+        </div>
+      )}
+
       {/* Stats Grid - Mobile Optimized */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-8">
         {/* Kept: Trending Keywords and Trending Videos actions. Removed AI Thumbnails and Bulk Upload. */}
         {[
           {
-            icon: Hash,
-            label: 'Find Trending Keywords',
-            value: trendingKeywords?.length ? `${trendingKeywords.length}` : 'Explore',
-            change: 'Discover hot terms',
-            color: 'from-blue-500 to-blue-600',
-            front: true,
-            cta: 'Find Trending Keywords',
-            onClick: () => router.push('/dashboard/trending')
-          },
-          {
-            icon: Video,
-            label: 'Find Trending Videos',
-            value: trendingVideos?.length ? `${trendingVideos.length}` : 'Explore',
-            change: 'Top trending vids',
-            color: 'from-green-500 to-green-600',
-            front: true,
-            cta: 'Find Trending Videos',
-            onClick: () => {
-              const el = document.getElementById('trending-videos')
-              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              icon: Hash,
+              label: 'Find Trending Keywords',
+              value: trendingKeywords?.length ? `${trendingKeywords.length}` : 'Explore',
+              change: 'Discover hot terms',
+              color: 'from-blue-500 to-blue-600',
+              front: true,
+              cta: 'Find Trending Keywords',
+              onClick: () => router.push('/dashboard/trending')
+            },
+            {
+              icon: Video,
+              label: 'Find Trending Videos',
+              value: trendingVideos?.length ? `${trendingVideos.length}` : 'Explore',
+              change: 'Top trending vids',
+              color: 'from-green-500 to-green-600',
+              front: true,
+              cta: 'Find Trending Videos',
+              onClick: () => {
+                const el = document.getElementById('trending-videos')
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }
+            },
+            {
+              icon: Upload,
+              label: 'Bulk Upload',
+              value: 'Upload',
+              change: 'Upload videos in batch',
+              color: 'from-red-500 to-pink-500',
+              front: true,
+              cta: 'Bulk Upload',
+              onClick: () => router.push('/bulk-upload')
+            },
+            {
+              icon: Hash,
+              label: 'Content Studio',
+              value: 'Studio',
+              change: 'Open content tools',
+              color: 'from-indigo-500 to-purple-500',
+              front: true,
+              cta: 'Content Studio',
+              onClick: () => router.push('/content')
             }
-          }
         ].map((card, idx) => (
           card.front ? (
             <AIToolButton
