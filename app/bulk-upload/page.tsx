@@ -49,9 +49,18 @@ export default function BulkUploadPage() {
   const [bulkSearch, setBulkSearch] = useState<string>('')
   const [bulkSort, setBulkSort] = useState<'newest'|'oldest'|'progress'>('newest')
   const [selectedBulkIds, setSelectedBulkIds] = useState<string[]>([])
-  const [privacyFilter, setPrivacyFilter] = useState<'all'|'public'|'unlisted'|'private'>('all')
+  const [privacyFilter, setPrivacyFilter] = useState<'public'|'unlisted'|'private'>('unlisted')
   const [myChannelOnly, setMyChannelOnly] = useState<boolean>(false)
   const [isImportingPrivate, setIsImportingPrivate] = useState<boolean>(false)
+  const [showPrivateModal, setShowPrivateModal] = useState<boolean>(false)
+  const [privateModalVideos, setPrivateModalVideos] = useState<any[]>([])
+  const [selectedPrivateIds, setSelectedPrivateIds] = useState<string[]>([])
+  const [previewPrivateVideos, setPreviewPrivateVideos] = useState<any[]>([])
+  const [showScheduleModal, setShowScheduleModal] = useState<boolean>(false)
+  const [scheduleCandidates, setScheduleCandidates] = useState<any[]>([])
+  const [scheduleBaseISO, setScheduleBaseISO] = useState<string>('')
+  const [schedulePublicDelayHours, setSchedulePublicDelayHours] = useState<number>(24)
+  const [scheduleStaggerDaily, setScheduleStaggerDaily] = useState<boolean>(false)
 
   // persist UI state (modals / editing) so queue remains open after refresh
   useEffect(() => {
@@ -200,6 +209,35 @@ export default function BulkUploadPage() {
     }
   }
 
+  // add a fetched/private video into the bulk list (deduped by youtubeId)
+  const addFetchedVideoToBulk = (v: any) => {
+    const youtubeId = v.id || v.videoId
+    const exists = bulkVideos.find(b => (b.youtubeId || b.id) === youtubeId)
+    if (exists) return false
+    const id = 'yt-'+(youtubeId || String(Date.now())+Math.floor(Math.random()*1000))
+    const item = { id, title: v.title || v.name || 'Untitled', fileName: '', size: 0, thumbnail: v.thumbnail || '', cloudUrl: '', public_id: '', status: 'fetched', progress: 100, privacy: 'private', youtubeId, channelIds: [v._channelId || v.channelId || ''] }
+    setBulkVideos(prev => [...prev, item])
+    return true
+  }
+
+  const openScheduleForCandidates = (items: any[]) => {
+    if (!items || items.length === 0) return
+    setScheduleCandidates(items)
+    // set sensible defaults: if multiple, start next day at 09:00; if single, start 15 minutes from now
+    const now = new Date()
+    let base: Date
+    if (items.length > 1) {
+      base = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 9, 0, 0)
+      setScheduleStaggerDaily(true)
+    } else {
+      base = new Date(now.getTime() + 15 * 60 * 1000)
+      setScheduleStaggerDaily(false)
+    }
+    setScheduleBaseISO(base.toISOString().slice(0,16)) // for input datetime-local
+    setSchedulePublicDelayHours(24)
+    setShowScheduleModal(true)
+  }
+
   useEffect(() => {
     return () => {
       if (previewSrc) try { URL.revokeObjectURL(previewSrc) } catch (e) {}
@@ -271,7 +309,7 @@ export default function BulkUploadPage() {
   const filteredBulkVideos = useMemo(() => {
     let arr = [...sortedBulkVideos]
     // privacy filter
-    if (privacyFilter && privacyFilter !== 'all') {
+    if (privacyFilter) {
       arr = arr.filter(v => ((v.privacy || v.privacyStatus || 'unlisted').toString().toLowerCase() === privacyFilter))
     }
     // my channel only filter
@@ -289,6 +327,10 @@ export default function BulkUploadPage() {
     }
     return arr
   }, [sortedBulkVideos, privacyFilter, myChannelOnly, bulkSearch])
+
+  const scheduledBulkVideos = useMemo(() => {
+    return bulkVideos.filter(b => (b.status || '').toString().toLowerCase() === 'scheduled')
+  }, [bulkVideos])
 
   const toggleSelectBulk = (id: string) => {
     setSelectedBulkIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
@@ -524,6 +566,69 @@ export default function BulkUploadPage() {
     setAllChannels(channels)
     if (channels.length > 0) setSelectedUploadChannel(channels[0])
   }, [])
+
+  // helper to fetch private videos across connected channels (reused by button and auto-load)
+  const autoFetchedPrivateRef = useRef(false)
+  const fetchPrivateAcrossChannels = async (autoOpen = false) => {
+    const token = localStorage.getItem('youtube_access_token')
+    if (!token) {
+      console.debug('No access token present for private video fetch')
+      return []
+    }
+    if (!allChannels || allChannels.length === 0) {
+      console.debug('No connected channels for private video fetch')
+      return []
+    }
+    try {
+      setIsImportingPrivate(true)
+      const aggregated: any[] = []
+      for (const ch of allChannels) {
+        try {
+          const tokenParam = token ? `&access_token=${encodeURIComponent(token)}` : ''
+          const res = await fetch(`/api/youtube/videos?channelId=${ch.id}&fetchAll=true${tokenParam}`)
+          if (!res.ok) {
+            const text = await res.text().catch(() => '')
+            console.warn('Videos API returned non-OK for channel', ch.id, res.status, text)
+            continue
+          }
+          const data = await res.json()
+          if (data && data.success && Array.isArray(data.videos)) {
+            const privateVideos = data.videos.filter((v:any) => ((v.privacyStatus || v.privacy || '').toString().toLowerCase()) === 'private')
+            const mapped = privateVideos.map((v:any) => ({ ...v, _channelId: ch.id, _channelTitle: ch.title }))
+            aggregated.push(...mapped)
+          } else {
+            console.warn('Videos API returned unexpected shape for channel', ch.id, data)
+          }
+        } catch (e) { console.error('Failed to fetch for channel', ch, e) }
+      }
+      setPrivateModalVideos(aggregated)
+      setPreviewPrivateVideos(aggregated.slice(0, 10))
+      setSelectedPrivateIds([])
+      if (autoOpen && aggregated.length > 0) setShowPrivateModal(true)
+      return aggregated
+    } catch (err) {
+      console.error('Failed to load private videos', err)
+      return []
+    } finally { setIsImportingPrivate(false) }
+  }
+
+  // Auto-fetch private videos once when channels load and a token exists
+  useEffect(() => {
+    if (autoFetchedPrivateRef.current) return
+    if (!allChannels || allChannels.length === 0) return
+    const token = typeof window !== 'undefined' ? localStorage.getItem('youtube_access_token') : null
+    if (!token) return
+    // mark as attempted so we don't repeatedly auto-fetch
+    autoFetchedPrivateRef.current = true
+    ;(async () => {
+      try {
+        const res = await fetchPrivateAcrossChannels(false)
+        if (!res || res.length === 0) {
+          console.debug('Auto-load found no private videos')
+        }
+      } catch (e) { console.error(e) }
+    })()
+  }, [allChannels])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -972,102 +1077,107 @@ export default function BulkUploadPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <select value={privacyFilter} onChange={(e) => setPrivacyFilter(e.target.value as any)} className="text-sm px-2 py-2 border rounded-md bg-white">
-                    <option value="all">All</option>
-                    <option value="public">Public</option>
-                    <option value="unlisted">Unlisted</option>
-                    <option value="private">Private</option>
+                      <option value="public">Public</option>
+                      <option value="unlisted">Unlisted</option>
+                      <option value="private">Private</option>
                   </select>
-
-                  <label className="text-xs flex items-center gap-2 text-gray-600">
-                    <input type="checkbox" checked={myChannelOnly} onChange={(e) => setMyChannelOnly(e.target.checked)} className="w-4 h-4" />
-                    <span>My channel only</span>
-                  </label>
-                  <button
-                    onClick={() => { setPrivacyFilter('private'); setMyChannelOnly(false); setBulkSearch('') }}
-                    className="ml-2 px-3 py-2 bg-gray-900 text-white rounded text-sm"
-                  >
-                    Private only (all channels)
-                  </button>
                   <button
                     onClick={async () => {
-                      // load private videos for selected channel
-                      if (!selectedUploadChannel || !selectedUploadChannel.id) { alert('Select a channel first'); return }
-                      const token = localStorage.getItem('youtube_access_token')
-                      if (!token) { alert('You must connect a channel (owner token) to load private videos'); return }
-                      setIsImportingPrivate(true)
-                      try {
-                        const res = await fetch(`/api/youtube/videos?channelId=${selectedUploadChannel.id}&fetchAll=true&access_token=${encodeURIComponent(token)}`)
-                        const data = await res.json()
-                        if (data && Array.isArray(data.videos)) {
-                          const privateVideos = data.videos.filter((v:any) => ((v.privacy || v.privacyStatus || '').toString().toLowerCase()) === 'private')
-                          if (privateVideos.length === 0) { alert('No private videos found for the selected channel') }
-                          const toAdd = privateVideos.map((v:any) => ({ id: 'yt-'+(v.id||v.videoId||Math.random()), title: v.title || 'Untitled', fileName: '', size: 0, thumbnail: v.thumbnail || v.thumbnails?.high?.url || '', cloudUrl: '', public_id: '', status: 'fetched', progress: 100, privacy: 'private', youtubeId: v.id || v.videoId, channelIds: [selectedUploadChannel.id] }))
-                          // avoid duplicates by youtubeId
-                          setBulkVideos(prev => {
-                            const existingIds = new Set(prev.map(p => p.youtubeId || p.id))
-                            const merged = [...prev]
-                            for (const item of toAdd) {
-                              if (!existingIds.has(item.youtubeId)) merged.push(item)
-                            }
-                            return merged
-                          })
-                        } else {
-                          alert('Failed to load videos from API')
-                        }
-                      } catch (err) {
-                        console.error('Failed to import private videos', err)
-                        alert('Failed to import private videos: ' + (err as any)?.message || '')
-                      } finally { setIsImportingPrivate(false) }
-                    }}
-                    disabled={isImportingPrivate}
-                    className="ml-2 px-3 py-2 bg-blue-600 text-white rounded text-sm"
-                  >
-                    {isImportingPrivate ? 'Loading…' : 'Load private (selected channel)'}
-                  </button>
-                  <button
-                    onClick={async () => {
-                      // load private videos for all connected channels
-                      const token = localStorage.getItem('youtube_access_token')
+                      let token = localStorage.getItem('youtube_access_token')
                       if (!token) { alert('You must connect a channel (owner token) to load private videos'); return }
                       if (!allChannels || allChannels.length === 0) { alert('No connected channels available'); return }
-                      setIsImportingPrivate(true)
                       try {
+                        setIsImportingPrivate(true)
+                        const aggregated: any[] = []
                         for (const ch of allChannels) {
                           try {
-                            const res = await fetch(`/api/youtube/videos?channelId=${ch.id}&fetchAll=true&access_token=${encodeURIComponent(token)}`)
+                            const tokenParam = token ? `&access_token=${encodeURIComponent(token)}` : ''
+                            const res = await fetch(`/api/youtube/videos?channelId=${ch.id}&fetchAll=true${tokenParam}`)
+                            if (!res.ok) {
+                              const text = await res.text().catch(() => '')
+                              console.warn('Videos API returned non-OK for channel', ch.id, res.status, text)
+                              continue
+                            }
                             const data = await res.json()
-                            if (data && Array.isArray(data.videos)) {
-                              const privateVideos = data.videos.filter((v:any) => ((v.privacy || v.privacyStatus || '').toString().toLowerCase()) === 'private')
-                              const toAdd = privateVideos.map((v:any) => ({ id: 'yt-'+(v.id||v.videoId||Math.random()), title: v.title || 'Untitled', fileName: '', size: 0, thumbnail: v.thumbnail || v.thumbnails?.high?.url || '', cloudUrl: '', public_id: '', status: 'fetched', progress: 100, privacy: 'private', youtubeId: v.id || v.videoId, channelIds: [ch.id] }))
-                              setBulkVideos(prev => {
-                                const existingIds = new Set(prev.map(p => p.youtubeId || p.id))
-                                const merged = [...prev]
-                                for (const item of toAdd) {
-                                  if (!existingIds.has(item.youtubeId)) merged.push(item)
-                                }
-                                return merged
-                              })
+                            if (data && data.success && Array.isArray(data.videos)) {
+                              const privateVideos = data.videos.filter((v:any) => ((v.privacyStatus || v.privacy || '').toString().toLowerCase()) === 'private')
+                              const mapped = privateVideos.map((v:any) => ({ ...v, _channelId: ch.id, _channelTitle: ch.title }))
+                              aggregated.push(...mapped)
+                            } else {
+                              console.warn('Videos API returned unexpected shape for channel', ch.id, data)
                             }
                           } catch (e) { console.error('Failed to fetch for channel', ch, e) }
                         }
-                      } finally { setIsImportingPrivate(false); alert('Import complete') }
+                        if (aggregated.length === 0) {
+                          alert('No private videos found across connected channels. Make sure you connected the owner access token with the correct scopes.')
+                        }
+                        setPrivateModalVideos(aggregated)
+                        setSelectedPrivateIds([])
+                        setShowPrivateModal(true)
+                      } catch (err) {
+                        console.error('Failed to load private videos', err)
+                        alert('Failed to load private videos: ' + (err as any)?.message || '')
+                      } finally { setIsImportingPrivate(false) }
                     }}
                     disabled={isImportingPrivate}
                     className="ml-2 px-3 py-2 bg-indigo-600 text-white rounded text-sm"
                   >
-                    {isImportingPrivate ? 'Loading…' : 'Load private (all channels)'}
+                    {isImportingPrivate ? 'Loading…' : 'Show private (all channels)'}
                   </button>
-
-                  <div className="flex items-center gap-2">
-                    <button onClick={selectAllVisible} className="px-3 py-2 border rounded text-sm">Select all</button>
-                    <button onClick={clearSelection} className="px-3 py-2 border rounded text-sm">Clear</button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button onClick={bulkPublishSelected} className="px-3 py-2 bg-red-600 text-white rounded text-sm">Publish selected</button>
-                    <button onClick={bulkDeleteSelected} className="px-3 py-2 border rounded text-sm">Delete selected</button>
-                  </div>
                 </div>
               </div>
+              {/* Preview of first 10 private videos (auto-loaded) */}
+              {scheduledBulkVideos && scheduledBulkVideos.length > 0 && (
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-semibold">Scheduled videos</h4>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setShowPrivateModal(true)} className="text-sm px-2 py-1 border rounded">View all videos</button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {scheduledBulkVideos.slice(0,5).map(s => (
+                      <div key={s.id} className="p-2 border rounded bg-white flex items-center justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-16 h-10 bg-gray-100 overflow-hidden rounded"><img src={s.thumbnail||''} className="w-full h-full object-cover" /></div>
+                          <div className="text-sm truncate">{s.title}</div>
+                        </div>
+                        <div className="text-xs text-gray-500 text-right">
+                          <div>Unlisted: {s.scheduledUnlistedAt ? new Date(s.scheduledUnlistedAt).toLocaleString() : '—'}</div>
+                          <div>Public: {s.scheduledPublicAt ? new Date(s.scheduledPublicAt).toLocaleString() : '—'}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {previewPrivateVideos && previewPrivateVideos.length > 0 && (
+                <div className="mt-4 mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-semibold">Private videos preview</h4>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setShowPrivateModal(true)} className="text-sm px-2 py-1 border rounded">View all videos</button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    {previewPrivateVideos.map((pv, idx) => {
+                      const pid = pv.id || pv.videoId || ('yt-'+idx)
+                      return (
+                        <div key={pid} className="p-2 border rounded-md bg-white flex flex-col items-start gap-2">
+                          <div className="w-full h-20 bg-gray-100 overflow-hidden rounded">
+                            <img src={pv.thumbnail || ''} alt={pv.title || 'thumb'} className="w-full h-full object-cover" />
+                          </div>
+                          <div className="text-xs font-semibold truncate w-full">{pv.title || 'Untitled'}</div>
+                          <div className="w-full flex items-center justify-between">
+                                    <button onClick={() => openScheduleForCandidates([pv])} className="text-xs px-2 py-1 bg-green-600 text-white rounded">Add</button>
+                            <button onClick={() => setShowPrivateModal(true)} className="text-xs px-2 py-1 border rounded">View</button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
               {filteredBulkVideos.length === 0 ? (
                 bulkVideos.length === 0 ? (
                   <div className="text-sm text-gray-500">No bulk videos added yet. Click "Add Bulk Video" to create items.</div>
@@ -1287,6 +1397,164 @@ export default function BulkUploadPage() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Schedule Modal: set unlisted/public times for fetched videos */}
+      {showScheduleModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowScheduleModal(false)} />
+          <div className="relative bg-white rounded-2xl max-w-3xl w-full p-4 shadow-2xl z-10 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold">Schedule release for {scheduleCandidates.length} video{scheduleCandidates.length>1?'s':''}</h3>
+              <button onClick={() => setShowScheduleModal(false)} className="text-sm px-2 py-1">Close</button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600">Set when fetched (private) videos should become <strong>Unlisted</strong>, and when Unlisted should become <strong>Public</strong>.</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium">Unlisted at (date & time)</label>
+                  <input type="datetime-local" value={scheduleBaseISO} onChange={(e) => setScheduleBaseISO(e.target.value)} className="w-full px-3 py-2 border rounded" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium">Delay until Public (hours)</label>
+                  <input type="number" min={1} value={schedulePublicDelayHours} onChange={(e) => setSchedulePublicDelayHours(Number(e.target.value)||1)} className="w-full px-3 py-2 border rounded" />
+                </div>
+              </div>
+
+              {scheduleCandidates.length > 1 && (
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" checked={scheduleStaggerDaily} onChange={(e) => setScheduleStaggerDaily(e.target.checked)} />
+                  <div className="text-sm">Stagger unlisted dates daily (one video per day starting from the Unlisted date above)</div>
+                </div>
+              )}
+
+              <div className="text-xs text-gray-500">If staggered, each subsequent video will be scheduled on the next calendar day at the same time. Public release will be scheduled relative to each video's Unlisted time by the delay above.</div>
+
+              <div className="space-y-2 max-h-40 overflow-y-auto border-t pt-3">
+                {scheduleCandidates.map((c, idx) => (
+                  <div key={c.id || c.videoId || idx} className="flex items-center gap-3 p-2 border rounded">
+                    <div className="w-14 h-10 bg-gray-100 overflow-hidden rounded"><img src={c.thumbnail||''} className="w-full h-full object-cover" /></div>
+                    <div className="flex-1 min-w-0 text-sm truncate">{c.title || 'Untitled'}</div>
+                    <div className="text-xs text-gray-500">Channel: {c._channelTitle || c.channelTitle || '—'}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button onClick={() => setShowScheduleModal(false)} className="px-4 py-2 border rounded">Cancel</button>
+              <button onClick={() => {
+                if (!scheduleBaseISO) { alert('Please select Unlisted datetime'); return }
+                const base = new Date(scheduleBaseISO)
+                if (isNaN(base.getTime())) { alert('Invalid Unlisted datetime'); return }
+                const delay = Number(schedulePublicDelayHours) || 24
+                // add each candidate to bulk list with scheduled fields
+                setBulkVideos(prev => {
+                  const existingIds = new Set(prev.map(p => p.youtubeId || p.id))
+                  const merged = [...prev]
+                  scheduleCandidates.forEach((c, i) => {
+                    const youtubeId = c.id || c.videoId
+                    if (existingIds.has(youtubeId)) return
+                    const offsetDays = (scheduleStaggerDaily && scheduleCandidates.length > 1) ? i : 0
+                    const unlistedAt = new Date(base.getTime() + offsetDays * 24 * 60 * 60 * 1000)
+                    const publicAt = new Date(unlistedAt.getTime() + delay * 60 * 60 * 1000)
+                    const id = 'yt-'+(youtubeId || String(Date.now())+Math.floor(Math.random()*1000))
+                    merged.push({ id, title: c.title || 'Untitled', fileName: '', size: 0, thumbnail: c.thumbnail || '', cloudUrl: '', public_id: '', status: 'scheduled', progress: 0, privacy: 'private', youtubeId, channelIds: [c._channelId || c.channelId || ''], scheduledUnlistedAt: unlistedAt.toISOString(), scheduledPublicAt: publicAt.toISOString() })
+                    existingIds.add(youtubeId)
+                  })
+                  return merged
+                })
+                setShowScheduleModal(false)
+                setScheduleCandidates([])
+                setSelectedPrivateIds([])
+                setPrivateModalVideos(prev => prev.filter(v => !scheduleCandidates.find((s:any) => (s.id||s.videoId) === (v.id||v.videoId))))
+              }} className="px-4 py-2 bg-green-600 text-white rounded">Schedule and Add to Bulk List</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Private Videos Modal (all channels) */}
+      {showPrivateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowPrivateModal(false)} />
+          <div className="relative bg-white rounded-2xl max-w-4xl w-full p-4 shadow-2xl z-10 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold">Private videos (all channels)</h3>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setSelectedPrivateIds(privateModalVideos.map(v => v.id || v.videoId || ('yt-'+Math.random())))} className="text-sm px-2 py-1 border rounded">Select all</button>
+                <button onClick={() => setSelectedPrivateIds([])} className="text-sm px-2 py-1 border rounded">Clear</button>
+                <button onClick={() => setShowPrivateModal(false)} className="text-sm px-2 py-1">Close</button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {scheduledBulkVideos.length === 0 && privateModalVideos.length === 0 ? (
+                <div className="text-sm text-gray-500">No private videos found across connected channels.</div>
+              ) : (
+                <div>
+                  {scheduledBulkVideos.length > 0 && (
+                    <div className="mb-3">
+                      <h4 className="text-sm font-semibold mb-2">Scheduled videos</h4>
+                      <div className="space-y-2">
+                        {scheduledBulkVideos.map((s) => (
+                          <div key={s.id} className="flex items-center gap-3 p-2 rounded border bg-white">
+                            <div className="w-28 h-16 overflow-hidden rounded"><img src={s.thumbnail||''} className="w-full h-full object-cover" /></div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold truncate">{s.title}</div>
+                              <div className="text-xs text-gray-500">Unlisted: {s.scheduledUnlistedAt ? new Date(s.scheduledUnlistedAt).toLocaleString() : '—'}</div>
+                              <div className="text-xs text-gray-500">Public: {s.scheduledPublicAt ? new Date(s.scheduledPublicAt).toLocaleString() : '—'}</div>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <button onClick={() => {
+                                if (!confirm('Cancel scheduled item and remove from Bulk list?')) return
+                                setBulkVideos(prev => prev.filter(p => p.id !== s.id))
+                              }} className="px-3 py-1 border rounded text-sm">Cancel schedule</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {privateModalVideos.length > 0 && (
+                    <div className="space-y-3">
+                      {privateModalVideos.map((video) => {
+                        const vid = video.id || video.videoId || ('yt-'+Math.random())
+                        const checked = selectedPrivateIds.includes(vid)
+                        return (
+                          <div key={vid} className="flex items-center gap-3 p-3 rounded-md hover:bg-gray-50">
+                            <input type="checkbox" checked={checked} onChange={() => setSelectedPrivateIds(prev => prev.includes(vid) ? prev.filter(x=>x!==vid) : [...prev, vid])} className="w-5 h-5" />
+                            <img src={video.thumbnail || ''} alt={video.title} className="w-28 h-16 object-cover rounded" />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold truncate">{video.title || video.name || 'Untitled'}</div>
+                              <div className="text-xs text-gray-500">Channel: {video._channelTitle || video.channelTitle || '—'}</div>
+                              <div className="text-xs text-gray-500">Published: {video.publishedAt ? new Date(video.publishedAt).toLocaleDateString() : '—'}</div>
+                            </div>
+                            <div>
+                              <button onClick={() => openScheduleForCandidates([video])} className="px-3 py-1 border rounded text-sm">Add</button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button onClick={() => setShowPrivateModal(false)} className="px-4 py-2 border rounded">Cancel</button>
+              <button onClick={() => {
+                const toAdd = privateModalVideos.filter(v => {
+                  const vid = v.id || v.videoId || ''
+                  return selectedPrivateIds.includes(vid)
+                })
+                if (toAdd.length === 0) { alert('No videos selected'); return }
+                openScheduleForCandidates(toAdd)
+              }} className="px-4 py-2 bg-green-600 text-white rounded">Add selected to Bulk List</button>
             </div>
           </div>
         </div>

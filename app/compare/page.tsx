@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from "react"
+import React, { useState } from "react"
 import Link from "next/link"
 import SidebarButton from '@/components/ui/sidebar-button'
 import { Button } from "@/components/ui/button"
@@ -47,6 +47,10 @@ interface YouTubeChannel {
   videoCount: string
   viewCount: string
   publishedAt: string
+  defaultLanguage?: string | null
+  localized?: any
+  country?: string | null
+  channelKeywords?: string | null
 }
 
 interface YouTubeVideo {
@@ -59,6 +63,8 @@ interface YouTubeVideo {
   publishedAt: string
   tags?: string[]
   description?: string
+  duration?: string | null
+  localizations?: any
 }
 
 function ChannelCard({ channel, rank, isWinner }: { channel: YouTubeChannel; rank: string; isWinner: boolean }) {
@@ -141,6 +147,24 @@ function ChannelCard({ channel, rank, isWinner }: { channel: YouTubeChannel; ran
           <Clock className="w-4 h-4" />
           <span>Created: {new Date(channel.publishedAt).toLocaleDateString()}</span>
         </div>
+        {channel.country && (
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10v6a2 2 0 0 1-2 2H7"/><path d="M3 6h18"/></svg>
+            <span>Country: {channel.country}</span>
+          </div>
+        )}
+        {channel.defaultLanguage && (
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <span className="font-medium">Default language:</span>
+            <span>{channel.defaultLanguage}</span>
+          </div>
+        )}
+        {channel.channelKeywords && (
+          <div className="flex items-center gap-2 text-sm text-gray-500 flex-wrap">
+            <span className="font-medium">Channel Keywords:</span>
+            <span className="truncate">{channel.channelKeywords}</span>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -525,10 +549,18 @@ export default function ComparePage() {
   const [channel2, setChannel2] = useState<YouTubeChannel | null>(null)
   const [channel1Videos, setChannel1Videos] = useState<YouTubeVideo[]>([])
   const [channel2Videos, setChannel2Videos] = useState<YouTubeVideo[]>([])
+  const [channel1Countries, setChannel1Countries] = useState<{country:string,views:number}[]>([])
+  const [channel2Countries, setChannel2Countries] = useState<{country:string,views:number}[]>([])
+  const [channel1Analytics, setChannel1Analytics] = useState<any>(null)
+  const [channel2Analytics, setChannel2Analytics] = useState<any>(null)
+  const [channel1TopVideosResolved, setChannel1TopVideosResolved] = useState<any[]>([])
+  const [channel2TopVideosResolved, setChannel2TopVideosResolved] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showVideos, setShowVideos] = useState<"channel1" | "channel2" | "comparison" | null>(null)
   const [videosLoading, setVideosLoading] = useState(false)
+  const [channel1Loading, setChannel1Loading] = useState(false)
+  const [channel2Loading, setChannel2Loading] = useState(false)
 
   const navLinks = [
     { icon: Home, label: "Dashboard", href: "/dashboard", id: "dashboard" },
@@ -677,6 +709,54 @@ export default function ComparePage() {
     }
   }
 
+  const fetchTopCountries = async (channelId: string, setter: (c:{country:string,views:number}[])=>void) => {
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('youtube_access_token') : null
+      if (!token) return setter([])
+      const res = await fetch(`/api/youtube/analytics/topCountries?channelId=${encodeURIComponent(channelId)}&access_token=${encodeURIComponent(token)}`)
+      const data = await res.json()
+      if (data?.success && Array.isArray(data.countries)) {
+        setter(data.countries)
+      } else {
+        console.warn('topCountries: no data', data)
+        setter([])
+      }
+    } catch (e) {
+      console.error('fetchTopCountries error', e)
+      setter([])
+    }
+  }
+
+  const fetchChannelAnalytics = async (channelId: string, setter: (a:any)=>void) => {
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('youtube_access_token') : null
+      if (!token) return setter(null)
+      const res = await fetch(`/api/youtube/analytics/summary?channelId=${encodeURIComponent(channelId)}&access_token=${encodeURIComponent(token)}`)
+      const data = await res.json()
+      if (data?.success) {
+        setter(data)
+      } else {
+        console.warn('fetchChannelAnalytics: no data', data)
+        setter(null)
+      }
+    } catch (e) {
+      console.error('fetchChannelAnalytics error', e)
+      setter(null)
+    }
+  }
+
+  const fetchVideoDetails = async (ids: string[]) => {
+    if (!ids || !ids.length) return []
+    try {
+      const res = await fetch(`/api/youtube/videosByIds?ids=${encodeURIComponent(ids.join(','))}`)
+      const data = await res.json()
+      if (data?.success) return data.videos
+    } catch (e) {
+      console.error('fetchVideoDetails error', e)
+    }
+    return []
+  }
+
   const handleCompareVideos = async () => {
     if (!channel1 || !channel2) {
       setError("Please compare channels first")
@@ -719,14 +799,46 @@ export default function ComparePage() {
         fetchChannelData(channel1Id),
         fetchChannelData(channel2Id)
       ])
-      
+
+      // also fetch a small set of recent videos for each channel to populate keywords/analytics
+      setVideosLoading(true)
+      const [c1Videos, c2Videos] = await Promise.all([
+        fetchChannelVideos(channel1Id),
+        fetchChannelVideos(channel2Id)
+      ])
+
       setChannel1(channel1Data)
       setChannel2(channel2Data)
+      setChannel1Videos(c1Videos || [])
+      setChannel2Videos(c2Videos || [])
+      // attempt to fetch top countries if owner token available
+      if (typeof window !== 'undefined') {
+        const token = localStorage.getItem('youtube_access_token')
+        if (token) {
+            fetchTopCountries(channel1Id, setChannel1Countries)
+            fetchTopCountries(channel2Id, setChannel2Countries)
+            fetchChannelAnalytics(channel1Id, setChannel1Analytics)
+            fetchChannelAnalytics(channel2Id, setChannel2Analytics)
+            // resolve top video IDs to titles+thumbnails for better UX
+            ;(async () => {
+              try {
+                const c1vids = (c1Videos || []).slice(0,5).map((v:any)=>v.id)
+                const c2vids = (c2Videos || []).slice(0,5).map((v:any)=>v.id)
+                const [r1, r2] = await Promise.all([fetchVideoDetails(c1vids), fetchVideoDetails(c2vids)])
+                setChannel1TopVideosResolved(r1)
+                setChannel2TopVideosResolved(r2)
+              } catch (e) {
+                console.warn('resolve top videos failed', e)
+              }
+            })()
+          }
+      }
       setShowVideos(null)
     } catch (err: any) {
       setError(err.message || "Error comparing channels")
     } finally {
       setLoading(false)
+      setVideosLoading(false)
     }
   }
 
@@ -787,6 +899,10 @@ export default function ComparePage() {
     
     return tips
   }
+
+  // Top keywords derived from recent videos
+  const channel1TopKeywords = React.useMemo(() => computeTopKeywords(channel1Videos), [channel1Videos])
+  const channel2TopKeywords = React.useMemo(() => computeTopKeywords(channel2Videos), [channel2Videos])
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -965,14 +1081,27 @@ export default function ComparePage() {
                       placeholder="UC_x5XG1OV2P6uZZ5FSM9Ttw"
                       className="flex-1"
                     />
-                    <Button 
-                      variant="outline" 
-                      size="icon"
-                      onClick={() => setChannel1Id("")}
-                      disabled={!channel1Id}
-                    >
-                      <Search className="w-4 h-4" />
-                    </Button>
+                      <Button 
+                        variant="outline" 
+                        size="icon"
+                        onClick={async () => {
+                          if (!channel1Id?.trim()) return
+                          setError(null)
+                          try {
+                            setChannel1Loading(true)
+                            const ch = await fetchChannelData(channel1Id.trim())
+                            setChannel1(ch)
+                            setShowVideos(null)
+                          } catch (err: any) {
+                            setError(err.message || 'Error fetching channel')
+                          } finally {
+                            setChannel1Loading(false)
+                          }
+                        }}
+                        disabled={!channel1Id || channel1Loading}
+                      >
+                        {channel1Loading ? <div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" /> : <Search className="w-4 h-4" />}
+                      </Button>
                   </div>
                 </div>
                 
@@ -989,10 +1118,23 @@ export default function ComparePage() {
                     <Button 
                       variant="outline" 
                       size="icon"
-                      onClick={() => setChannel2Id("")}
-                      disabled={!channel2Id}
+                      onClick={async () => {
+                        if (!channel2Id?.trim()) return
+                        setError(null)
+                        try {
+                          setChannel2Loading(true)
+                          const ch = await fetchChannelData(channel2Id.trim())
+                          setChannel2(ch)
+                          setShowVideos(null)
+                        } catch (err: any) {
+                          setError(err.message || 'Error fetching channel')
+                        } finally {
+                          setChannel2Loading(false)
+                        }
+                      }}
+                      disabled={!channel2Id || channel2Loading}
                     >
-                      <Search className="w-4 h-4" />
+                      {channel2Loading ? <div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" /> : <Search className="w-4 h-4" />}
                     </Button>
                   </div>
                 </div>
@@ -1036,6 +1178,57 @@ export default function ComparePage() {
                     rank={getChannelRank(channel2)} 
                     isWinner={getChannelRank(channel2) < getChannelRank(channel1)} 
                   />
+                </div>
+
+                {/* Top Keywords */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                  <div className="bg-white border border-gray-200 rounded-xl p-4">
+                    <h4 className="font-semibold text-gray-900 mb-2">Top Keywords — {channel1.title}</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {channel1TopKeywords.length ? channel1TopKeywords.map(k => (
+                        <span key={k} className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">{k}</span>
+                      )) : <span className="text-sm text-gray-500">No keywords found</span>}
+                    </div>
+                    <div className="mt-3">
+                      <h5 className="font-medium text-sm mb-2">Top Countries (last 365 days)</h5>
+                      {channel1Countries.length ? (
+                        <ol className="text-xs text-gray-700 space-y-1">
+                          {channel1Countries.map(c => (
+                            <li key={c.country} className="flex justify-between">
+                              <span>{c.country}</span>
+                              <span className="font-semibold">{formatNumber(c.views)}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      ) : (
+                        <p className="text-xs text-gray-500">No country data. Connect owner access token to fetch analytics.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-xl p-4">
+                    <h4 className="font-semibold text-gray-900 mb-2">Top Keywords — {channel2.title}</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {channel2TopKeywords.length ? channel2TopKeywords.map(k => (
+                        <span key={k} className="text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded">{k}</span>
+                      )) : <span className="text-sm text-gray-500">No keywords found</span>}
+                    </div>
+                    <div className="mt-3">
+                      <h5 className="font-medium text-sm mb-2">Top Countries (last 365 days)</h5>
+                      {channel2Countries.length ? (
+                        <ol className="text-xs text-gray-700 space-y-1">
+                          {channel2Countries.map(c => (
+                            <li key={c.country} className="flex justify-between">
+                              <span>{c.country}</span>
+                              <span className="font-semibold">{formatNumber(c.views)}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      ) : (
+                        <p className="text-xs text-gray-500">No country data. Connect owner access token to fetch analytics.</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Enhanced Performance Metrics - Mobile Friendly Version */}
@@ -1375,6 +1568,16 @@ export default function ComparePage() {
                                         <Calendar className="w-3 h-3" />
                                         {new Date(video.publishedAt).toLocaleDateString()}
                                       </div>
+                                      <div className="mt-3 text-xs text-gray-600 space-y-1">
+                                        <div><strong>Duration:</strong> {formatDuration(video.duration)}</div>
+                                        <div><strong>Status:</strong> {video.privacyStatus || 'N/A'}</div>
+                                        {video.localizations && typeof video.localizations === 'object' && (
+                                          <div><strong>Localizations:</strong> {Object.keys(video.localizations).join(', ')}</div>
+                                        )}
+                                        {video.tags && video.tags.length > 0 && (
+                                          <div><strong>Tags:</strong> {video.tags.slice(0,5).join(', ')}</div>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
@@ -1414,6 +1617,16 @@ export default function ComparePage() {
                                       <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
                                         <Calendar className="w-3 h-3" />
                                         {new Date(video.publishedAt).toLocaleDateString()}
+                                      </div>
+                                      <div className="mt-3 text-xs text-gray-600 space-y-1">
+                                        <div><strong>Duration:</strong> {formatDuration(video.duration)}</div>
+                                        <div><strong>Status:</strong> {video.privacyStatus || 'N/A'}</div>
+                                        {video.localizations && typeof video.localizations === 'object' && (
+                                          <div><strong>Localizations:</strong> {Object.keys(video.localizations).join(', ')}</div>
+                                        )}
+                                        {video.tags && video.tags.length > 0 && (
+                                          <div><strong>Tags:</strong> {video.tags.slice(0,5).join(', ')}</div>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
@@ -1498,6 +1711,16 @@ export default function ComparePage() {
                                   <Calendar className="w-3 h-3" />
                                   {new Date(video.publishedAt).toLocaleDateString()}
                                 </div>
+                                <div className="mt-3 text-xs text-gray-600 space-y-1">
+                                  <div><strong>Duration:</strong> {formatDuration(video.duration)}</div>
+                                  <div><strong>Status:</strong> {video.privacyStatus || 'N/A'}</div>
+                                  {video.localizations && typeof video.localizations === 'object' && (
+                                    <div><strong>Localizations:</strong> {Object.keys(video.localizations).join(', ')}</div>
+                                  )}
+                                  {video.tags && video.tags.length > 0 && (
+                                    <div><strong>Tags:</strong> {video.tags.slice(0,5).join(', ')}</div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1529,6 +1752,100 @@ export default function ComparePage() {
                       channel2Views: parseInt(channel2.viewCount)
                     }}
                   />
+                </div>
+
+                {/* Expanded Analytics & Recommendations */}
+                <div className="bg-white border border-gray-200 rounded-xl md:rounded-2xl p-4 md:p-6 mt-4">
+                  <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-4">Why They Went Viral & Recommendations</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h3 className="font-semibold mb-2">{channel1.title} — Summary</h3>
+                      {channel1Analytics ? (
+                        <div className="text-sm text-gray-700 space-y-2">
+                          <div><strong>Total views (period):</strong> {formatNumber(channel1Analytics.summary?.totalViews || 0)}</div>
+                          <div><strong>Total watch minutes (period):</strong> {formatNumber(channel1Analytics.summary?.totalWatchMinutes || 0)}</div>
+                          <div><strong>Top videos:</strong></div>
+                          <ol className="text-xs list-decimal ml-5 space-y-1 mt-1">
+                              {channel1TopVideosResolved.length ? (
+                                channel1TopVideosResolved.map((vv:any) => (
+                                  <li key={vv.id} className="flex items-center gap-3">
+                                    <img src={vv.thumbnail} alt={vv.title} className="w-16 h-10 object-cover rounded" />
+                                    <div className="flex-1">
+                                      <div className="text-sm font-medium text-gray-900 line-clamp-1">{vv.title}</div>
+                                      <div className="text-xs text-gray-500">Views: {formatNumber(vv.viewCount)}</div>
+                                    </div>
+                                  </li>
+                                ))
+                              ) : (
+                                (channel1Analytics.topVideos || []).map((v:any) => (
+                                  <li key={v.videoId} className="flex justify-between">
+                                    <span>{v.videoId}</span>
+                                    <span className="font-semibold">{formatNumber(v.views)}</span>
+                                  </li>
+                                ))
+                              )}
+                          </ol>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500">Connect owner access token to fetch analytics summary.</p>
+                      )}
+                      <div className="mt-3">
+                        <h4 className="font-medium">Recommendations</h4>
+                        <ul className="text-sm text-gray-700 list-disc ml-5 mt-2 space-y-1">
+                            <li>Improve first 10 seconds hook if average view duration is low.</li>
+                            <li>Optimize thumbnails: use high-contrast faces/text and A/B test thumbnails.</li>
+                            <li>Include top keywords in title and first 3 tags.</li>
+                            <li>Post at the channel's best day/hour shown above to maximize initial velocity.</li>
+                            <li>Consider localizing titles/descriptions for top countries ({channel1Countries.map(c=>c.country).slice(0,3).join(', ') || 'N/A'}).</li>
+                            {channel1TopKeywords && channel1TopKeywords.length > 0 && (
+                              <li>Example improved title: "{channel1TopKeywords[0].slice(0,40)} — {channel1.title.split(' ')[0]} Review"</li>
+                            )}
+                          </ul>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="font-semibold mb-2">{channel2.title} — Summary</h3>
+                      {channel2Analytics ? (
+                        <div className="text-sm text-gray-700 space-y-2">
+                          <div><strong>Total views (period):</strong> {formatNumber(channel2Analytics.summary?.totalViews || 0)}</div>
+                          <div><strong>Total watch minutes (period):</strong> {formatNumber(channel2Analytics.summary?.totalWatchMinutes || 0)}</div>
+                          <div><strong>Top videos:</strong></div>
+                          <ol className="text-xs list-decimal ml-5 space-y-1 mt-1">
+                            {channel2TopVideosResolved.length ? (
+                              channel2TopVideosResolved.map((vv:any) => (
+                                <li key={vv.id} className="flex items-center gap-3">
+                                  <img src={vv.thumbnail} alt={vv.title} className="w-16 h-10 object-cover rounded" />
+                                  <div className="flex-1">
+                                    <div className="text-sm font-medium text-gray-900 line-clamp-1">{vv.title}</div>
+                                    <div className="text-xs text-gray-500">Views: {formatNumber(vv.viewCount)}</div>
+                                  </div>
+                                </li>
+                              ))
+                            ) : (
+                              (channel2Analytics.topVideos || []).map((v:any) => (
+                                <li key={v.videoId} className="flex justify-between">
+                                  <span>{v.videoId}</span>
+                                  <span className="font-semibold">{formatNumber(v.views)}</span>
+                                </li>
+                              ))
+                            )}
+                          </ol>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500">Connect owner access token to fetch analytics summary.</p>
+                      )}
+                      <div className="mt-3">
+                        <h4 className="font-medium">Recommendations</h4>
+                        <ul className="text-sm text-gray-700 list-disc ml-5 mt-2 space-y-1">
+                          <li>Focus on video formats that produce the highest watch time (see top videos).</li>
+                          <li>Use keywords found above and in tags to improve discoverability.</li>
+                          <li>Encourage engagement (likes/comments) early in the video to boost ranking.</li>
+                          <li>Try short, attention-grabbing intros to improve average view duration.</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Tips to Go Viral */}
@@ -1575,4 +1892,58 @@ export default function ComparePage() {
       </nav>
     </div>
   )
+}
+
+// Helper to compute top keywords from video titles and tags
+function computeTopKeywords(videos: YouTubeVideo[], topN = 8) {
+  const counts: Record<string, number> = {}
+  videos.forEach((v) => {
+    try {
+      // Normalize title to string
+      const rawTitle = typeof v.title === 'string' ? v.title : (v.title ? String(v.title) : '')
+      const titleWords = rawTitle
+        .toLowerCase()
+        .replace(/[^\w\s]/g, '')
+        .split(/\s+/)
+        .filter((w) => w && w.length > 3)
+      if (Array.isArray(titleWords)) {
+        titleWords.forEach((w) => (counts[w] = (counts[w] || 0) + 1))
+      }
+
+      // Normalize tags to array
+      let tagsArr: string[] = []
+      if (Array.isArray(v.tags)) {
+        tagsArr = v.tags as string[]
+      } else if (typeof v.tags === 'string' && v.tags.trim()) {
+        // some APIs may return comma-separated string of keywords
+        tagsArr = v.tags.split(',').map((t) => t.trim()).filter(Boolean)
+      }
+
+      tagsArr.forEach((t: string) => {
+        const tag = (t || '').toLowerCase().trim()
+        if (tag.length > 2) counts[tag] = (counts[tag] || 0) + 2
+      })
+    } catch (e) {
+      // Defensive: skip problematic video entry
+      console.warn('computeTopKeywords: skipping video due to error', e, v)
+    }
+  })
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0, topN).map(e=>e[0])
+}
+
+function formatDuration(iso: string | null) {
+  if (!iso) return 'N/A'
+  try {
+    // Simple ISO 8601 PT#H#M#S parser
+    const match = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
+    if (!match) return iso
+    const h = parseInt(match[1] || '0', 10)
+    const m = parseInt(match[2] || '0', 10)
+    const s = parseInt(match[3] || '0', 10)
+    if (h) return `${h}h ${m}m ${s}s`
+    if (m) return `${m}m ${s}s`
+    return `${s}s`
+  } catch (e) {
+    return iso
+  }
 }

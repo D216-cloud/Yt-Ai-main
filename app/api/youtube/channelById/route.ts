@@ -18,9 +18,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "YouTube API key not configured" }, { status: 500 })
     }
 
-    // Fetch channel data from YouTube API
+    // Fetch channel data from YouTube API. Include brandingSettings to get channel keywords.
     const channelResponse = await fetch(
-      `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&id=${channelId}&key=${apiKey}`
+      `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails,brandingSettings&id=${channelId}&key=${apiKey}`
     )
 
     if (!channelResponse.ok) {
@@ -39,6 +39,13 @@ export async function GET(req: NextRequest) {
 
     const channel = channelData.items[0]
 
+    // Extract additional fields safely
+    const defaultLanguage = channel.snippet?.defaultLanguage || null
+    const localized = channel.snippet?.localized || null
+    const country = channel.snippet?.country || null
+    const branding = channel.brandingSettings?.channel || {}
+    const channelKeywords = branding.keywords || null
+
     return NextResponse.json({
       success: true,
       channel: {
@@ -51,6 +58,11 @@ export async function GET(req: NextRequest) {
         videoCount: channel.statistics.videoCount,
         viewCount: channel.statistics.viewCount,
         publishedAt: channel.snippet.publishedAt,
+        // New fields
+        defaultLanguage,
+        localized,
+        country,
+        channelKeywords,
       },
     })
   } catch (error: any) {

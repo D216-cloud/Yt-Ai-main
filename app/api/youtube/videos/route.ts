@@ -82,6 +82,8 @@ export async function GET(req: NextRequest) {
           commentCount: item.statistics?.commentCount || 0,
           publishedAt: snippet.publishedAt || '',
           tags: item.snippet?.tags || [],
+          duration: item.contentDetails?.duration || null,
+          localizations: item.snippet?.localizations || null,
           description: item.snippet?.description || '',
           privacyStatus: item.status?.privacyStatus || null,
         }
@@ -229,6 +231,8 @@ export async function GET(req: NextRequest) {
             commentCount: stats?.statistics?.commentCount || 0,
             publishedAt: snippet.publishedAt || '',
             tags: stats?.snippet?.tags || [],
+            duration: stats?.contentDetails?.duration || null,
+            localizations: stats?.snippet?.localizations || null,
             description: stats?.snippet?.description || snippet.description || '',
             privacyStatus: stats?.status?.privacyStatus || null,
           }

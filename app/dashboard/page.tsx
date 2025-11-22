@@ -38,6 +38,14 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 // AiToolsSection removed per request (Analytics / AI Tools / Settings are no longer shown)
 import { useSession, signOut } from "next-auth/react"
+// Small reusable card wrapper to unify dashboard visuals
+function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`bg-white/95 border border-transparent rounded-2xl p-4 shadow-sm hover:shadow-lg transition-shadow duration-200 ring-1 ring-inset ring-white/30 ${className}`}>
+      {children}
+    </div>
+  )
+}
 import { useRouter, useSearchParams } from "next/navigation"
 import TrendingVideosCard from '@/components/TrendingVideosCard'
 
@@ -412,9 +420,9 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-slate-50">
       {/* Mobile Header */}
-      <header className="md:hidden sticky top-0 z-40 bg-white border-b border-gray-100 pt-2 pb-2 px-4">
+      <header className="md:hidden sticky top-0 z-40 bg-white/90 backdrop-blur-sm border-b border-gray-100 pt-2 pb-2 px-4 shadow-sm">
         <div className="flex h-14 items-center justify-between">
           <div className="flex items-center space-x-3">
             <Button
@@ -466,7 +474,7 @@ export default function DashboardPage() {
       </header>
 
       {/* Desktop Header */}
-      <header className="hidden md:block sticky top-0 z-40 border-b border-gray-200 bg-white h-16">
+      <header className="hidden md:block sticky top-0 z-40 border-b border-gray-200 bg-white/90 backdrop-blur-sm h-16 shadow-sm">
         <div className="flex h-16 items-center justify-between px-6 lg:px-8">
           <Link href="/" className="flex items-center space-x-3 group">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg group-hover:shadow-xl transition flex-shrink-0">
@@ -782,15 +790,13 @@ function ProfileView({ youtubeChannel, channelLoading, session, onChannelChange 
   return (
     <div className="p-4 md:p-6 lg:p-8">
       {/* Header */}
-      <div className="mb-6 md:mb-8 rounded-xl md:rounded-2xl bg-gradient-to-r from-blue-50 to-purple-50 border border-gray-200 p-4 md:p-8">
+      <Card className="mb-6 md:mb-8 bg-gradient-to-r from-blue-50 to-purple-50 p-4 md:p-8 border-0">
         <div className="flex items-center gap-3 mb-2">
           <User className="w-8 h-8 text-blue-600" />
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Profile</h1>
         </div>
-        <p className="text-sm md:text-base text-gray-700">
-          View and manage your YouTube channel information
-        </p>
-      </div>
+        <p className="text-sm md:text-base text-gray-700">View and manage your YouTube channel information</p>
+      </Card>
 
       {channelLoading ? (
         <div className="space-y-6">
@@ -868,7 +874,7 @@ function ProfileView({ youtubeChannel, channelLoading, session, onChannelChange 
           )}
 
           {/* Channel Profile Card */}
-          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+          <Card className="overflow-hidden border-0">
             {/* Cover/Banner Area */}
             <div className="h-32 md:h-40 bg-gradient-to-r from-red-500 via-pink-500 to-purple-500 relative">
               <div className="absolute inset-0 bg-black/10"></div>
@@ -980,7 +986,7 @@ function ProfileView({ youtubeChannel, channelLoading, session, onChannelChange 
                 </div>
               </div>
             </div>
-          </div>
+          </Card>
 
           {/* Account Info Card */}
           <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
@@ -1327,14 +1333,33 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
           <Skeleton className="h-6 w-full" />
         </div>
       ) : (
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-blue-50 to-purple-50 border border-gray-200 p-6 backdrop-blur-sm shadow-sm">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Welcome back!</h1>
-          <p className="text-sm md:text-base text-gray-700">Here's what's happening with your YouTube channel today.</p>
-        </div>
+          <Card className="mb-6 rounded-2xl bg-gradient-to-r from-blue-50 to-purple-50 p-6 backdrop-blur-sm shadow-sm border-0">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="min-w-0">
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">Welcome back!</h1>
+                <p className="text-sm md:text-base text-gray-700">Here's what's happening with your YouTube channel today.</p>
+
+                {youtubeChannel && (
+                  <div className="mt-3 flex items-center gap-3">
+                    <img src={youtubeChannel.thumbnail} alt={youtubeChannel.title} className="w-10 h-10 rounded-full border-2 border-white shadow-sm object-cover" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 truncate">{youtubeChannel.title}</div>
+                      <div className="text-xs text-gray-500 truncate">{formatNumber(youtubeChannel.subscriberCount)} subscribers • {formatNumber(youtubeChannel.videoCount)} videos</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button className="h-10 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4">Create Content</Button>
+                <Button variant="outline" className="h-10 px-4">View Analytics</Button>
+              </div>
+            </div>
+          </Card>
       )}
 
       {/* Hero-style Dashboard Preview Card (matches hero-section preview) */}
-      <div className="mb-6 rounded-xl sm:rounded-2xl bg-card/95 backdrop-blur-sm border shadow-xl sm:shadow-2xl overflow-hidden">
+      <div className="mb-6 rounded-xl sm:rounded-2xl bg-card/95 backdrop-blur-sm shadow-xl sm:shadow-2xl overflow-hidden">
         {/* Desktop Header */}
         <div className="hidden sm:flex bg-muted/50 px-4 sm:px-6 py-3 sm:py-4 border-b items-center justify-between">
           <div className="flex items-center space-x-3 sm:space-x-4">
@@ -1343,13 +1368,12 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
               <div className="h-2 w-2 sm:h-3 sm:w-3 rounded-full bg-yellow-500"></div>
               <div className="h-2 w-2 sm:h-3 sm:w-3 rounded-full bg-green-500"></div>
             </div>
-            <div className="inline-flex items-center space-x-2">
-              <div className="bg-white/90 rounded-full px-2 py-1 border shadow-sm flex items-center gap-2">
-                <Youtube className="h-4 w-4 text-red-500" />
-                <span className="text-xs sm:text-sm font-medium text-muted-foreground">youtube-growth.ai</span>
+              <div className="inline-flex items-center space-x-2">
+                <div className="bg-white/90 rounded-full px-3 py-1 border shadow-sm flex items-center gap-3">
+                  <Youtube className="h-4 w-4 text-red-500" />
+                  <span className="text-xs sm:text-sm font-medium bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">youtube-growth.ai/dashboard</span>
+                </div>
               </div>
-              <span className="text-xs sm:text-sm text-muted-foreground">/dashboard</span>
-            </div>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground">Preview</span>
@@ -1404,7 +1428,7 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
             {/* Stats Cards */}
             <div className="lg:col-span-1 space-y-3 sm:space-y-4">
-              <div className="bg-linear-to-r from-primary/10 to-secondary/10 p-3 sm:p-4 rounded-lg sm:rounded-xl border">
+              <div className="p-3 sm:p-4 rounded-lg bg-white/80 border">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2 sm:space-x-3">
                     <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
@@ -1420,7 +1444,7 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
                   </div>
                 </div>
               </div>
-              <div className="bg-linear-to-r from-secondary/10 to-primary/10 p-3 sm:p-4 rounded-lg sm:rounded-xl border">
+              <div className="p-3 sm:p-4 rounded-lg bg-white/80 border">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2 sm:space-x-3">
                     <Users className="h-6 w-6 sm:h-8 sm:w-8 text-secondary" />
@@ -1534,37 +1558,50 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
           <Skeleton className="h-20 w-full" />
         </div>
       ) : youtubeChannel ? (
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 p-6 backdrop-blur-sm shadow-sm hover:shadow-md transition-shadow">
-          <div className="flex items-center gap-4 mb-4">
-            {/* Show real channel logo/thumbnail */}
-            <div className="relative group">
-              <div className="absolute inset-0 bg-gradient-to-br from-red-400 to-pink-600 rounded-full blur-md opacity-50 group-hover:opacity-75 transition-opacity"></div>
-              <img
-                src={youtubeChannel.thumbnail}
-                alt={youtubeChannel.title}
-                className="relative w-16 h-16 rounded-full border-4 border-white shadow-lg object-cover ring-2 ring-red-200 group-hover:ring-red-400 transition-all"
-              />
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-red-500 rounded-full border-2 border-white flex items-center justify-center shadow-md">
-                <Youtube className="w-3 h-3 text-white" />
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 p-6 backdrop-blur-sm shadow-md hover:shadow-lg transition-shadow">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-red-400 to-pink-600 rounded-full blur-md opacity-60"></div>
+                <img
+                  src={youtubeChannel.thumbnail}
+                  alt={youtubeChannel.title}
+                  className="relative w-20 h-20 rounded-full border-4 border-white shadow-xl object-cover ring-2 ring-red-200"
+                />
+                <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-red-500 rounded-full border-2 border-white flex items-center justify-center shadow-md">
+                  <Youtube className="w-3.5 h-3.5 text-white" />
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <h2 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{youtubeChannel.title}</h2>
+                <p className="text-sm text-gray-600 truncate">{youtubeChannel.customUrl || `youtube.com/channel/${youtubeChannel.id}`}</p>
+                <div className="mt-2 flex items-center gap-2 text-xs text-gray-700">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/80 border">
+                    <Users className="w-4 h-4 text-gray-700" />
+                    <span className="font-semibold">{stats[0].value}</span>
+                  </div>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/80 border">
+                    <Eye className="w-4 h-4 text-gray-700" />
+                    <span className="font-semibold">{stats[1].value}</span>
+                  </div>
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/80 border">
+                    <Video className="w-4 h-4 text-gray-700" />
+                    <span className="font-semibold">{stats[2].value}</span>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <h2 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{youtubeChannel.title}</h2>
-              <p className="text-gray-600 text-sm truncate">{youtubeChannel.customUrl || youtubeChannel.id}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-gray-600" />
-              <span className="font-semibold">{stats[0].value} subscribers</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Video className="w-4 h-4 text-gray-600" />
-              <span className="font-semibold">{stats[2].value} videos</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Eye className="w-4 h-4 text-gray-600" />
-              <span className="font-semibold">{stats[1].value} views</span>
+
+            <div className="ml-auto flex items-center gap-3">
+              <a href={`https://youtube.com/channel/${youtubeChannel.id}`} target="_blank" rel="noreferrer">
+                <Button variant="outline" className="h-10">View Channel</Button>
+              </a>
+              <Button className="h-10 bg-gradient-to-r from-red-500 to-pink-500 text-white" onClick={() => {
+                // refresh channel data
+                const evt = new Event('refreshYouTubeChannel')
+                window.dispatchEvent(evt)
+              }}>Refresh</Button>
             </div>
           </div>
         </div>
@@ -1875,15 +1912,15 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
                   </div>
                 </div>
 
-                <div className="space-y-3 max-h-56 overflow-y-auto">
+                <div className="space-y-2 max-h-56 overflow-y-auto -mx-2 px-2">
                   {videos.slice(0, 6).map((video: any, idx: number) => (
-                    <a key={video.id || idx} href={`https://youtube.com/watch?v=${video.id}`} target="_blank" rel="noreferrer" className="group flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                    <a key={video.id || idx} href={`https://youtube.com/watch?v=${video.id}`} target="_blank" rel="noreferrer" className="group flex items-center gap-3 p-2 rounded-md hover:bg-gray-50 transition-colors">
                       <div className="flex-shrink-0">
-                        <img src={video.thumbnail || ''} alt={video.title} className="w-16 h-10 sm:w-20 sm:h-12 rounded-lg object-cover bg-gray-100" />
+                        <img src={video.thumbnail || ''} alt={video.title} className="w-14 h-8 sm:w-20 sm:h-12 rounded-md object-cover bg-gray-100" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <div className="text-sm font-medium text-gray-900 truncate">{video.title || 'Untitled'}</div>
+                          <div className="text-sm font-medium text-gray-900 min-w-0 mobile-clamp-2">{video.title || 'Untitled'}</div>
                           {parseInt(video.viewCount || 0) > 50000 && (
                             <span className="text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded">Trending</span>
                           )}
@@ -1894,9 +1931,9 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
                           <span>{new Date(video.publishedAt || Date.now()).toLocaleDateString()}</span>
                         </div>
                       </div>
-                      <div className="ml-2 hidden sm:flex sm:flex-col items-end gap-2">
-                        <div className="text-xs text-gray-500">{video.privacy ? video.privacy.toString().toUpperCase() : ''}</div>
-                        <div className="text-xs text-gray-500">{video.duration || ''}</div>
+                      <div className="ml-2 flex flex-col items-end gap-1 text-[11px] text-gray-500">
+                        <div>{video.privacy ? video.privacy.toString().toUpperCase() : ''}</div>
+                        <div>{video.duration || ''}</div>
                       </div>
                     </a>
                   ))}
@@ -1916,21 +1953,21 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
               <>
                 {/* Mobile: tabs that toggle a single list for smaller viewports */}
                 <div className="sm:hidden mb-4">
-                  <div className="flex gap-2 overflow-x-auto">
+                  <div className="flex gap-2">
                     <button
-                      className={`px-3 py-2 rounded-md text-sm ${engagementTab === 'public' ? 'bg-gray-100 font-semibold' : 'bg-white'}`}
+                      className={`flex-1 text-center px-3 py-2 rounded-md text-sm border ${engagementTab === 'public' ? 'bg-gray-100 font-semibold border-gray-200' : 'bg-white border-transparent'}`}
                       onClick={() => setEngagementTab('public')}
                     >
                       Public • {publicVideos.length}
                     </button>
                     <button
-                      className={`px-3 py-2 rounded-md text-sm ${engagementTab === 'unlisted' ? 'bg-gray-100 font-semibold' : 'bg-white'}`}
+                      className={`flex-1 text-center px-3 py-2 rounded-md text-sm border ${engagementTab === 'unlisted' ? 'bg-gray-100 font-semibold border-gray-200' : 'bg-white border-transparent'}`}
                       onClick={() => setEngagementTab('unlisted')}
                     >
                       Unlisted • {unlistedVideos.length}
                     </button>
                     <button
-                      className={`px-3 py-2 rounded-md text-sm ${engagementTab === 'private' ? 'bg-gray-100 font-semibold' : 'bg-white'}`}
+                      className={`flex-1 text-center px-3 py-2 rounded-md text-sm border ${engagementTab === 'private' ? 'bg-gray-100 font-semibold border-gray-200' : 'bg-white border-transparent'}`}
                       onClick={() => setEngagementTab('private')}
                     >
                       Private • {privateVideos.length}
@@ -1938,9 +1975,9 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
                   </div>
 
                   <div className="mt-3">
-                    {engagementTab === 'public' && renderList(publicVideos, 'Public')}
-                    {engagementTab === 'unlisted' && renderList(unlistedVideos, 'Unlisted')}
-                    {engagementTab === 'private' && renderList(privateVideos, 'Private')}
+                    {engagementTab === 'public' && renderList(publicVideos, 'Public', 'public')}
+                    {engagementTab === 'unlisted' && renderList(unlistedVideos, 'Unlisted', 'unlisted')}
+                    {engagementTab === 'private' && renderList(privateVideos, 'Private', 'private')}
                   </div>
                 </div>
 
@@ -1965,7 +2002,7 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
                           <a key={video.id} href={`https://youtube.com/watch?v=${video.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 hover:bg-gray-50 p-3 rounded-md">
                             <img src={video.thumbnail} alt={video.title} className="w-20 h-12 sm:w-24 sm:h-14 rounded object-cover flex-shrink-0" />
                             <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium text-gray-900 truncate">{video.title}</div>
+                              <div className="text-sm font-medium text-gray-900 min-w-0 mobile-clamp-2">{video.title}</div>
                               <div className="text-xs text-gray-500 mt-1">{formatNumber(video.viewCount || 0)} views • {new Date(video.publishedAt).toLocaleDateString()}</div>
                             </div>
                           </a>
@@ -3311,9 +3348,9 @@ function ActivityItem({
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-1">
-          <h4 className="font-bold text-gray-900 text-sm group-hover:text-blue-600 transition-colors">
-            {title}
-          </h4>
+            <h4 className="font-bold text-gray-900 text-sm min-w-0 mobile-clamp-2 group-hover:text-blue-600 transition-colors">
+              {title}
+            </h4>
           <span className="text-xs text-gray-500 font-medium flex-shrink-0 ml-2">{time}</span>
         </div>
         <p className="text-gray-600 text-xs leading-relaxed">{description}</p>
@@ -3530,7 +3567,7 @@ function LatestVideoCard({ video, loading, channel }: { video: any | null, loadi
 
       {/* Main info */}
       <div className="flex-1 min-w-0">
-        <h3 className="font-semibold text-white text-base md:text-lg truncate">{video.title}</h3>
+        <h3 className="font-semibold text-white text-base md:text-lg min-w-0 mobile-clamp-2">{video.title}</h3>
         <p className="text-sm text-slate-300 mt-1">{formatNumber(video.viewCount || 0)} views · {timeAgo(video.publishedAt)}</p>
 
         <div className="flex flex-wrap items-center gap-3 mt-3">
