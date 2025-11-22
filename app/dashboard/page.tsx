@@ -1350,10 +1350,7 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
                 )}
               </div>
 
-              <div className="flex items-center gap-3">
-                <Button className="h-10 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4">Create Content</Button>
-                <Button variant="outline" className="h-10 px-4">View Analytics</Button>
-              </div>
+              {/* Primary CTA removed per request */}
             </div>
           </Card>
       )}
@@ -1400,152 +1397,65 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
 
         {/* Dashboard Content: simplified preview to match hero preview pattern */}
         <div className="p-4 sm:p-8">
-          {/* Mobile simplified preview */}
-          <div className="sm:hidden grid grid-cols-3 gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-white/90 border text-center shadow-sm">
-              <div className="flex items-center justify-center mb-1">
-                <TrendingUp className="h-4 w-4 text-primary" />
-              </div>
-              <div className="text-base font-bold text-primary animate-pulse">+127%</div>
-              <div className="text-xs text-muted-foreground">Growth</div>
-            </div>
-            <div className="p-2 rounded-lg bg-white/90 border text-center shadow-sm">
-              <div className="flex items-center justify-center mb-1">
-                <Users className="h-4 w-4 text-secondary" />
-              </div>
-              <div className="text-base font-bold text-secondary animate-pulse">45.2K</div>
-              <div className="text-xs text-muted-foreground">New Subs</div>
-            </div>
-            <div className="p-2 rounded-lg bg-white/90 border text-center shadow-sm">
-              <div className="flex items-center justify-center mb-1">
-                <Sparkles className="h-4 w-4 text-yellow-500" />
-              </div>
-              <div className="text-base font-bold text-yellow-500 animate-pulse">4.8★</div>
-              <div className="text-xs text-muted-foreground">Rating</div>
-            </div>
-          </div>
+          {/* Mobile simplified preview removed (Growth, New Subs, Rating) */}
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-            {/* Stats Cards */}
-            <div className="lg:col-span-1 space-y-3 sm:space-y-4">
-              <div className="p-3 sm:p-4 rounded-lg bg-white/80 border">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2 sm:space-x-3">
-                    <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
-                    <div>
-                      <div className="text-lg sm:text-xl font-bold text-primary">+127%</div>
-                      <div className="text-xs sm:text-sm text-muted-foreground">Growth Rate</div>
-                    </div>
-                  </div>
-                  <div className="hidden sm:block w-16 h-5 bg-muted rounded-md">
-                    <svg viewBox="0 0 26 5" className="w-full h-full">
-                      <polyline points="0,4 6,2 12,3 18,1 26,0" fill="none" stroke="#5b21b6" strokeWidth="1.2" strokeLinejoin="round" strokeLinecap="round" opacity="0.6" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-              <div className="p-3 sm:p-4 rounded-lg bg-white/80 border">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2 sm:space-x-3">
-                    <Users className="h-6 w-6 sm:h-8 sm:w-8 text-secondary" />
-                    <div>
-                      <div className="text-lg sm:text-xl font-bold text-secondary">45.2K</div>
-                      <div className="text-xs sm:text-sm text-muted-foreground">New Subs</div>
-                    </div>
-                  </div>
-                  <div className="hidden sm:block w-16 h-5 bg-muted rounded-md">
-                    <svg viewBox="0 0 26 5" className="w-full h-full">
-                      <polyline points="0,3 6,1 12,2 18,0 26,2" fill="none" stroke="#059669" strokeWidth="1.2" strokeLinejoin="round" strokeLinecap="round" opacity="0.6" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* Stats Cards removed: Growth Rate and New Subs were intentionally removed per request */}
 
             {/* Main Content area for preview */}
-            <div className="lg:col-span-3">
-              <div className="bg-muted/30 p-4 sm:p-6 rounded-lg sm:rounded-xl border mb-4 sm:mb-6">
-                <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 flex items-center">
-                  <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-primary mr-2" />
-                  AI Content Suggestions
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Link href="/bulk-upload" className="block">
-                    <div className="flex items-center justify-center p-4 bg-background rounded-lg border hover:shadow-md cursor-pointer h-16 sm:h-20">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none"><path d="M4 7h16v2H4zM4 11h10v2H4zM4 15h16v2H4z" fill="currentColor"/></svg>
-                        </div>
-                        <div className="text-sm sm:text-base font-semibold">Bulk Upload</div>
-                      </div>
-                    </div>
-                  </Link>
-                  <Link href="/dashboard/trending" className="block">
-                    <div className="flex items-center justify-center p-4 bg-background rounded-lg border hover:shadow-md cursor-pointer h-16 sm:h-20">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <svg className="w-4 h-4 text-secondary" viewBox="0 0 24 24" fill="none"><path d="M12 2l4 8-4-2-4 2 4-8zM4 18h16v2H4z" fill="currentColor"/></svg>
-                        </div>
-                        <div className="text-sm sm:text-base font-semibold">Find Keywords</div>
-                      </div>
-                    </div>
-                  </Link>
-                </div>
-              </div>
+            <div className="lg:col-span-4">
+              {/* AI Content Suggestions removed per request (Bulk Upload & Find Keywords) */}
 
               {/* Analytics Preview */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-                        <div className="bg-white p-4 sm:p-5 rounded-2xl border shadow-sm">
-                          <div className="text-xs sm:text-sm text-muted-foreground mb-1">Views</div>
-                          <div className="text-2xl sm:text-3xl font-extrabold text-gray-900">
-                            {youtubeChannel ? formatNumber(stats[1].value) : '12,847'}
-                          </div>
-                          <div className="flex items-center gap-2 mt-2">
-                            {youtubeChannel && (
-                              <img src={youtubeChannel.thumbnail} alt={youtubeChannel.title} className="w-4 h-4 rounded-full object-cover" />
-                            )}
-                            <div className="text-xs sm:text-sm text-muted-foreground truncate">
-                              {youtubeChannel ? `${youtubeChannel.title}` : ''}
-                            </div>
-                            <div className="text-xs sm:text-sm text-green-600 ml-auto">
-                              {youtubeChannel ? stats[1].change : '+23% vs yesterday'}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="bg-white p-4 sm:p-5 rounded-2xl border shadow-sm">
-                          <div className="text-xs sm:text-sm text-muted-foreground mb-1">Avg Views</div>
-                          <div className="text-2xl sm:text-3xl font-extrabold text-gray-900">
-                            {youtubeChannel ? stats[3].value : '8.2hrs'}
-                          </div>
-                          <div className="flex items-center gap-2 mt-2">
-                            {youtubeChannel && (
-                              <img src={youtubeChannel.thumbnail} alt={youtubeChannel.title} className="w-4 h-4 rounded-full object-cover" />
-                            )}
-                            <div className="text-xs sm:text-sm text-muted-foreground truncate">
-                              {youtubeChannel ? `${youtubeChannel.title}` : ''}
-                            </div>
-                            <div className="text-xs sm:text-sm text-green-600 ml-auto">
-                              {youtubeChannel ? stats[3].change : '+18% vs yesterday'}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="bg-white p-4 sm:p-5 rounded-2xl border shadow-sm">
-                          <div className="text-xs sm:text-sm text-muted-foreground mb-1">Subscribers</div>
-                          <div className="text-2xl sm:text-3xl font-extrabold text-primary">
-                            {youtubeChannel ? formatNumber(stats[0].value) : '+127'}
-                          </div>
-                          <div className="flex items-center gap-2 mt-2">
-                            {youtubeChannel && (
-                              <img src={youtubeChannel.thumbnail} alt={youtubeChannel.title} className="w-4 h-4 rounded-full object-cover" />
-                            )}
-                            <div className="text-xs sm:text-sm text-muted-foreground truncate">
-                              {youtubeChannel ? `${youtubeChannel.title}` : ''}
-                            </div>
-                            <div className="text-xs sm:text-sm text-green-600 ml-auto">
-                              {youtubeChannel ? stats[0].change : '+45% vs yesterday'}
-                            </div>
-                          </div>
-                        </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
+                <Link href="/bulk-upload" className="block">
+                  <div className="bg-white p-4 sm:p-5 rounded-2xl border shadow-sm hover:shadow-md transition cursor-pointer h-full flex flex-col items-center justify-center text-center">
+                    <div className="p-3 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 shadow-md mb-3">
+                      <Upload className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="text-sm font-semibold text-gray-900">Bulk Upload</div>
+                    <div className="text-xs text-gray-500 mt-1">Create & upload videos</div>
+                  </div>
+                </Link>
+
+                <Link href="/dashboard/trending" className="block">
+                  <div className="bg-white p-4 sm:p-5 rounded-2xl border shadow-sm hover:shadow-md transition cursor-pointer h-full flex flex-col items-center justify-center text-center">
+                    <div className="p-3 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 shadow-md mb-3">
+                      <Hash className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="text-sm font-semibold text-gray-900">Trending Keywords</div>
+                    <div className="text-xs text-gray-500 mt-1">Find high-performing tags</div>
+                  </div>
+                </Link>
+
+                <Link href="/compare" className="block">
+                  <div className="bg-white p-4 sm:p-5 rounded-2xl border shadow-sm hover:shadow-md transition cursor-pointer h-full flex flex-col items-center justify-center text-center">
+                    <div className="p-3 rounded-lg bg-gradient-to-br from-green-500 to-teal-500 shadow-md mb-3">
+                      <Video className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="text-sm font-semibold text-gray-900">Compare Video</div>
+                    <div className="text-xs text-gray-500 mt-1">Side-by-side performance</div>
+                  </div>
+                </Link>
+
+                <Link href="/settings" className="block">
+                  <div className="bg-white p-4 sm:p-5 rounded-2xl border shadow-sm hover:shadow-md transition cursor-pointer h-full flex flex-col items-center justify-center text-center">
+                    <div className="p-3 rounded-lg bg-gradient-to-br from-orange-500 to-red-500 shadow-md mb-3">
+                      <Calendar className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="text-sm font-semibold text-gray-900">Set Goal</div>
+                    <div className="text-xs text-gray-500 mt-1">Define channel targets</div>
+                  </div>
+                </Link>
+                <Link href="/auto-replay" className="block">
+                  <div className="bg-white p-4 sm:p-5 rounded-2xl border shadow-sm hover:shadow-md transition cursor-pointer h-full flex flex-col items-center justify-center text-center">
+                    <div className="p-3 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 shadow-md mb-3">
+                      <MessageSquare className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="text-sm font-semibold text-gray-900">Auto Reply</div>
+                    <div className="text-xs text-gray-500 mt-1">Auto comment & reply</div>
+                  </div>
+                </Link>
               </div>
             </div>
           </div>
@@ -1641,6 +1551,11 @@ function DashboardView({ stats, isLoading, youtubeChannel, channelLoading, route
             <Hash className="w-4 h-4 text-primary" />
             <span className="text-sm font-semibold">Find Trending Keywords</span>
           </Link>
+
+              <Link href="/auto-replay" className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/95 border border-gray-200 shadow-sm hover:shadow-md">
+                <MessageSquare className="w-4 h-4 text-purple-600" />
+                <span className="text-sm font-semibold">Auto Reply</span>
+              </Link>
 
           <button onClick={() => {
             const el = document.getElementById('trending-videos')
