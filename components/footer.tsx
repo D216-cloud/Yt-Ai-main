@@ -2,6 +2,7 @@
 
 import React, { useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { Youtube, Github, Linkedin, Mail, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -40,10 +41,10 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <Youtube className="h-5 w-5 text-primary-foreground" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg overflow-hidden">
+                <Image src="/creere-snap-logo.png" alt="Creere Snap" width={32} height={32} className="object-cover" />
               </div>
-              <span className="text-xl font-bold text-foreground">YouTubeAI Pro</span>
+              <span className="text-xl font-bold text-foreground">Creere Snap</span>
             </div>
             <p className="text-sm text-muted-foreground text-pretty">
               Effortless YouTube growth powered by AI. Join thousands of creators optimizing their channel presence.
@@ -159,7 +160,7 @@ export function Footer() {
         </div>
 
         <div className="mt-8 pt-8 border-t flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-sm text-muted-foreground">© 2025 YouTubeAI Pro. All rights reserved.</p>
+          <p className="text-sm text-muted-foreground">© 2025 Creere Snap. All rights reserved.</p>
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex items-center gap-4">
               <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground">Privacy</Link>

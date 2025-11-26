@@ -616,6 +616,27 @@ export default function ComparePage() {
     return Math.floor((views * 0.05) / videos)
   }
 
+  // Compute high-level difference summary
+  const computeDiffSummary = (c1: YouTubeChannel, c2: YouTubeChannel) => {
+    try {
+      const s1 = parseInt(c1.subscriberCount)
+      const s2 = parseInt(c2.subscriberCount)
+      const v1 = parseInt(c1.viewCount)
+      const v2 = parseInt(c2.viewCount)
+      const e1 = parseFloat(calculateEngagementRate(c1))
+      const e2 = parseFloat(calculateEngagementRate(c2))
+
+      return {
+        subscribersDiff: Math.abs(s1 - s2),
+        viewsDiff: Math.abs(v1 - v2),
+        engagementDiff: Math.abs(e1 - e2).toFixed(1),
+        winnerIsChannel1: parseInt(getChannelRank(c1)) < parseInt(getChannelRank(c2))
+      }
+    } catch (e) {
+      return { subscribersDiff: 0, viewsDiff: 0, engagementDiff: '0.0', winnerIsChannel1: true }
+    }
+  }
+
   // Extract keywords from video titles
   const extractKeywords = (videos: YouTubeVideo[]) => {
     const allTitles = videos.map(video => video.title).join(' ')
@@ -1166,6 +1187,33 @@ export default function ComparePage() {
             {/* Comparison Results */}
             {channel1 && channel2 && (
               <div className="space-y-6">
+                {/* Quick Summary Cards */}
+                {
+                  (() => {
+                    const diff = computeDiffSummary(channel1, channel2)
+                    return (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className={`p-4 rounded-lg bg-white border ${diff.winnerIsChannel1 ? 'border-green-100' : 'border-gray-100'}`}>
+                          <div className="text-xs text-gray-500">Subscribers gap</div>
+                          <div className="mt-2 text-2xl font-bold text-gray-900">{formatNumber(diff.subscribersDiff)}</div>
+                          <div className="text-xs text-gray-500 mt-1">{diff.winnerIsChannel1 ? channel1.title + ' leads' : channel2.title + ' leads'}</div>
+                        </div>
+
+                        <div className={`p-4 rounded-lg bg-white border ${diff.winnerIsChannel1 ? 'border-gray-100' : 'border-green-100'}`}>
+                          <div className="text-xs text-gray-500">Views gap</div>
+                          <div className="mt-2 text-2xl font-bold text-gray-900">{formatNumber(diff.viewsDiff)}</div>
+                          <div className="text-xs text-gray-500 mt-1">{diff.winnerIsChannel1 ? channel1.title + ' leads' : channel2.title + ' leads'}</div>
+                        </div>
+
+                        <div className="p-4 rounded-lg bg-white border border-gray-100">
+                          <div className="text-xs text-gray-500">Engagement difference</div>
+                          <div className="mt-2 text-2xl font-bold text-gray-900">{diff.engagementDiff}%</div>
+                          <div className="text-xs text-gray-500 mt-1">Higher = better</div>
+                        </div>
+                      </div>
+                    )
+                  })()
+                }
                 {/* Channel Overview */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                   <ChannelCard 
@@ -1380,8 +1428,22 @@ export default function ComparePage() {
                       <thead>
                         <tr className="border-b border-gray-200">
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Metric</th>
-                          <th className="text-left py-3 px-4 font-semibold text-gray-900">{channel1.title}</th>
-                          <th className="text-left py-3 px-4 font-semibold text-gray-900">{channel2.title}</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-900">
+                            <div className="flex items-center gap-2">
+                              <span>{channel1.title}</span>
+                              {parseInt(getChannelRank(channel1)) < parseInt(getChannelRank(channel2)) && (
+                                <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Winner</span>
+                              )}
+                            </div>
+                          </th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-900">
+                            <div className="flex items-center gap-2">
+                              <span>{channel2.title}</span>
+                              {parseInt(getChannelRank(channel2)) < parseInt(getChannelRank(channel1)) && (
+                                <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Winner</span>
+                              )}
+                            </div>
+                          </th>
                           <th className="text-left py-3 px-4 font-semibold text-gray-900">Difference</th>
                         </tr>
                       </thead>

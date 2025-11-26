@@ -10,7 +10,8 @@ export async function GET(req: NextRequest) {
     if (!ids) return NextResponse.json({ error: 'ids query param required' }, { status: 400 })
     if (!apiKey) return NextResponse.json({ error: 'API key not configured' }, { status: 500 })
 
-    const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${encodeURIComponent(ids)}&key=${apiKey}`
+    // Request all available parts for comprehensive data
+    const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails,status&id=${encodeURIComponent(ids)}&key=${apiKey}`
     const res = await fetch(url)
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
@@ -19,12 +20,32 @@ export async function GET(req: NextRequest) {
     const data = await res.json()
     const videos = (data.items || []).map((it: any) => ({
       id: it.id,
+      // Snippet data
       title: it.snippet?.title || '',
-      thumbnail: it.snippet?.thumbnails?.medium?.url || it.snippet?.thumbnails?.default?.url || '',
-      viewCount: Number(it.statistics?.viewCount || 0),
-      likeCount: Number(it.statistics?.likeCount || 0),
-      commentCount: Number(it.statistics?.commentCount || 0),
-      duration: it.contentDetails?.duration || null,
+      description: it.snippet?.description || '',
+      channelId: it.snippet?.channelId || '',
+      channelTitle: it.snippet?.channelTitle || '',
+      publishedAt: it.snippet?.publishedAt || '',
+      thumbnail: it.snippet?.thumbnails?.high?.url || it.snippet?.thumbnails?.medium?.url || it.snippet?.thumbnails?.default?.url || '',
+      tags: it.snippet?.tags || [],
+      categoryId: it.snippet?.categoryId || '',
+      liveBroadcastContent: it.snippet?.liveBroadcastContent || 'none',
+      defaultLanguage: it.snippet?.defaultLanguage,
+      defaultAudioLanguage: it.snippet?.defaultAudioLanguage,
+      localized: it.snippet?.localized,
+      snippet: it.snippet, // Include full snippet for thumbnails
+      // Statistics
+      viewCount: it.statistics?.viewCount || '0',
+      likeCount: it.statistics?.likeCount || '0',
+      dislikeCount: it.statistics?.dislikeCount,
+      commentCount: it.statistics?.commentCount || '0',
+      favoriteCount: it.statistics?.favoriteCount || '0',
+      statistics: it.statistics,
+      // Content Details
+      duration: it.contentDetails?.duration || '',
+      contentDetails: it.contentDetails,
+      // Status
+      status: it.status,
     }))
     return NextResponse.json({ success: true, videos })
   } catch (error: any) {

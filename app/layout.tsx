@@ -8,7 +8,7 @@ import AuthProvider from "./providers"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "YouTubeAI Pro - Effortless YouTube Growth, Powered by AI",
+  title: "Creere Snap - Effortless YouTube Growth, Powered by AI",
   description:
     "Schedule, create, and analyze engaging video content with our intelligent tools. Smart automation that feels personal.",
   generator: "v0.app",
@@ -21,7 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} overflow-x-hidden` }>
+      <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} overflow-x-hidden`}>
         <AuthProvider>
           <Suspense fallback={null}>{children}</Suspense>
           <Analytics />

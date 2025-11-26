@@ -14,6 +14,7 @@ export function MobileBottomNav({ activePage, onNavigate, onSignOut }: MobileBot
     { id: "content", icon: Video, label: "Studio" },
     { id: "analytics", icon: BarChart3, label: "Analytics" },
     { id: "ai-tools", icon: Sparkles, label: "AI" },
+    { id: "vid-info", icon: Video, label: "Video Info" }, // Added new link
     { id: "settings", icon: Settings, label: "Settings" },
   ]
 

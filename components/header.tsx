@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Menu, X, Play, LogOut, User, Mail, Sparkles, DollarSign, Cog, Youtube } from "lucide-react"
 import { useSession, signOut } from "next-auth/react"
@@ -38,12 +39,12 @@ export function Header() {
         <div className="flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center space-x-3">
             <div className="flex items-center">
-              <div className="h-8 px-2 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center">
-                <Youtube className="h-4 w-4 text-red-500" />
+              <div className="h-8 w-8 rounded-lg overflow-hidden shadow-sm flex items-center justify-center">
+                <Image src="/creere-snap-logo.png" alt="Creere Snap" width={32} height={32} className="object-cover" />
               </div>
             </div>
             <div className="flex flex-col">
-              <span className="text-xl font-bold text-transparent bg-clip-text bg-linear-to-r from-primary via-secondary to-primary animate-pulse-glow">YouTubeAI Pro</span>
+              <span className="text-xl font-bold text-transparent bg-clip-text bg-linear-to-r from-primary via-secondary to-primary animate-pulse-glow">Creere Snap</span>
               <span className="text-xs text-gray-600 hidden sm:block"></span>
             </div>
           </Link>
