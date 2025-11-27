@@ -8,7 +8,7 @@ import AuthProvider from "./providers"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Creere Snap - Effortless YouTube Growth, Powered by AI",
+  title: "TubeBoost AI - Effortless YouTube Growth, Powered by AI",
   description:
     "Schedule, create, and analyze engaging video content with our intelligent tools. Smart automation that feels personal.",
   generator: "v0.app",

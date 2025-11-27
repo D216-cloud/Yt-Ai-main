@@ -61,7 +61,7 @@ export default function ConnectPage() {
         setYoutubeChannel(channel)
         console.log('Loaded main channel from storage:', channel.title)
       }
-      
+
       // Also load the token
       const token = localStorage.getItem('youtube_access_token')
       if (token) {
@@ -81,7 +81,7 @@ export default function ConnectPage() {
     console.log('Additional channels:', localStorage.getItem('additional_youtube_channels') ? 'EXISTS' : 'NONE')
     console.log('Recent activities:', localStorage.getItem('youtube_recent_activities') ? 'EXISTS' : 'NONE')
     console.log('========================')
-    
+
     // Clean up any orphaned temp tokens (older than 10 minutes)
     const tempTokenTime = localStorage.getItem('temp_token_timestamp')
     if (tempTokenTime) {
@@ -95,7 +95,7 @@ export default function ConnectPage() {
         console.log('⚠️ Temp tokens exist but are still valid (less than 10 minutes old)')
       }
     }
-    
+
     // Force cleanup of temp data if no timestamp exists but temp tokens do
     if (!tempTokenTime && localStorage.getItem('temp_youtube_access_token')) {
       console.log('⚠️ Found temp tokens without timestamp - cleaning up')
@@ -132,7 +132,7 @@ export default function ConnectPage() {
     try {
       const stored = localStorage.getItem('youtube_recent_activities')
       const activities: RecentActivity[] = stored ? JSON.parse(stored) : []
-      
+
       const newActivity: RecentActivity = {
         id: Date.now().toString(),
         type,
@@ -141,12 +141,12 @@ export default function ConnectPage() {
         timestamp: Date.now(),
         details
       }
-      
+
       activities.unshift(newActivity) // Add to beginning
-      
+
       // Keep only last 20 activities
       const trimmed = activities.slice(0, 20)
-      
+
       localStorage.setItem('youtube_recent_activities', JSON.stringify(trimmed))
       loadRecentActivities()
     } catch (error) {
@@ -163,7 +163,7 @@ export default function ConnectPage() {
     const errorParam = searchParams.get("error")
     if (errorParam) {
       let errorMessage = "Failed to connect to YouTube. Please try again."
-      
+
       switch (errorParam) {
         case "access_denied":
           errorMessage = "Access denied. Please grant permission to connect your YouTube channel."
@@ -186,21 +186,21 @@ export default function ConnectPage() {
         default:
           errorMessage = errorParam || errorMessage
       }
-      
+
       setError(errorMessage)
     }
 
     // Check if YouTube token is in URL
     const token = searchParams.get("youtube_token")
     const refreshToken = searchParams.get("refresh_token")
-    
+
     if (token) {
       console.log("Received YouTube token from OAuth flow")
       setYoutubeToken(token)
-      
+
       // Check where the OAuth was initiated from
       const returnPage = localStorage.getItem("oauth_return_page")
-      
+
       if (returnPage === "content") {
         // For additional channels, we'll store the token with channel ID after fetching
         // Store temporarily for now
@@ -216,9 +216,9 @@ export default function ConnectPage() {
           localStorage.setItem("youtube_refresh_token", refreshToken)
         }
       }
-      
-        // Fetch channel data
-        fetchYouTubeChannel(token)
+
+      // Fetch channel data
+      fetchYouTubeChannel(token)
     } else {
       // Try to load from localStorage
       const storedToken = localStorage.getItem("youtube_access_token")
@@ -235,42 +235,42 @@ export default function ConnectPage() {
       setIsLoading(true)
       setError(null)
       console.log("Fetching YouTube channel with token:", accessToken.substring(0, 10) + "...")
-      
+
       const response = await fetch(`/api/youtube/channel?access_token=${accessToken}`)
       const data = await response.json()
       console.log("Channel API response:", data)
 
       if (data.success && data.channel) {
         const newChannel = data.channel
-        
+
         // Check where the OAuth was initiated from
         const returnPage = localStorage.getItem("oauth_return_page")
-        
+
         if (returnPage === "content") {
           // Content page - add to additional channels array (don't replace main)
           const existingMainChannel = localStorage.getItem("youtube_channel")
-          
+
           if (existingMainChannel) {
             const mainChannel = JSON.parse(existingMainChannel)
-            
+
             // Get existing additional channels
             const additionalChannelsStr = localStorage.getItem("additional_youtube_channels")
             const additionalChannels = additionalChannelsStr ? JSON.parse(additionalChannelsStr) : []
-            
+
             // Check if this is the same as main channel
             const isMainChannel = mainChannel.id === newChannel.id
             // Check if already in additional channels
             const alreadyAdded = additionalChannels.find((ch: YouTubeChannel) => ch.id === newChannel.id)
-            
+
             if (!isMainChannel && !alreadyAdded) {
               // Add new channel to additional channels
               additionalChannels.push(newChannel)
               localStorage.setItem("additional_youtube_channels", JSON.stringify(additionalChannels))
-              
+
               // Store channel-specific token
               const tempToken = localStorage.getItem("temp_youtube_access_token")
               const tempRefreshToken = localStorage.getItem("temp_youtube_refresh_token")
-              
+
               if (tempToken) {
                 localStorage.setItem(`youtube_access_token_${newChannel.id}`, tempToken)
                 localStorage.removeItem("temp_youtube_access_token")
@@ -280,7 +280,7 @@ export default function ConnectPage() {
                 localStorage.removeItem("temp_youtube_refresh_token")
               }
               localStorage.removeItem("temp_token_timestamp")
-              
+
               console.log("Added new channel with its own token:", newChannel.title)
               addActivity('connect', newChannel.title, newChannel.id, 'Additional channel connected via OAuth')
             } else if (isMainChannel) {
@@ -300,11 +300,11 @@ export default function ConnectPage() {
             // No main channel yet, set this as main
             setYoutubeChannel(newChannel)
             localStorage.setItem("youtube_channel", JSON.stringify(newChannel))
-            
+
             // Use temp token as main token
             const tempToken = localStorage.getItem("temp_youtube_access_token")
             const tempRefreshToken = localStorage.getItem("temp_youtube_refresh_token")
-            
+
             if (tempToken) {
               localStorage.setItem("youtube_access_token", tempToken)
               localStorage.removeItem("temp_youtube_access_token")
@@ -313,7 +313,7 @@ export default function ConnectPage() {
               localStorage.setItem("youtube_refresh_token", tempRefreshToken)
               localStorage.removeItem("temp_youtube_refresh_token")
             }
-            
+
             console.log("Set as main channel:", newChannel.title)
           }
         } else {
@@ -323,14 +323,14 @@ export default function ConnectPage() {
           console.log("Successfully fetched main channel:", newChannel.title)
           addActivity('connect', newChannel.title, newChannel.id, 'Main channel connected successfully')
         }
-        
+
         // Load additional channels and activities after update
         loadAdditionalChannels()
         loadRecentActivities()
-        
+
         // Show unlock animation
         setShowUnlockAnimation(true)
-        
+
         // Redirect to the correct page after animation (3 seconds)
         setTimeout(() => {
           setIsRedirecting(true)
@@ -378,15 +378,15 @@ export default function ConnectPage() {
       setError("No access token found. Please reconnect your YouTube channel.")
       return
     }
-    
+
     try {
       setIsLoading(true)
       setError(null)
       console.log("Refreshing YouTube channel data")
-      
+
       // Fetch channel data with current access token
       await fetchYouTubeChannel(youtubeToken)
-      
+
       if (youtubeChannel) {
         addActivity('refresh', youtubeChannel.title, youtubeChannel.id, 'Channel data refreshed')
       }
@@ -400,11 +400,11 @@ export default function ConnectPage() {
 
   const handleDisconnect = () => {
     console.log("Disconnecting YouTube channel")
-    
+
     if (youtubeChannel) {
       addActivity('disconnect', youtubeChannel.title, youtubeChannel.id, 'Channel disconnected')
     }
-    
+
     // Clear all YouTube related data
     localStorage.removeItem("youtube_access_token")
     localStorage.removeItem("youtube_refresh_token")
@@ -430,7 +430,7 @@ export default function ConnectPage() {
               <Play className="h-6 w-6 text-white fill-white" />
             </div>
             <div>
-              <p className="text-base font-bold text-gray-900">YouTubeAI Pro</p>
+              <p className="text-base font-bold text-gray-900">TubeBoost AI</p>
               {session?.user && (
                 <p className="text-xs text-gray-500">{session.user.email}</p>
               )}
@@ -456,7 +456,7 @@ export default function ConnectPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg group-hover:shadow-xl transition flex-shrink-0">
               <Play className="h-6 w-6 text-white fill-white" />
             </div>
-            <span className="text-xl font-bold text-gray-900">YouTubeAI Pro</span>
+            <span className="text-xl font-bold text-gray-900">TubeBoost AI</span>
           </Link>
           {session?.user && (
             <div className="flex items-center gap-4">
@@ -522,7 +522,7 @@ export default function ConnectPage() {
                       </div>
                     </div>
                   )}
-                 
+
                   {/* Google OAuth Button */}
                   <button
                     onClick={handleConnectWithGoogle}
@@ -548,7 +548,7 @@ export default function ConnectPage() {
                       Secure connection with Google OAuth
                     </p>
                   </div>
-                  
+
                   {/* Instructions */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 md:p-4">
                     <h3 className="font-semibold text-blue-900 text-sm mb-2">Connection Instructions</h3>
@@ -579,7 +579,7 @@ export default function ConnectPage() {
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Channel Logo */}
                   {youtubeChannel?.thumbnail && (
                     <div className="relative mb-4 animate-scale-in">
@@ -591,14 +591,14 @@ export default function ConnectPage() {
                       />
                     </div>
                   )}
-                  
+
                   <h2 className="text-2xl font-bold text-gray-900 mb-2 animate-fade-in-up">
                     Channel Unlocked! 🎉
                   </h2>
                   <p className="text-gray-600 text-center px-4 mb-4 animate-fade-in-up-delay">
                     {youtubeChannel?.title}
                   </p>
-                  
+
                   {isRedirecting ? (
                     <div className="flex items-center gap-2 text-blue-600 animate-pulse">
                       <Loader2 className="w-5 h-5 animate-spin" />
@@ -611,7 +611,7 @@ export default function ConnectPage() {
                   )}
                 </div>
               )}
-              
+
               <div className="text-center">
                 {isLoading ? (
                   <div className="w-20 h-20 md:w-24 md:h-24 mx-auto mb-6 flex items-center justify-center">
@@ -639,7 +639,7 @@ export default function ConnectPage() {
                     </div>
                   </div>
                 )}
-                
+
                 <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">
                   {isLoading ? "Connecting..." : youtubeChannel ? youtubeChannel.title : "Your Channel"}
                 </h3>
@@ -703,7 +703,7 @@ export default function ConnectPage() {
                         <CheckCircle className="w-5 h-5 mr-2" />
                         Go to Dashboard
                       </Button>
-                      
+
                       <div className="flex gap-2">
                         <Button
                           onClick={handleRefreshChannel}
@@ -718,7 +718,7 @@ export default function ConnectPage() {
                           )}
                           Refresh
                         </Button>
-                        
+
                         <Button
                           onClick={handleDisconnect}
                           variant="outline"
@@ -766,7 +766,7 @@ export default function ConnectPage() {
                   <span className="text-xs text-gray-500">{recentActivities.length} activities</span>
                 )}
               </div>
-              
+
               {recentActivities.length === 0 ? (
                 <div className="text-center py-8">
                   <Youtube className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -777,11 +777,10 @@ export default function ConnectPage() {
                 <div className="space-y-3">
                   {recentActivities.map((activity) => (
                     <div key={activity.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                        activity.type === 'connect' ? 'bg-green-100' : 
-                        activity.type === 'disconnect' ? 'bg-red-100' : 
-                        activity.type === 'refresh' ? 'bg-blue-100' : 'bg-purple-100'
-                      }`}>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${activity.type === 'connect' ? 'bg-green-100' :
+                          activity.type === 'disconnect' ? 'bg-red-100' :
+                            activity.type === 'refresh' ? 'bg-blue-100' : 'bg-purple-100'
+                        }`}>
                         {activity.type === 'connect' && <CheckCircle className="w-5 h-5 text-green-600" />}
                         {activity.type === 'disconnect' && <X className="w-5 h-5 text-red-600" />}
                         {activity.type === 'refresh' && <RefreshCw className="w-5 h-5 text-blue-600" />}
@@ -868,7 +867,7 @@ export default function ConnectPage() {
 
       {/* Mobile Bottom Safe Area */}
       <div className="md:hidden h-4 bg-white"></div>
-      
+
       {/* Animations */}
       <style jsx>{`
         @keyframes bounce-in {

@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import SidebarButton from '@/components/ui/sidebar-button'
 import { Button } from '@/components/ui/button'
 import { Home, User, GitCompare, Video, Upload, Play, LogOut, Menu, X, CheckCircle, Plus, List, Settings } from "lucide-react"
@@ -129,16 +130,16 @@ export default function BulkUploadPage() {
                   if (data.videoUrl) extra.cloudUrl = data.videoUrl
                   if (data.videoId) extra.youtubeId = data.videoId
                   if (data.youtubeUrl) extra.cloudUrl = data.youtubeUrl
-                    // update item
-                    setBulkVideos(prev => prev.map(v => v.id === id ? { ...v, status: 'done', progress: 100, title: editingBulkData.title, description: editingBulkData.description, tags: editingBulkData.tags, category: editingBulkData.category, madeForKids: editingBulkData.madeForKids, language: editingBulkData.language, license: editingBulkData.license, privacy: editingBulkData.privacy || 'unlisted', ...extra } : v))
-                    // if user published as Public, remove it from the queue automatically
-                    if ((editingBulkData.privacy || 'unlisted') === 'public') {
-                      setBulkVideos(prev => prev.filter(v => v.id !== id))
-                    }
-                    // remove from transient map
-                    delete bulkFileMap.current[id]
-                    setEditingBulkId(null)
-                    resolve()
+                  // update item
+                  setBulkVideos(prev => prev.map(v => v.id === id ? { ...v, status: 'done', progress: 100, title: editingBulkData.title, description: editingBulkData.description, tags: editingBulkData.tags, category: editingBulkData.category, madeForKids: editingBulkData.madeForKids, language: editingBulkData.language, license: editingBulkData.license, privacy: editingBulkData.privacy || 'unlisted', ...extra } : v))
+                  // if user published as Public, remove it from the queue automatically
+                  if ((editingBulkData.privacy || 'unlisted') === 'public') {
+                    setBulkVideos(prev => prev.filter(v => v.id !== id))
+                  }
+                  // remove from transient map
+                  delete bulkFileMap.current[id]
+                  setEditingBulkId(null)
+                  resolve()
                 } else {
                   setBulkVideos(prev => prev.map(v => v.id === id ? { ...v, status: 'error' } : v))
                   reject(new Error(data.error || 'Upload failed'))
@@ -240,7 +241,7 @@ export default function BulkUploadPage() {
         if (Array.isArray(items)) {
           // ensure privacy defaults to 'unlisted' if missing, and normalize case
           const normalized = items.map((it: any) => ({ ...it, privacy: (it.privacy || 'unlisted').toString().toLowerCase() }))
-          console.debug('Loaded persisted bulk_videos:', normalized.length, normalized.map((i:any) => i.privacy))
+          console.debug('Loaded persisted bulk_videos:', normalized.length, normalized.map((i: any) => i.privacy))
           setBulkVideos(normalized)
         }
       }
@@ -265,7 +266,7 @@ export default function BulkUploadPage() {
       video.src = url
       video.muted = true
       video.playsInline = true
-      const cleanup = () => { try { URL.revokeObjectURL(url) } catch (e) {} }
+      const cleanup = () => { try { URL.revokeObjectURL(url) } catch (e) { } }
 
       const onLoaded = () => {
         // seek a tiny bit into the video to ensure frame available
@@ -298,7 +299,7 @@ export default function BulkUploadPage() {
   const openPreviewForItem = (item: any) => {
     try {
       if (previewSrc && previewSrc.startsWith('blob:')) URL.revokeObjectURL(previewSrc)
-    } catch (e) {}
+    } catch (e) { }
     // prefer cloud-hosted video URL if available (survives refresh)
     if (item.cloudUrl) {
       setPreviewSrc(item.cloudUrl)
@@ -318,7 +319,7 @@ export default function BulkUploadPage() {
   }
 
   const closePreviewOnly = () => {
-    try { if (previewSrc && previewSrc.startsWith('blob:')) URL.revokeObjectURL(previewSrc) } catch (e) {}
+    try { if (previewSrc && previewSrc.startsWith('blob:')) URL.revokeObjectURL(previewSrc) } catch (e) { }
     setPreviewSrc(null)
   }
 
@@ -362,27 +363,27 @@ export default function BulkUploadPage() {
             }
           }
           xhr.onload = () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                  try {
-                    const data = JSON.parse(xhr.responseText)
-                    if (data.success) {
-                      // persist any returned metadata (video URL or id) so the item survives refresh
-                      const extra: any = {}
-                      if (data.videoUrl) extra.cloudUrl = data.videoUrl
-                      if (data.videoId) extra.youtubeId = data.videoId
-                      if (data.youtubeUrl) extra.cloudUrl = data.youtubeUrl
-                      setBulkVideos(prev => prev.map(v => v.id === video.id ? { ...v, status: 'done', progress: 100, ...extra } : v))
-                      resolve()
-                    } else {
-                      setBulkVideos(prev => prev.map(v => v.id === video.id ? { ...v, status: 'error' } : v))
-                      reject(new Error(data.error || 'Upload failed'))
-                    }
-                  } catch (err) { reject(err) }
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const data = JSON.parse(xhr.responseText)
+                if (data.success) {
+                  // persist any returned metadata (video URL or id) so the item survives refresh
+                  const extra: any = {}
+                  if (data.videoUrl) extra.cloudUrl = data.videoUrl
+                  if (data.videoId) extra.youtubeId = data.videoId
+                  if (data.youtubeUrl) extra.cloudUrl = data.youtubeUrl
+                  setBulkVideos(prev => prev.map(v => v.id === video.id ? { ...v, status: 'done', progress: 100, ...extra } : v))
+                  resolve()
                 } else {
                   setBulkVideos(prev => prev.map(v => v.id === video.id ? { ...v, status: 'error' } : v))
-                  reject(new Error('Upload failed with status ' + xhr.status))
+                  reject(new Error(data.error || 'Upload failed'))
                 }
-              }
+              } catch (err) { reject(err) }
+            } else {
+              setBulkVideos(prev => prev.map(v => v.id === video.id ? { ...v, status: 'error' } : v))
+              reject(new Error('Upload failed with status ' + xhr.status))
+            }
+          }
           xhr.onerror = () => { setBulkVideos(prev => prev.map(v => v.id === video.id ? { ...v, status: 'error' } : v)); reject(new Error('Network error')) }
           xhr.send(formData)
         } catch (err) { reject(err) }
@@ -394,7 +395,7 @@ export default function BulkUploadPage() {
     }
   }
   const [tagInput, setTagInput] = useState('')
-  const [tagSuggestions] = useState(['gaming','tutorial','vlog','shorts','howto','review'])
+  const [tagSuggestions] = useState(['gaming', 'tutorial', 'vlog', 'shorts', 'howto', 'review'])
   const [uploadSpeedMbps, setUploadSpeedMbps] = useState<number>(5) // used to estimate upload time
   const [showDetails, setShowDetails] = useState(false)
 
@@ -444,7 +445,7 @@ export default function BulkUploadPage() {
     try {
       const url = URL.createObjectURL(file)
       setPreviewSrc(url)
-    } catch (e) {}
+    } catch (e) { }
   }
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -509,32 +510,32 @@ export default function BulkUploadPage() {
               try {
                 const data = JSON.parse(xhr.responseText)
                 if (data.success) {
-                    setUploadProgress(100)
-                    alert('Upload successful!')
-                    // Add uploaded video to Bulk Queue (so private/unlisted shows in the right-side queue)
-                    try {
-                      const id = String(Date.now()) + Math.floor(Math.random() * 1000)
-                      const item = {
-                        id,
-                        title: uploadData.title,
-                        fileName: selectedFile?.name || '',
-                        size: selectedFile?.size || 0,
-                        thumbnail: data.thumbnail || data.thumbnailUrl || '',
-                        cloudUrl: data.videoUrl || data.youtubeUrl || '',
-                        youtubeId: data.videoId || data.youtubeId || '',
-                        public_id: data.public_id || '',
-                        status: 'done',
-                        progress: 100,
-                        privacy: uploadData.privacy || 'unlisted'
-                      }
-                      setBulkVideos(prev => [...prev, item])
-                    } catch (e) { console.warn('Failed to add uploaded video to bulk queue', e) }
+                  setUploadProgress(100)
+                  alert('Upload successful!')
+                  // Add uploaded video to Bulk Queue (so private/unlisted shows in the right-side queue)
+                  try {
+                    const id = String(Date.now()) + Math.floor(Math.random() * 1000)
+                    const item = {
+                      id,
+                      title: uploadData.title,
+                      fileName: selectedFile?.name || '',
+                      size: selectedFile?.size || 0,
+                      thumbnail: data.thumbnail || data.thumbnailUrl || '',
+                      cloudUrl: data.videoUrl || data.youtubeUrl || '',
+                      youtubeId: data.videoId || data.youtubeId || '',
+                      public_id: data.public_id || '',
+                      status: 'done',
+                      progress: 100,
+                      privacy: uploadData.privacy || 'unlisted'
+                    }
+                    setBulkVideos(prev => [...prev, item])
+                  } catch (e) { console.warn('Failed to add uploaded video to bulk queue', e) }
 
-                    setShowUploadModal(false)
-                    // reset
-                    setSelectedFile(null)
-                    setUploadData({ title: '', description: '', tags: '', category: '22', privacy: 'public', madeForKids: false, language: 'en', license: 'standard' })
-                    resolve()
+                  setShowUploadModal(false)
+                  // reset
+                  setSelectedFile(null)
+                  setUploadData({ title: '', description: '', tags: '', category: '22', privacy: 'public', madeForKids: false, language: 'en', license: 'standard' })
+                  resolve()
                 } else {
                   reject(new Error(data.error || 'Upload failed'))
                 }
@@ -596,10 +597,14 @@ export default function BulkUploadPage() {
               {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
             <a href="/" className="flex items-center space-x-2 group">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg group-hover:shadow-xl transition flex-shrink-0">
-                <Play className="h-4 w-4 text-white fill-white" />
-              </div>
-              <span className="text-sm font-semibold">YouTubeAI Pro</span>
+              <Image
+                src="/creere-snap-logo.png"
+                alt="TubeBoost AI"
+                width={32}
+                height={32}
+                className="flex-shrink-0"
+              />
+              <span className="text-sm font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">TubeBoost AI</span>
             </a>
           </div>
 
@@ -632,10 +637,14 @@ export default function BulkUploadPage() {
       <header className="hidden md:block sticky top-0 z-40 border-b border-gray-200 bg-white h-16">
         <div className="flex h-16 items-center justify-between px-6 lg:px-8">
           <a href="/" className="flex items-center space-x-3 group">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg group-hover:shadow-xl transition flex-shrink-0">
-              <Play className="h-5 w-5 text-white fill-white" />
-            </div>
-            <span className="text-lg font-bold text-gray-900">YouTubeAI Pro</span>
+            <Image
+              src="/creere-snap-logo.png"
+              alt="TubeBoost AI"
+              width={36}
+              height={36}
+              className="flex-shrink-0"
+            />
+            <span className="text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">TubeBoost AI</span>
           </a>
 
           <div className="flex items-center space-x-4">
@@ -666,9 +675,8 @@ export default function BulkUploadPage() {
 
         {/* Mobile Sidebar - slide-in */}
         <aside
-          className={`fixed left-0 top-16 bottom-0 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 md:hidden z-40 overflow-y-auto ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+          className={`fixed left-0 top-16 bottom-0 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 md:hidden z-40 overflow-y-auto ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
           style={{ WebkitOverflowScrolling: 'touch' as any }}
         >
           <nav className="p-4 space-y-2">
@@ -826,7 +834,7 @@ export default function BulkUploadPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold truncate">{v.title || v.fileName || 'Untitled'}</p>
-                    <p className="text-xs text-gray-500 truncate">{v.size ? `${(v.size/(1024*1024)).toFixed(1)} MB` : '—'}</p>
+                    <p className="text-xs text-gray-500 truncate">{v.size ? `${(v.size / (1024 * 1024)).toFixed(1)} MB` : '—'}</p>
                     <div className="mt-1">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded ${v.privacy === 'public' ? 'bg-blue-100 text-blue-700' : v.privacy === 'unlisted' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}`}>{(v.privacy || 'unlisted').toString().toUpperCase()}</span>
                     </div>
@@ -912,26 +920,26 @@ export default function BulkUploadPage() {
                       </div>
 
                       <label className="block text-sm font-medium mb-1">Title <span className="text-xs text-gray-400">(required)</span></label>
-                      <input type="text" value={uploadData.title} onChange={(e) => setUploadData({...uploadData, title: e.target.value})} className="w-full px-4 py-3 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <input type="text" value={uploadData.title} onChange={(e) => setUploadData({ ...uploadData, title: e.target.value })} className="w-full px-4 py-3 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
 
                       <label className="block text-sm font-medium mb-1">Description</label>
-                      <textarea value={uploadData.description} onChange={(e) => setUploadData({...uploadData, description: e.target.value})} rows={5} className="w-full px-4 py-3 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <textarea value={uploadData.description} onChange={(e) => setUploadData({ ...uploadData, description: e.target.value })} rows={5} className="w-full px-4 py-3 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
 
                       <label className="block text-sm font-medium mb-1">Tags (comma separated)</label>
-                      <input type="text" value={uploadData.tags} onChange={(e) => setUploadData({...uploadData, tags: e.target.value})} className="w-full px-3 py-2 border rounded-md mb-3" placeholder="tag1,tag2" />
+                      <input type="text" value={uploadData.tags} onChange={(e) => setUploadData({ ...uploadData, tags: e.target.value })} className="w-full px-3 py-2 border rounded-md mb-3" placeholder="tag1,tag2" />
 
                       <label className="block text-sm font-medium mb-2">Suggested hashtags</label>
                       <div className="flex flex-wrap gap-2 mb-4">
                         {tagSuggestions.map(t => (
-                          <button key={t} type="button" onClick={() => { const newTags = (uploadData.tags ? uploadData.tags + ',' : '') + t; setUploadData({...uploadData, tags: newTags}) }} className="px-3 py-1 text-sm bg-gray-100 rounded">#{t}</button>
+                          <button key={t} type="button" onClick={() => { const newTags = (uploadData.tags ? uploadData.tags + ',' : '') + t; setUploadData({ ...uploadData, tags: newTags }) }} className="px-3 py-1 text-sm bg-gray-100 rounded">#{t}</button>
                         ))}
-                        <button onClick={() => { setUploadData({...uploadData, tags: tagSuggestions.join(',')}) }} className="px-3 py-1 text-sm bg-gray-50 rounded border">Add all</button>
+                        <button onClick={() => { setUploadData({ ...uploadData, tags: tagSuggestions.join(',') }) }} className="px-3 py-1 text-sm bg-gray-50 rounded border">Add all</button>
                       </div>
 
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
                           <label className="block text-sm font-medium mb-1">Category</label>
-                          <select value={uploadData.category} onChange={(e) => setUploadData({...uploadData, category: e.target.value})} className="w-full px-3 py-2 border rounded-md">
+                          <select value={uploadData.category} onChange={(e) => setUploadData({ ...uploadData, category: e.target.value })} className="w-full px-3 py-2 border rounded-md">
                             <option value="22">People & Blogs</option>
                             <option value="1">Film & Animation</option>
                             <option value="2">Autos & Vehicles</option>
@@ -951,11 +959,11 @@ export default function BulkUploadPage() {
                           <label className="block text-sm font-medium mb-1">Made for kids</label>
                           <div className="flex items-center gap-3">
                             <label className="inline-flex items-center gap-2">
-                              <input type="radio" name="kids" checked={uploadData.madeForKids === true} onChange={() => setUploadData({...uploadData, madeForKids: true})} />
+                              <input type="radio" name="kids" checked={uploadData.madeForKids === true} onChange={() => setUploadData({ ...uploadData, madeForKids: true })} />
                               <span className="text-sm">Yes</span>
                             </label>
                             <label className="inline-flex items-center gap-2">
-                              <input type="radio" name="kids" checked={uploadData.madeForKids === false} onChange={() => setUploadData({...uploadData, madeForKids: false})} />
+                              <input type="radio" name="kids" checked={uploadData.madeForKids === false} onChange={() => setUploadData({ ...uploadData, madeForKids: false })} />
                               <span className="text-sm">No</span>
                             </label>
                           </div>
@@ -965,7 +973,7 @@ export default function BulkUploadPage() {
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-3">
                         <div>
                           <label className="block text-sm font-medium mb-1">Language</label>
-                          <select value={uploadData.language} onChange={(e) => setUploadData({...uploadData, language: e.target.value})} className="w-full px-3 py-2 border rounded-md">
+                          <select value={uploadData.language} onChange={(e) => setUploadData({ ...uploadData, language: e.target.value })} className="w-full px-3 py-2 border rounded-md">
                             <option value="en">English</option>
                             <option value="es">Spanish</option>
                             <option value="hi">Hindi</option>
@@ -976,7 +984,7 @@ export default function BulkUploadPage() {
 
                         <div>
                           <label className="block text-sm font-medium mb-1">License</label>
-                          <select value={uploadData.license} onChange={(e) => setUploadData({...uploadData, license: e.target.value})} className="w-full px-3 py-2 border rounded-md">
+                          <select value={uploadData.license} onChange={(e) => setUploadData({ ...uploadData, license: e.target.value })} className="w-full px-3 py-2 border rounded-md">
                             <option value="standard">Standard YouTube License</option>
                             <option value="creative">Creative Commons</option>
                           </select>
@@ -1072,7 +1080,7 @@ export default function BulkUploadPage() {
                         </div>
                         <div className="min-w-0">
                           <p className="font-medium truncate">{f.name}</p>
-                          <p className="text-xs text-gray-500">{(f.size/(1024*1024)).toFixed(2)} MB</p>
+                          <p className="text-xs text-gray-500">{(f.size / (1024 * 1024)).toFixed(2)} MB</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1084,9 +1092,9 @@ export default function BulkUploadPage() {
                 </div>
               )}
 
-                  {filteredBulkVideos.length > 0 && (
-                    <div className="mt-4 space-y-3">
-                      {filteredBulkVideos.map(v => (
+              {filteredBulkVideos.length > 0 && (
+                <div className="mt-4 space-y-3">
+                  {filteredBulkVideos.map(v => (
                     <div key={v.id} className="p-3 border rounded-md bg-gray-50 flex items-center gap-3">
                       <div className="w-20 h-12 rounded overflow-hidden bg-black flex items-center justify-center">
                         {v.thumbnail ? <img src={v.thumbnail} alt={v.title} className="w-full h-full object-cover" /> : <div className="text-xs text-white px-2">No preview</div>}
@@ -1096,16 +1104,16 @@ export default function BulkUploadPage() {
                           <p className="font-semibold truncate">{v.title || v.fileName}</p>
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded ${v.privacy === 'public' ? 'bg-blue-100 text-blue-700' : v.privacy === 'unlisted' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}`}>{(v.privacy || 'unlisted').toString().toUpperCase()}</span>
                         </div>
-                          <p className="text-xs text-gray-500">{v.size ? `${(v.size/(1024*1024)).toFixed(1)} MB` : '—'}</p>
+                        <p className="text-xs text-gray-500">{v.size ? `${(v.size / (1024 * 1024)).toFixed(1)} MB` : '—'}</p>
                         <div className="mt-2 h-2 bg-gray-200 rounded overflow-hidden"><div className="bg-green-500 h-2" style={{ width: `${v.progress || 0}%` }} /></div>
                       </div>
                       <div className="flex items-center gap-2">
                         <button onClick={() => openPreviewForItem(v)} className="px-3 py-1 border rounded text-sm">Preview</button>
                         <button onClick={() => {
-                            // open per-item details editor
-                            setEditingBulkId(v.id)
-                            setEditingBulkData({ title: v.title || '', description: v.description || '', tags: v.tags || '', category: v.category || '22', madeForKids: !!v.madeForKids, language: v.language || 'en', license: v.license || 'standard', privacy: v.privacy || 'unlisted' })
-                          }} className="px-3 py-1 border rounded text-sm">Details</button>
+                          // open per-item details editor
+                          setEditingBulkId(v.id)
+                          setEditingBulkData({ title: v.title || '', description: v.description || '', tags: v.tags || '', category: v.category || '22', madeForKids: !!v.madeForKids, language: v.language || 'en', license: v.license || 'standard', privacy: v.privacy || 'unlisted' })
+                        }} className="px-3 py-1 border rounded text-sm">Details</button>
                         <button onClick={() => removeBulkVideo(v.id)} className="px-3 py-1 border rounded text-sm">Remove</button>
                       </div>
                     </div>
@@ -1151,11 +1159,11 @@ export default function BulkUploadPage() {
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
                           <label className="block text-sm font-medium mb-1">Title</label>
-                          <input value={editingBulkData.title} onChange={(e) => setEditingBulkData((s:any) => ({ ...s, title: e.target.value }))} className="w-full px-3 py-2 border rounded-md" />
+                          <input value={editingBulkData.title} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, title: e.target.value }))} className="w-full px-3 py-2 border rounded-md" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1">Category</label>
-                          <select value={editingBulkData.category} onChange={(e) => setEditingBulkData((s:any) => ({ ...s, category: e.target.value }))} className="w-full px-3 py-2 border rounded-md">
+                          <select value={editingBulkData.category} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, category: e.target.value }))} className="w-full px-3 py-2 border rounded-md">
                             <option value="22">People & Blogs</option>
                             <option value="1">Film & Animation</option>
                             <option value="2">Autos & Vehicles</option>
@@ -1168,22 +1176,22 @@ export default function BulkUploadPage() {
                         </div>
                         <div className="sm:col-span-2">
                           <label className="block text-sm font-medium mb-1">Description</label>
-                          <textarea value={editingBulkData.description} onChange={(e) => setEditingBulkData((s:any) => ({ ...s, description: e.target.value }))} rows={4} className="w-full px-3 py-2 border rounded-md" />
+                          <textarea value={editingBulkData.description} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, description: e.target.value }))} rows={4} className="w-full px-3 py-2 border rounded-md" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1">Tags (comma separated)</label>
-                          <input value={editingBulkData.tags} onChange={(e) => setEditingBulkData((s:any) => ({ ...s, tags: e.target.value }))} className="w-full px-3 py-2 border rounded-md" />
+                          <input value={editingBulkData.tags} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, tags: e.target.value }))} className="w-full px-3 py-2 border rounded-md" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1">Made for kids</label>
                           <div className="flex items-center gap-3">
-                            <label className="inline-flex items-center gap-2"><input type="radio" name="bulkKids" checked={editingBulkData.madeForKids === true} onChange={() => setEditingBulkData((s:any) => ({ ...s, madeForKids: true }))} /> <span className="text-sm">Yes</span></label>
-                            <label className="inline-flex items-center gap-2"><input type="radio" name="bulkKids" checked={editingBulkData.madeForKids === false} onChange={() => setEditingBulkData((s:any) => ({ ...s, madeForKids: false }))} /> <span className="text-sm">No</span></label>
+                            <label className="inline-flex items-center gap-2"><input type="radio" name="bulkKids" checked={editingBulkData.madeForKids === true} onChange={() => setEditingBulkData((s: any) => ({ ...s, madeForKids: true }))} /> <span className="text-sm">Yes</span></label>
+                            <label className="inline-flex items-center gap-2"><input type="radio" name="bulkKids" checked={editingBulkData.madeForKids === false} onChange={() => setEditingBulkData((s: any) => ({ ...s, madeForKids: false }))} /> <span className="text-sm">No</span></label>
                           </div>
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1">Language</label>
-                          <select value={editingBulkData.language} onChange={(e) => setEditingBulkData((s:any) => ({ ...s, language: e.target.value }))} className="w-full px-3 py-2 border rounded-md">
+                          <select value={editingBulkData.language} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, language: e.target.value }))} className="w-full px-3 py-2 border rounded-md">
                             <option value="en">English</option>
                             <option value="es">Spanish</option>
                             <option value="hi">Hindi</option>
@@ -1193,7 +1201,7 @@ export default function BulkUploadPage() {
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1">License</label>
-                          <select value={editingBulkData.license} onChange={(e) => setEditingBulkData((s:any) => ({ ...s, license: e.target.value }))} className="w-full px-3 py-2 border rounded-md">
+                          <select value={editingBulkData.license} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, license: e.target.value }))} className="w-full px-3 py-2 border rounded-md">
                             <option value="standard">Standard YouTube License</option>
                             <option value="creative">Creative Commons</option>
                           </select>
@@ -1201,13 +1209,13 @@ export default function BulkUploadPage() {
 
                         <div className="sm:col-span-2">
                           <label className="block text-sm font-medium mb-1">Privacy</label>
-                                  <select value={editingBulkData.privacy} onChange={(e) => setEditingBulkData((s:any) => ({ ...s, privacy: e.target.value }))} className="w-full px-3 py-2 border rounded-md mb-2">
-                                    <option value="public">Public</option>
-                                    <option value="unlisted">Unlisted</option>
-                                    <option value="private">Private</option>
-                                  </select>
+                          <select value={editingBulkData.privacy} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, privacy: e.target.value }))} className="w-full px-3 py-2 border rounded-md mb-2">
+                            <option value="public">Public</option>
+                            <option value="unlisted">Unlisted</option>
+                            <option value="private">Private</option>
+                          </select>
 
-                                  <div className="text-xs text-gray-500">Bulk uploads default to <strong>Unlisted</strong>. You can change privacy here before publishing.</div>
+                          <div className="text-xs text-gray-500">Bulk uploads default to <strong>Unlisted</strong>. You can change privacy here before publishing.</div>
                         </div>
                       </div>
                     </div>
@@ -1222,25 +1230,25 @@ export default function BulkUploadPage() {
               <button onClick={() => {
                 if (bulkFiles.length === 0) { alert('No files queued for bulk add. Use the Add buttons next to each file.'); return }
                 const filesToAdd: File[] = [...bulkFiles].slice(0, 60)
-                ;(async () => {
-                  for (const f of filesToAdd) {
-                    try {
-                      const fd = new FormData()
-                      fd.append('file', f, f.name)
-                      const res = await fetch('/api/cloudinary/upload', { method: 'POST', body: fd })
-                      let data: any = null
-                      try { data = await res.json() } catch (e) { console.warn('Failed to parse JSON from cloudinary API route', e) }
-                      if (!(data && (data.success || data.secure_url))) { console.error('Upload failed for', f.name, data); continue }
-                      const id = String(Date.now()) + Math.floor(Math.random() * 1000)
-                      const item = { id, title: f.name.replace(/\.[^/.]+$/, ''), fileName: f.name, size: f.size, thumbnail: data.thumbnail_url, cloudUrl: data.secure_url, public_id: data.public_id, status: 'uploaded', progress: 100, privacy: 'unlisted' }
-                      setBulkVideos(prev => [...prev, item])
-                    } catch (err) {
-                      console.error('Upload failed', err)
+                  ; (async () => {
+                    for (const f of filesToAdd) {
+                      try {
+                        const fd = new FormData()
+                        fd.append('file', f, f.name)
+                        const res = await fetch('/api/cloudinary/upload', { method: 'POST', body: fd })
+                        let data: any = null
+                        try { data = await res.json() } catch (e) { console.warn('Failed to parse JSON from cloudinary API route', e) }
+                        if (!(data && (data.success || data.secure_url))) { console.error('Upload failed for', f.name, data); continue }
+                        const id = String(Date.now()) + Math.floor(Math.random() * 1000)
+                        const item = { id, title: f.name.replace(/\.[^/.]+$/, ''), fileName: f.name, size: f.size, thumbnail: data.thumbnail_url, cloudUrl: data.secure_url, public_id: data.public_id, status: 'uploaded', progress: 100, privacy: 'unlisted' }
+                        setBulkVideos(prev => [...prev, item])
+                      } catch (err) {
+                        console.error('Upload failed', err)
+                      }
                     }
-                  }
-                  setBulkFiles([])
-                })()
-              }} className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded">Add {bulkFiles.length > 0 ? `(${Math.min(bulkFiles.length,60)})` : ''} to Bulk List</button>
+                    setBulkFiles([])
+                  })()
+              }} className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded">Add {bulkFiles.length > 0 ? `(${Math.min(bulkFiles.length, 60)})` : ''} to Bulk List</button>
             </div>
           </div>
         </div>

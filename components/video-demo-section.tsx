@@ -1,303 +1,265 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState } from "react"
+import { Sparkles, Play, Pause, RotateCcw, CheckCircle2, Zap, TrendingUp, Video } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Play, Pause, Volume2, Maximize, RotateCcw, Sparkles, Zap, BarChart3, Target, Clock, CheckCircle, ArrowRight, Youtube, Star, Users, TrendingUp, Eye, ThumbsUp, MessageSquare } from "lucide-react"
+
+const demoSteps = [
+  {
+    id: 1,
+    title: "Upload Your Video",
+    description: "Simply drag and drop your video or paste a YouTube link",
+    icon: Video,
+    color: "from-blue-500 to-cyan-500",
+    bgColor: "from-blue-50 to-cyan-50",
+    features: ["Bulk upload", "Auto-thumbnails", "Format detection"]
+  },
+  {
+    id: 2,
+    title: "AI Analyzes Content",
+    description: "Our AI scans your video and generates optimal metadata",
+    icon: Sparkles,
+    color: "from-purple-500 to-pink-500",
+    bgColor: "from-purple-50 to-pink-50",
+    features: ["Viral title suggestions", "SEO tags", "Best practices"]
+  },
+  {
+    id: 3,
+    title: "Optimize & Schedule",
+    description: "Review AI suggestions and schedule for peak engagement times",
+    icon: Zap,
+    color: "from-orange-500 to-red-500",
+    bgColor: "from-orange-50 to-red-50",
+    features: ["Smart scheduling", "Multiple channels", "Analytics preview"]
+  },
+  {
+    id: 4,
+    title: "Watch It Grow",
+    description: "Track real-time analytics and let AI optimize your strategy",
+    icon: TrendingUp,
+    color: "from-green-500 to-emerald-500",
+    bgColor: "from-green-50 to-emerald-50",
+    features: ["Live dashboard", "Growth insights", "Auto-optimization"]
+  }
+]
 
 export function VideoDemoSection() {
+  const [activeStep, setActiveStep] = useState(1)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [currentTime, setCurrentTime] = useState(45)
-  const [isHovered, setIsHovered] = useState(false)
-  const sectionRef = useRef<HTMLElement>(null)
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout
-    if (isPlaying) {
-      interval = setInterval(() => {
-        setCurrentTime(prev => prev < 180 ? prev + 1 : prev)
-      }, 1000)
-    }
-    return () => clearInterval(interval)
-  }, [isPlaying])
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, '0')}`
+  const handlePlayDemo = () => {
+    setIsPlaying(true)
+    let currentStep = 1
+    const interval = setInterval(() => {
+      if (currentStep < 4) {
+        currentStep++
+        setActiveStep(currentStep)
+      } else {
+        setIsPlaying(false)
+        clearInterval(interval)
+      }
+    }, 2500)
   }
 
-  const features = [
-    {
-      icon: Sparkles,
-      title: "AI Content Generation",
-      description: "Watch AI create viral titles, descriptions, and tags in real-time",
-      color: "text-blue-500",
-      bgColor: "bg-blue-500/10",
-      demoTime: "0:15"
-    },
-    {
-      icon: Target,
-      title: "Smart Thumbnail Creation",
-      description: "See how AI designs eye-catching thumbnails that boost CTR",
-      color: "text-purple-500",
-      bgColor: "bg-purple-500/10",
-      demoTime: "1:23"
-    },
-    {
-      icon: BarChart3,
-      title: "Analytics Dashboard",
-      description: "Real-time performance tracking and AI-powered insights",
-      color: "text-green-500",
-      bgColor: "bg-green-500/10",
-      demoTime: "2:45"
-    },
-    {
-      icon: Clock,
-      title: "Automated Scheduling",
-      description: "AI finds optimal upload times for maximum reach",
-      color: "text-orange-500",
-      bgColor: "bg-orange-500/10",
-      demoTime: "3:12"
-    },
-  ]
-
-  const stats = [
-    { icon: Eye, value: "2.1M", label: "Demo Views", color: "text-blue-500" },
-    { icon: ThumbsUp, value: "94%", label: "Satisfaction", color: "text-green-500" },
-    { icon: Users, value: "50K+", label: "Watchers", color: "text-purple-500" },
-    { icon: TrendingUp, value: "4.8★", label: "Rating", color: "text-yellow-500" }
-  ]
+  const handleReset = () => {
+    setIsPlaying(false)
+    setActiveStep(1)
+  }
 
   return (
-    <section ref={sectionRef} className="relative py-20 sm:py-32 bg-linear-to-br from-background via-purple-500/5 to-blue-500/10 overflow-hidden">
+    <section id="demo" className="relative py-24 overflow-hidden bg-white">
       {/* Background Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-20 right-10 w-80 h-80 bg-blue-500/5 rounded-full blur-3xl animate-pulse animation-delay-2000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-linear-to-r from-purple-500/3 to-blue-500/3 rounded-full blur-3xl animate-pulse animation-delay-4000"></div>
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-1/3 left-0 w-96 h-96 bg-gradient-to-r from-blue-400/10 to-purple-400/10 rounded-full blur-3xl animate-pulse-slow" />
+        <div className="absolute bottom-1/3 right-0 w-96 h-96 bg-gradient-to-r from-pink-400/10 to-orange-400/10 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '1s' }} />
       </div>
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="mx-auto max-w-6xl">
-          <div className="text-center mb-16 sm:mb-20">
-            <div className="inline-flex items-center justify-center mb-6 bg-purple-500/10 text-purple-600 border border-purple-500/20 hover:bg-purple-500/20 transition-colors rounded-full px-4 py-2 text-sm font-semibold shadow-sm">
-              <Play className="h-4 w-4 mr-2" />
+      {/* Grid Pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#8882_0.5px,transparent_0.5px),linear-gradient(to_bottom,#8882_0.5px,transparent_0.5px)] bg-[size:64px_64px]" />
+
+      <div className="container relative z-10 mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Section Header */}
+        <div className="text-center mb-16">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 shadow-lg mb-6">
+            <Play className="w-4 h-4 text-blue-600" />
+            <span className="text-sm font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               Interactive Demo
-            </div>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-foreground text-balance leading-tight mb-6">
-              See{" "}
-              <span className="text-transparent bg-clip-text bg-linear-to-r from-primary via-secondary to-primary animate-pulse-glow">
-                YouTubeAI
-              </span>{" "}
-              in Action
-            </h2>
-            <p className="text-lg sm:text-xl text-muted-foreground text-pretty max-w-3xl mx-auto leading-relaxed">
-              Experience the full power of AI-driven YouTube optimization. Watch our interactive demo
-              showcasing real-time content generation, thumbnail creation, and performance analytics.
-            </p>
+            </span>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-stretch">
-            {/* Enhanced Video Player */}
-            <div className="relative group h-full">
-              <Card className="relative overflow-hidden bg-black rounded-2xl shadow-2xl border-2 border-purple-500/20 hover:border-purple-500/40 transition-all duration-500 transform hover:scale-105 h-full flex flex-col">
-                <CardHeader className="pb-3 pt-4 px-4">
-                  <div className="inline-flex items-center space-x-2">
-                    <Youtube className="h-5 w-5 text-red-500" />
-                    <span className="text-sm font-semibold text-white">YouTubeAI Demo</span>
-                  </div>
-                </CardHeader>
-                  <div className="aspect-video bg-linear-to-br from-gray-900 via-gray-800 to-black flex items-center justify-center relative w-full">
-                  {/* Animated Background */}
-                  <div className="absolute inset-0 bg-linear-to-br from-purple-500/10 via-blue-500/5 to-transparent animate-pulse"></div>
+          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-gray-900 mb-6">
+            See it in
+            <span className="block mt-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              action
+            </span>
+          </h2>
 
-                  {/* Demo Content Overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center text-white space-y-4">
-                      <div className="flex items-center justify-center space-x-2 mb-4">
-                        <Youtube className="h-8 w-8 text-red-500" />
-                        <span className="text-xl font-bold">YouTubeAI Demo</span>
-                      </div>
-                      <div className="space-y-2 text-sm opacity-80">
-                        <p>AI Content Generation • Smart Scheduling</p>
-                        <p>Real-time Analytics • Automated Optimization</p>
-                      </div>
-                    </div>
-                  </div>
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
+            Watch how Creere Snap transforms your YouTube workflow in minutes, not hours.
+          </p>
 
-                  {/* Play Button */}
-                  <Button
-                    size="lg"
-                    onClick={() => setIsPlaying(!isPlaying)}
-                    className={`relative z-20 w-20 h-20 rounded-full bg-white/90 hover:bg-white text-black shadow-2xl transition-all duration-300 ${
-                      isHovered ? 'scale-110' : 'scale-100'
+          {/* Demo Controls */}
+          <div className="flex items-center justify-center gap-4">
+            <Button
+              size="lg"
+              onClick={isPlaying ? () => setIsPlaying(false) : handlePlayDemo}
+              className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 rounded-2xl"
+            >
+              {isPlaying ? (
+                <>
+                  <Pause className="mr-2 h-5 w-5" />
+                  Pause Demo
+                </>
+              ) : (
+                <>
+                  <Play className="mr-2 h-5 w-5" />
+                  Play Interactive Demo
+                </>
+              )}
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={handleReset}
+              className="px-8 py-6 text-lg font-semibold border-2 border-gray-300 hover:border-blue-600 hover:bg-blue-50 transition-all duration-300 rounded-2xl"
+            >
+              <RotateCcw className="mr-2 h-5 w-5" />
+              Reset
+            </Button>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="max-w-4xl mx-auto mb-12">
+          <div className="relative">
+            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 transition-all duration-500 ease-out"
+                style={{ width: `${(activeStep / 4) * 100}%` }}
+              />
+            </div>
+            <div className="absolute -top-1 left-0 right-0 flex justify-between">
+              {demoSteps.map((step) => (
+                <div
+                  key={step.id}
+                  className={`w-4 h-4 rounded-full border-2 transition-all duration-300 ${activeStep >= step.id
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 border-white shadow-lg scale-125'
+                      : 'bg-white border-gray-300'
                     }`}
-                  >
-                    {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}
-                  </Button>
+                />
+              ))}
+            </div>
+          </div>
+        </div>
 
-                  {/* Video Controls */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/90 via-black/50 to-transparent p-6">
-                    <div className="flex items-center justify-between text-white mb-4">
-                      <div className="flex items-center gap-4">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-white hover:bg-white/20 rounded-full"
-                          onClick={() => setIsPlaying(!isPlaying)}
-                        >
-                          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                        </Button>
-                        <span className="text-sm font-medium">{formatTime(currentTime)} / 3:00</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button size="sm" variant="ghost" className="text-white hover:bg-white/20 rounded-full">
-                          <RotateCcw className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="text-white hover:bg-white/20 rounded-full">
-                          <Volume2 className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="text-white hover:bg-white/20 rounded-full">
-                          <Maximize className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
+        {/* Demo Steps */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+          {demoSteps.map((step, index) => {
+            const isActive = activeStep === step.id
+            const isCompleted = activeStep > step.id
 
-                    {/* Progress Bar */}
-                    <div className="w-full bg-white/20 rounded-full h-2">
-                      <div
-                        className="bg-linear-to-r from-purple-500 to-blue-500 h-2 rounded-full transition-all duration-1000 ease-linear"
-                        style={{ width: `${(currentTime / 180) * 100}%` }}
-                      ></div>
-                    </div>
+            return (
+              <div
+                key={step.id}
+                onClick={() => !isPlaying && setActiveStep(step.id)}
+                className={`group relative cursor-pointer transition-all duration-500 ${isActive ? 'scale-105' : ''
+                  }`}
+              >
+                {/* Glow Effect */}
+                {isActive && (
+                  <div className={`absolute -inset-0.5 bg-gradient-to-r ${step.color} rounded-3xl blur opacity-50 animate-pulse`} />
+                )}
 
-                    {/* Demo Timeline Markers */}
-                    <div className="flex justify-between mt-2 text-xs text-white/60">
-                      <span>AI Generation</span>
-                      <span>Thumbnail Design</span>
-                      <span>Analytics</span>
-                      <span>Scheduling</span>
+                {/* Card */}
+                <div className={`relative h-full p-6 rounded-3xl border-2 transition-all duration-300 ${isActive
+                    ? `bg-gradient-to-br ${step.bgColor} border-gray-300 shadow-2xl`
+                    : isCompleted
+                      ? 'bg-white border-green-300 shadow-lg'
+                      : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-xl'
+                  }`}>
+                  {/* Step Number */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`flex items-center justify-center w-12 h-12 rounded-2xl ${isCompleted
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                        : isActive
+                          ? `bg-gradient-to-r ${step.color}`
+                          : 'bg-gray-100'
+                      } transition-all duration-300`}>
+                      {isCompleted ? (
+                        <CheckCircle2 className="w-6 h-6 text-white" />
+                      ) : (
+                        <step.icon className={`w-6 h-6 ${isActive ? 'text-white' : 'text-gray-400'}`} />
+                      )}
                     </div>
-                  </div>
-                    </div>
-                          {/* Floating Stats */}
-                          <div className="absolute -top-4 -right-4 flex gap-2">
-                            <Badge className="bg-green-100 text-green-700 shadow-lg">
-                              <Eye className="h-3 w-3 mr-1" />
-                              Live Demo
-                            </Badge>
-                          </div>
-                      </Card>
+                    <Badge className={`${isActive
+                        ? `bg-gradient-to-r ${step.color} text-white`
+                        : 'bg-gray-100 text-gray-600'
+                      }`}>
+                      Step {step.id}
+                    </Badge>
                   </div>
 
-            {/* Enhanced Features Section */}
-            <div className="h-full">
-              <Card className="relative bg-card/95 h-full rounded-2xl border shadow-xl p-6 sm:p-8 flex flex-col justify-between">
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-2xl sm:text-3xl font-bold mb-4 text-foreground">
-                      Complete AI-Powered Workflow
-                    </h3>
-                    <p className="text-muted-foreground text-pretty leading-relaxed mb-6">
-                      Our interactive demo walks you through the entire YouTube optimization process,
-                      from content ideation to performance analysis. See exactly how AI transforms your channel.
-                    </p>
+                  {/* Content */}
+                  <h3 className={`text-xl font-bold mb-2 ${isActive ? 'text-gray-900' : 'text-gray-700'
+                    }`}>
+                    {step.title}
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4 leading-relaxed">
+                    {step.description}
+                  </p>
 
-                    {/* Stats Row */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                      {stats.map((stat, index) => (
-                        <div key={index} className="text-center p-3 bg-card/60 backdrop-blur-sm rounded-xl border">
-                          <stat.icon className={`h-5 w-5 mx-auto mb-2 ${stat.color}`} />
-                          <div className="text-lg font-bold text-foreground">{stat.value}</div>
-                          <div className="text-xs text-muted-foreground">{stat.label}</div>
+                  {/* Features */}
+                  {isActive && (
+                    <div className="space-y-2 mt-4 animate-fade-in">
+                      {step.features.map((feature, fIndex) => (
+                        <div key={fIndex} className="flex items-center gap-2">
+                          <CheckCircle2 className={`w-4 h-4 bg-gradient-to-r ${step.color} bg-clip-text text-transparent`} />
+                          <span className="text-xs text-gray-700 font-medium">{feature}</span>
                         </div>
                       ))}
                     </div>
-                  </div>
-                <div className="space-y-4">
-                {features.map((feature, index) => (
-                  <Card
-                    key={index}
-                    className={`border-2 hover:border-current/30 hover:shadow-xl transition-all duration-300 transform hover:scale-102 ${feature.bgColor} group cursor-pointer`}
-                    onClick={() => setCurrentTime([15, 83, 165, 192][index])}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-4">
-                        <div className={`flex items-center justify-center w-10 h-10 rounded-xl ${feature.bgColor} shrink-0 group-hover:scale-110 transition-transform`}>
-                          <feature.icon className={`h-5 w-5 ${feature.color}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <h4 className="font-semibold text-foreground group-hover:text-current transition-colors">
-                              {feature.title}
-                            </h4>
-                            <Badge variant="outline" className="text-xs border-current/20 text-current/70">
-                              {feature.demoTime}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground leading-relaxed">
-                            {feature.description}
-                          </p>
-                        </div>
-                        <ArrowRight className="h-4 w-4 text-current opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-                {/* CTA Buttons */}
-                <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                <Button
-                  size="lg"
-                  className="bg-linear-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:scale-105 px-8 py-4 rounded-xl font-semibold text-base flex-1"
-                  onClick={() => setIsPlaying(true)}
-                >
-                  <Play className="h-5 w-5 mr-3" />
-                  Watch Full Demo
-                  <ArrowRight className="h-5 w-5 ml-3" />
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="border-2 border-purple-500/30 hover:bg-purple-500/10 hover:border-purple-500 transition-all duration-300 px-8 py-4 rounded-xl font-semibold text-base"
-                >
-                  <Zap className="h-5 w-5 mr-3" />
-                  Start Free Trial
-                </Button>
+                  )}
                 </div>
-                </div>
-              </Card>
-            </div>
-          </div>
+              </div>
+            )
+          })}
+        </div>
 
-          {/* Bottom Social Proof */}
-          <div className="mt-16 sm:mt-20 text-center">
-            <div className="inline-flex items-center space-x-4 bg-card/60 backdrop-blur-sm rounded-2xl px-6 py-4 border shadow-lg mb-6">
-              <div className="flex items-center space-x-2">
-                <Star className="h-5 w-5 text-yellow-500" />
-                <span className="text-sm font-medium text-foreground">4.9/5 average rating</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="h-5 w-5 text-green-500" />
-                <span className="text-sm font-medium text-foreground">Interactive walkthrough</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Users className="h-5 w-5 text-blue-500" />
-                <span className="text-sm font-medium text-foreground">50K+ demo views</span>
-              </div>
-            </div>
-
-            <p className="text-muted-foreground text-pretty max-w-2xl mx-auto">
-              Join thousands of creators who've discovered the power of AI-driven YouTube optimization
-              through our comprehensive interactive demo.
-            </p>
-          </div>
+        {/* Bottom CTA */}
+        <div className="mt-16 text-center">
+          <p className="text-gray-600 mb-6 text-lg">
+            Ready to experience the magic yourself?
+          </p>
+          <Button
+            size="lg"
+            className="px-10 py-6 text-lg font-bold bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 rounded-2xl"
+          >
+            <Zap className="mr-2 h-5 w-5" />
+            Try It Free Now
+          </Button>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes pulse-slow {
+          0%, 100% { opacity: 0.1; }
+          50% { opacity: 0.2; }
+        }
+
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-pulse-slow {
+          animation: pulse-slow 4s ease-in-out infinite;
+        }
+
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out;
+        }
+      `}</style>
     </section>
   )
 }

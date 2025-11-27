@@ -1,219 +1,171 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { Card, CardContent } from "@/components/ui/card"
+import { ArrowRight, CheckCircle2, Play, Sparkles, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Youtube, Sparkles, Calendar, TrendingUp, Zap, Play, BarChart3, Rocket, Target, CheckCircle, ArrowRight, Clock, Users } from "lucide-react"
 import Link from "next/link"
 
 const steps = [
   {
-    icon: Youtube,
+    number: "01",
     title: "Connect Your Channel",
-    description: "Link your YouTube account securely in seconds. We only access what you authorize for complete privacy.",
-    color: "text-red-500",
-    bgColor: "bg-red-500/10",
-    features: ["One-click connection", "Secure OAuth", "Privacy-first"],
-    duration: "30 seconds"
+    description: "Sign in with Google and connect your YouTube channel in seconds. No technical setup required.",
+    icon: "🔗",
+    color: "from-blue-500 to-cyan-500",
+    bgColor: "from-blue-50 to-cyan-50"
   },
   {
-    icon: Sparkles,
-    title: "AI Content Creation",
-    description: "Our advanced AI analyzes trending topics, your niche, and audience preferences to generate viral video ideas.",
-    color: "text-purple-500",
-    bgColor: "bg-purple-500/10",
-    features: ["Trend analysis", "Niche optimization", "Engagement prediction"],
-    duration: "2 minutes"
+    number: "02",
+    title: "Let AI Analyze",
+    description: "Our AI studies your niche, competitors, and audience to create a personalized growth strategy.",
+    icon: "🤖",
+    color: "from-purple-500 to-pink-500",
+    bgColor: "from-purple-50 to-pink-50"
   },
   {
-    icon: Calendar,
-    title: "Smart Scheduling",
-    description: "Schedule your content calendar with optimal posting times, automated uploads, and thumbnail generation.",
-    color: "text-blue-500",
-    bgColor: "bg-blue-500/10",
-    features: ["Best time scheduling", "Auto-upload", "Thumbnail AI"],
-    duration: "5 minutes"
+    number: "03",
+    title: "Create & Schedule",
+    description: "Generate viral content ideas, optimize titles and descriptions, then schedule for maximum impact.",
+    icon: "📅",
+    color: "from-green-500 to-emerald-500",
+    bgColor: "from-green-50 to-emerald-50"
   },
   {
-    icon: BarChart3,
-    title: "Performance Analytics",
-    description: "Track views, engagement, subscriber growth, and get AI recommendations to improve your content strategy.",
-    color: "text-green-500",
-    bgColor: "bg-green-500/10",
-    features: ["Real-time analytics", "AI insights", "Growth tracking"],
-    duration: "Ongoing"
-  },
+    number: "04",
+    title: "Watch Growth Explode",
+    description: "Sit back as your channel grows on autopilot. Track analytics and optimize with AI insights.",
+    icon: "🚀",
+    color: "from-orange-500 to-red-500",
+    bgColor: "from-orange-50 to-red-50"
+  }
 ]
 
 export function HowItWorksSection() {
-  const [visibleSteps, setVisibleSteps] = useState<boolean[]>([false, false, false, false])
-  const [hoveredStep, setHoveredStep] = useState<number | null>(null)
-  const sectionRef = useRef<HTMLElement>(null)
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            steps.forEach((_, index) => {
-              setTimeout(() => {
-                setVisibleSteps((prev) => {
-                  const newState = [...prev]
-                  newState[index] = true
-                  return newState
-                })
-              }, index * 300)
-            })
-          }
-        })
-      },
-      { threshold: 0.1 },
-    )
-
-    if (sectionRef.current) {
-      observer.observe(sectionRef.current)
-    }
-
-    return () => observer.disconnect()
-  }, [])
-
   return (
-    <section id="how-it-works" ref={sectionRef} className="relative py-20 sm:py-32 bg-linear-to-br from-background via-primary/5 to-secondary/10 overflow-hidden">
-      {/* Background Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-64 h-64 bg-primary/5 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-20 right-10 w-80 h-80 bg-secondary/5 rounded-full blur-3xl animate-pulse animation-delay-2000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-linear-to-r from-primary/3 to-secondary/3 rounded-full blur-3xl animate-pulse animation-delay-4000"></div>
+    <section className="relative py-24 overflow-hidden bg-white">
+      {/* Background Gradient Orbs */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-r from-blue-400/20 to-purple-400/20 rounded-full blur-3xl animate-pulse-slow" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-gradient-to-r from-pink-400/20 to-orange-400/20 rounded-full blur-3xl animate-pulse-slow" style={{ animationDelay: '2s' }} />
       </div>
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="mx-auto max-w-4xl text-center mb-16 sm:mb-20">
-          <div className="inline-flex items-center justify-center mb-6 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors rounded-full px-4 py-2 text-sm font-semibold shadow-sm">
-            <Zap className="h-4 w-4 mr-2" />
-            Simple 4-Step Process
+      <div className="container relative z-10 mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Section Header */}
+        <div className="text-center mb-20">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 shadow-lg mb-6">
+            <Sparkles className="w-4 h-4 text-blue-600" />
+            <span className="text-sm font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              How It Works
+            </span>
           </div>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-foreground text-balance leading-tight mb-6">
-            From Zero to{" "}
-            <span className="text-transparent bg-clip-text bg-linear-to-r from-primary via-secondary to-primary animate-pulse-glow">
-              YouTube Success
-            </span>{" "}
-            in Minutes
+
+          <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black text-gray-900 mb-6">
+            Start growing in
+            <span className="block mt-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              4 simple steps
+            </span>
           </h2>
-          <p className="text-lg sm:text-xl text-muted-foreground text-pretty max-w-3xl mx-auto leading-relaxed">
-            Join thousands of creators who've transformed their channels with our AI-powered platform.
-            No complex setup, no technical skills required.
+
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            From zero to viral in minutes. Our AI handles the complexity while you focus on creating amazing content.
           </p>
         </div>
 
-        <div className="mx-auto max-w-7xl">
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 xl:grid-cols-4">
-            {steps.map((step, index) => {
-              const Icon = step.icon
-              const isLast = index === steps.length - 1
+        {/* Steps */}
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {steps.map((step, index) => (
+              <div
+                key={index}
+                className="group relative"
+              >
+                {/* Connection Line (desktop only) */}
+                {index < steps.length - 1 && index % 2 === 0 && (
+                  <div className="hidden lg:block absolute top-1/2 -right-4 w-8 h-0.5 bg-gradient-to-r from-gray-300 to-transparent" />
+                )}
 
-              return (
-                <div
-                  key={index}
-                  className={`relative transition-all duration-700 ${
-                    visibleSteps[index] ? "animate-fade-in-up opacity-100" : "opacity-0 translate-y-8"
-                  }`}
-                  style={{ transitionDelay: `${index * 300}ms` }}
-                  onMouseEnter={() => setHoveredStep(index)}
-                  onMouseLeave={() => setHoveredStep(null)}
-                >
-                  {/* Connection Line */}
-                  {!isLast && (
-                    <div className="hidden xl:block absolute top-16 left-full w-full h-0.5 bg-linear-to-r from-primary/30 to-transparent transform -translate-x-8 z-0">
-                      <ArrowRight className="absolute right-0 top-1/2 transform -translate-y-1/2 h-4 w-4 text-primary/50" />
+                {/* Card Glow */}
+                <div className={`absolute -inset-0.5 bg-gradient-to-r ${step.color} rounded-3xl blur opacity-0 group-hover:opacity-30 transition duration-500`} />
+
+                {/* Card */}
+                <div className={`relative h-full p-8 rounded-3xl bg-gradient-to-br ${step.bgColor} border border-gray-200 hover:border-gray-300 transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl`}>
+                  {/* Step Number */}
+                  <div className="flex items-start justify-between mb-6">
+                    <div className={`text-6xl font-black bg-gradient-to-r ${step.color} bg-clip-text text-transparent opacity-20`}>
+                      {step.number}
                     </div>
-                  )}
+                    <div className="text-5xl group-hover:scale-110 transition-transform duration-300">
+                      {step.icon}
+                    </div>
+                  </div>
 
-                  <Card className={`relative h-full hover:shadow-2xl transition-all duration-500 transform hover:scale-105 border-2 ${
-                    hoveredStep === index ? 'border-primary/50 shadow-primary/20' : 'border-border hover:border-primary/30'
-                  } ${step.bgColor} hover:${step.bgColor} backdrop-blur-sm`}>
-                    <CardContent className="p-6 sm:p-8">
-                      {/* Step Number & Duration */}
-                      <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center space-x-3">
-                          <div className={`flex items-center justify-center w-10 h-10 rounded-xl ${step.bgColor} border border-current/20`}>
-                            <span className="text-lg font-bold text-current">{index + 1}</span>
-                          </div>
-                          <Badge variant="secondary" className="text-xs font-medium">
-                            <Clock className="h-3 w-3 mr-1" />
-                            {step.duration}
-                          </Badge>
-                        </div>
-                      </div>
+                  {/* Content */}
+                  <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                    {step.title}
+                  </h3>
+                  <p className="text-gray-600 leading-relaxed mb-6">
+                    {step.description}
+                  </p>
 
-                      {/* Icon */}
-                      <div className={`flex items-center justify-center w-16 h-16 rounded-2xl ${step.bgColor} mb-6 transform transition-transform duration-300 ${
-                        hoveredStep === index ? 'scale-110' : ''
-                      }`}>
-                        <Icon className={`h-8 w-8 ${step.color}`} />
-                      </div>
-
-                      {/* Content */}
-                      <h3 className="text-xl sm:text-2xl font-bold text-foreground mb-4 text-balance leading-tight">{step.title}</h3>
-                      <p className="text-muted-foreground text-pretty mb-6 leading-relaxed">{step.description}</p>
-
-                      {/* Features */}
-                      <div className="space-y-2 mb-6">
-                        {step.features.map((feature, featureIndex) => (
-                          <div key={featureIndex} className="flex items-center space-x-2">
-                            <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
-                            <span className="text-sm text-muted-foreground">{feature}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Hover Effect Indicator */}
-                      <div className={`h-1 bg-linear-to-r from-current to-current rounded-full transition-all duration-300 ${
-                        hoveredStep === index ? 'w-full opacity-100' : 'w-0 opacity-0'
-                      }`} style={{ background: `linear-gradient(to right, ${step.color.replace('text-', '')}, ${step.color.replace('text-', '')})` }} />
-                    </CardContent>
-                  </Card>
+                  {/* Check Icon */}
+                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                    <CheckCircle2 className={`w-5 h-5 bg-gradient-to-r ${step.color} bg-clip-text text-transparent`} />
+                    <span>Quick & Easy</span>
+                  </div>
                 </div>
-              )
-            })}
+              </div>
+            ))}
           </div>
         </div>
 
         {/* CTA Section */}
-        <div className="mt-16 sm:mt-20 text-center">
-          <div className="inline-flex items-center space-x-2 bg-card/60 backdrop-blur-sm rounded-2xl px-6 py-4 border shadow-lg mb-8">
-            <Users className="h-5 w-5 text-primary" />
-            <span className="text-sm font-medium text-foreground">Join 10,000+ creators already growing</span>
-            <TrendingUp className="h-5 w-5 text-green-500" />
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button
-              size="lg"
-              className="bg-linear-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 shadow-2xl hover:shadow-3xl transition-all duration-300 transform hover:scale-105 px-8 py-4 rounded-xl font-semibold text-base"
-              asChild
-            >
-              <Link href="/signup">
-                <Rocket className="mr-3 h-5 w-5" />
-                Start Your Growth Journey
-                <ArrowRight className="ml-3 h-5 w-5" />
-              </Link>
-            </Button>
-
-            <Button
-              variant="outline"
-              size="lg"
-              className="border-2 border-primary/30 hover:bg-primary/10 hover:border-primary transition-all duration-300 px-8 py-4 rounded-xl font-semibold text-base"
-              asChild
-            >
-              <Link href="#demo">
-                <Play className="mr-3 h-5 w-5" />
-                Watch Demo Video
-              </Link>
-            </Button>
+        <div className="mt-20 text-center">
+          <div className="inline-block p-1 rounded-3xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600">
+            <div className="px-12 py-8 rounded-3xl bg-white">
+              <h3 className="text-3xl font-bold text-gray-900 mb-4">
+                Ready to transform your channel?
+              </h3>
+              <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+                Join 10,000+ creators who are already growing faster with AI-powered automation.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Button
+                  size="lg"
+                  asChild
+                  className="px-8 py-6 text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105 rounded-2xl"
+                >
+                  <Link href="/signup">
+                    <Zap className="mr-2 h-5 w-5" />
+                    Start Free Trial
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Link>
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  asChild
+                  className="px-8 py-6 text-lg font-semibold border-2 border-gray-300 hover:border-blue-600 hover:bg-blue-50 transition-all duration-300 rounded-2xl"
+                >
+                  <Link href="#demo">
+                    <Play className="mr-2 h-5 w-5" />
+                    Watch Demo
+                  </Link>
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes pulse-slow {
+          0%, 100% { opacity: 0.2; }
+          50% { opacity: 0.4; }
+        }
+
+        .animate-pulse-slow {
+          animation: pulse-slow 4s ease-in-out infinite;
+        }
+      `}</style>
     </section>
   )
 }

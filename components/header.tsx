@@ -40,11 +40,11 @@ export function Header() {
           <Link href="/" className="flex items-center space-x-3">
             <div className="flex items-center">
               <div className="h-8 w-8 rounded-lg overflow-hidden shadow-sm flex items-center justify-center">
-                <Image src="/creere-snap-logo.png" alt="Creere Snap" width={32} height={32} className="object-cover" />
+                <Image src="/tubeboost-ai-logo.svg" alt="TubeBoost AI" width={32} height={32} className="object-cover" />
               </div>
             </div>
             <div className="flex flex-col">
-              <span className="text-xl font-bold text-transparent bg-clip-text bg-linear-to-r from-primary via-secondary to-primary animate-pulse-glow">Creere Snap</span>
+              <span className="text-xl font-bold text-transparent bg-clip-text bg-linear-to-r from-primary via-secondary to-primary animate-pulse-glow">TubeBoost AI</span>
               <span className="text-xs text-gray-600 hidden sm:block"></span>
             </div>
           </Link>
