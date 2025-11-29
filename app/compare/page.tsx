@@ -4,17 +4,18 @@ export const dynamic = 'force-dynamic'
 
 import React, { useState } from "react"
 import Link from "next/link"
-import SidebarButton from '@/components/ui/sidebar-button'
+import { useRouter, usePathname } from "next/navigation"
+import { useSession, signOut } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { 
-  Play, 
-  Users, 
-  Eye, 
-  Video, 
-  TrendingUp, 
-  Search, 
-  BarChart3, 
+import {
+  Play,
+  Users,
+  Eye,
+  Video,
+  TrendingUp,
+  Search,
+  BarChart3,
   Upload,
   Clock,
   Trophy,
@@ -29,18 +30,12 @@ import {
   X,
   LogOut,
   Home,
-  GitCompare,
-  Sparkles,
-  Settings,
-  BarChart3Icon,
-} from "lucide-react"
-import { useSession, signOut } from "next-auth/react"
-import { useRouter, usePathname } from "next/navigation"
+  GitCompare
+} from 'lucide-react'
 
 interface YouTubeChannel {
   id: string
   title: string
-  description: string
   customUrl?: string
   thumbnail: string
   subscriberCount: string
@@ -65,6 +60,7 @@ interface YouTubeVideo {
   description?: string
   duration?: string | null
   localizations?: any
+  privacyStatus?: string
 }
 
 function ChannelCard({ channel, rank, isWinner }: { channel: YouTubeChannel; rank: string; isWinner: boolean }) {
@@ -95,9 +91,9 @@ function ChannelCard({ channel, rank, isWinner }: { channel: YouTubeChannel; ran
     <div className={`bg-white border rounded-xl md:rounded-2xl p-4 md:p-6 backdrop-blur-sm shadow-sm transition-all duration-300 hover:shadow-md ${isWinner ? "border-green-300 ring-2 ring-green-100" : "border-gray-200"}`}>
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <img 
-            src={channel.thumbnail} 
-            alt={channel.title} 
+          <img
+            src={channel.thumbnail}
+            alt={channel.title}
             className="w-12 h-12 rounded-full object-cover border-2 border-white shadow"
           />
           <div>
@@ -112,7 +108,7 @@ function ChannelCard({ channel, rank, isWinner }: { channel: YouTubeChannel; ran
           </div>
         )}
       </div>
-      
+
       <div className="grid grid-cols-2 gap-2 mb-4">
         <div className="bg-blue-50 rounded-lg p-3 text-center">
           <p className="text-xs text-gray-600 mb-1">Subscribers</p>
@@ -131,7 +127,7 @@ function ChannelCard({ channel, rank, isWinner }: { channel: YouTubeChannel; ran
           <p className="font-bold text-gray-900 text-lg">{calculateEngagementRate()}%</p>
         </div>
       </div>
-      
+
       <div className="space-y-2 pt-3 border-t border-gray-100">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -149,7 +145,7 @@ function ChannelCard({ channel, rank, isWinner }: { channel: YouTubeChannel; ran
         </div>
         {channel.country && (
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10v6a2 2 0 0 1-2 2H7"/><path d="M3 6h18"/></svg>
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10v6a2 2 0 0 1-2 2H7" /><path d="M3 6h18" /></svg>
             <span>Country: {channel.country}</span>
           </div>
         )}
@@ -170,8 +166,8 @@ function ChannelCard({ channel, rank, isWinner }: { channel: YouTubeChannel; ran
   )
 }
 
-function InsightCard({ channel, isWinner, comparisonData }: { 
-  channel: YouTubeChannel; 
+function InsightCard({ channel, isWinner, comparisonData }: {
+  channel: YouTubeChannel;
   isWinner: boolean;
   comparisonData: {
     channel1Subscribers: number;
@@ -185,32 +181,32 @@ function InsightCard({ channel, isWinner, comparisonData }: {
     const subscribers = parseInt(channel.subscriberCount)
     const views = parseInt(channel.viewCount)
     const videos = parseInt(channel.videoCount)
-    
+
     // Calculate engagement rate
     const engagementRate = subscribers > 0 ? (views / subscribers) * 100 : 0
-    
+
     // Determine which channel has better metrics
     const hasMoreSubscribers = isWinner || subscribers > (channel.id === comparisonData.channel1Subscribers.toString() ? comparisonData.channel2Subscribers : comparisonData.channel1Subscribers)
     const hasMoreViews = isWinner || views > (channel.id === comparisonData.channel1Views.toString() ? comparisonData.channel2Views : comparisonData.channel1Views)
-    
+
     if (hasMoreSubscribers) {
       insights.push("Stronger subscriber base creates a loyal audience")
     } else {
       insights.push("Needs to focus on subscriber growth strategies")
     }
-    
+
     if (hasMoreViews) {
       insights.push("Higher engagement indicates compelling content")
     } else {
       insights.push("Could improve content to increase viewer engagement")
     }
-    
+
     if (videos > 100) {
       insights.push("Consistent content creation builds audience retention")
     } else {
       insights.push("Increase posting frequency to build momentum")
     }
-    
+
     if (engagementRate > 50) {
       insights.push("High engagement rate shows strong audience connection")
     } else if (engagementRate > 20) {
@@ -218,7 +214,7 @@ function InsightCard({ channel, isWinner, comparisonData }: {
     } else {
       insights.push("Low engagement rate - focus on audience interaction")
     }
-    
+
     return insights
   }
 
@@ -228,7 +224,7 @@ function InsightCard({ channel, isWinner, comparisonData }: {
         <BarChart3 className="w-5 h-5 text-blue-500" />
         Why {channel.title} {isWinner ? "Performs Better" : "Needs Improvement"}
       </h3>
-      
+
       <ul className="space-y-2">
         {getInsights().map((insight, index) => (
           <li key={index} className="flex items-start gap-2">
@@ -250,7 +246,7 @@ function ViralTipsCard({ channel, tips }: { channel: YouTubeChannel; tips: strin
         <Lightbulb className="w-5 h-5 text-yellow-500" />
         Tips for {channel.title}
       </h3>
-      
+
       <ul className="space-y-3">
         {tips.map((tip, index) => (
           <li key={index} className="flex items-start gap-2">
@@ -265,12 +261,12 @@ function ViralTipsCard({ channel, tips }: { channel: YouTubeChannel; tips: strin
   )
 }
 
-function EnhancedAnalyticsCard({ 
-  channel, 
+function EnhancedAnalyticsCard({
+  channel,
   videos,
-  isWinner 
-}: { 
-  channel: YouTubeChannel; 
+  isWinner
+}: {
+  channel: YouTubeChannel;
   videos: YouTubeVideo[];
   isWinner: boolean;
 }) {
@@ -298,19 +294,19 @@ function EnhancedAnalyticsCard({
     const words = allTitles.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/)
     const wordCount: { [key: string]: number } = {}
     const totalWords = words.length
-    
+
     words.forEach(word => {
       if (word.length > 3) { // Only consider words longer than 3 characters
         wordCount[word] = (wordCount[word] || 0) + 1
       }
     })
-    
+
     return Object.entries(wordCount)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([word, count]) => ({
-        word, 
-        count, 
+        word,
+        count,
         percentage: ((count / totalWords) * 100).toFixed(1),
         viralPotential: calculateViralPotential(word, vids)
       }))
@@ -318,23 +314,23 @@ function EnhancedAnalyticsCard({
 
   // Calculate viral potential of a keyword based on video performance
   const calculateViralPotential = (keyword: string, vids: YouTubeVideo[]): string => {
-    const matchingVideos = vids.filter(video => 
+    const matchingVideos = vids.filter(video =>
       video.title.toLowerCase().includes(keyword.toLowerCase())
     )
-    
+
     if (matchingVideos.length === 0) return "0.00"
-    
+
     // Calculate average engagement rate for videos with this keyword
     const totalEngagement = matchingVideos.reduce((sum, video) => {
       return sum + (video.likeCount + video.commentCount)
     }, 0)
-    
+
     const totalViews = matchingVideos.reduce((sum, video) => {
       return sum + video.viewCount
     }, 0)
-    
+
     if (totalViews === 0) return "0.00"
-    
+
     return ((totalEngagement / totalViews) * 100).toFixed(2)
   }
 
@@ -342,26 +338,26 @@ function EnhancedAnalyticsCard({
   const getBestPostingTimes = (vids: YouTubeVideo[]) => {
     const hours: { [key: number]: number } = {}
     const days: { [key: string]: number } = {}
-    
+
     vids.forEach((video: YouTubeVideo) => {
       const date = new Date(video.publishedAt)
       const hour = date.getHours()
       const day = date.toLocaleDateString('en-US', { weekday: 'long' })
-      
+
       hours[hour] = (hours[hour] || 0) + 1
       days[day] = (days[day] || 0) + 1
     })
-    
+
     // Find most popular hour
     const bestHourEntries = Object.entries(hours)
       .sort((a, b) => b[1] - a[1])
     const bestHour = bestHourEntries[0]
-    
+
     // Find most popular day
     const bestDayEntries = Object.entries(days)
       .sort((a, b) => b[1] - a[1])
     const bestDay = bestDayEntries[0]
-    
+
     return {
       bestHour: bestHour ? `${bestHour[0]}:00` : 'N/A',
       bestDay: bestDay ? bestDay[0] : 'N/A'
@@ -396,7 +392,7 @@ function EnhancedAnalyticsCard({
         <BarChart3 className="w-5 h-5 text-blue-500" />
         Enhanced Analytics for {channel.title}
       </h3>
-      
+
       <div className="grid grid-cols-1 gap-6">
         {/* Keywords Analysis - Mobile Friendly */}
         <div className="bg-gray-50 rounded-lg p-4">
@@ -433,7 +429,7 @@ function EnhancedAnalyticsCard({
             ))}
           </div>
         </div>
-        
+
         {/* Best Posting Times - Mobile Friendly */}
         <div className="bg-gray-50 rounded-lg p-4">
           <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -456,7 +452,7 @@ function EnhancedAnalyticsCard({
             </div>
           </div>
         </div>
-        
+
         {/* Top Performing Videos - Mobile Friendly */}
         <div className="bg-gray-50 rounded-lg p-4">
           <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -471,9 +467,9 @@ function EnhancedAnalyticsCard({
                     <span className="text-xs font-bold text-blue-600">#{index + 1}</span>
                   </div>
                   <div className="flex-shrink-0">
-                    <img 
-                      src={video.thumbnail} 
-                      alt={video.title} 
+                    <img
+                      src={video.thumbnail}
+                      alt={video.title}
                       className="w-16 h-10 object-cover rounded"
                     />
                   </div>
@@ -498,7 +494,7 @@ function EnhancedAnalyticsCard({
           </div>
         </div>
       </div>
-      
+
       {/* Recommendations */}
       <div className="mt-6 pt-4 border-t border-gray-200">
         <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -511,8 +507,8 @@ function EnhancedAnalyticsCard({
               <div className={`w-1.5 h-1.5 rounded-full ${isWinner ? "bg-green-500" : "bg-yellow-500"}`}></div>
             </div>
             <p className="text-sm text-gray-700">
-              {isWinner 
-                ? "Continue using your successful keywords and posting schedule" 
+              {isWinner
+                ? "Continue using your successful keywords and posting schedule"
                 : "Consider adopting similar keywords and posting times as your competitor"}
             </p>
           </li>
@@ -549,8 +545,8 @@ export default function ComparePage() {
   const [channel2, setChannel2] = useState<YouTubeChannel | null>(null)
   const [channel1Videos, setChannel1Videos] = useState<YouTubeVideo[]>([])
   const [channel2Videos, setChannel2Videos] = useState<YouTubeVideo[]>([])
-  const [channel1Countries, setChannel1Countries] = useState<{country:string,views:number}[]>([])
-  const [channel2Countries, setChannel2Countries] = useState<{country:string,views:number}[]>([])
+  const [channel1Countries, setChannel1Countries] = useState<{ country: string, views: number }[]>([])
+  const [channel2Countries, setChannel2Countries] = useState<{ country: string, views: number }[]>([])
   const [channel1Analytics, setChannel1Analytics] = useState<any>(null)
   const [channel2Analytics, setChannel2Analytics] = useState<any>(null)
   const [channel1TopVideosResolved, setChannel1TopVideosResolved] = useState<any[]>([])
@@ -590,7 +586,7 @@ export default function ComparePage() {
     return n.toString()
   }
 
-// Calculate engagement rate for a channel
+  // Calculate engagement rate for a channel
   const calculateEngagementRate = (channel: YouTubeChannel) => {
     const subscribers = parseInt(channel.subscriberCount)
     const views = parseInt(channel.viewCount)
@@ -642,13 +638,13 @@ export default function ComparePage() {
     const allTitles = videos.map(video => video.title).join(' ')
     const words = allTitles.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/)
     const wordCount: { [key: string]: number } = {}
-    
+
     words.forEach(word => {
       if (word.length > 3) { // Only consider words longer than 3 characters
         wordCount[word] = (wordCount[word] || 0) + 1
       }
     })
-    
+
     return Object.entries(wordCount)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
@@ -659,24 +655,24 @@ export default function ComparePage() {
   const getBestPostingTimes = (videos: YouTubeVideo[]) => {
     const hours: { [key: number]: number } = {}
     const days: { [key: string]: number } = {}
-    
+
     videos.forEach(video => {
       const date = new Date(video.publishedAt)
       const hour = date.getHours()
       const day = date.toLocaleDateString('en-US', { weekday: 'long' })
-      
+
       hours[hour] = (hours[hour] || 0) + 1
       days[day] = (days[day] || 0) + 1
     })
-    
+
     // Find most popular hour
     const bestHour = Object.entries(hours)
       .sort((a, b) => b[1] - a[1])[0]
-    
+
     // Find most popular day
     const bestDay = Object.entries(days)
       .sort((a, b) => b[1] - a[1])[0]
-    
+
     return {
       bestHour: bestHour ? `${bestHour[0]}:00` : 'N/A',
       bestDay: bestDay ? bestDay[0] : 'N/A'
@@ -704,7 +700,7 @@ export default function ComparePage() {
     try {
       const response = await fetch(`/api/youtube/channelById?channelId=${channelId}`)
       const data = await response.json()
-      
+
       if (data.success && data.channel) {
         return data.channel
       } else {
@@ -719,7 +715,7 @@ export default function ComparePage() {
     try {
       const response = await fetch(`/api/youtube/videos?channelId=${channelId}&maxResults=10`)
       const data = await response.json()
-      
+
       if (data.success && data.videos) {
         return data.videos
       } else {
@@ -730,7 +726,7 @@ export default function ComparePage() {
     }
   }
 
-  const fetchTopCountries = async (channelId: string, setter: (c:{country:string,views:number}[])=>void) => {
+  const fetchTopCountries = async (channelId: string, setter: (c: { country: string, views: number }[]) => void) => {
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('youtube_access_token') : null
       if (!token) return setter([])
@@ -748,7 +744,7 @@ export default function ComparePage() {
     }
   }
 
-  const fetchChannelAnalytics = async (channelId: string, setter: (a:any)=>void) => {
+  const fetchChannelAnalytics = async (channelId: string, setter: (a: any) => void) => {
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('youtube_access_token') : null
       if (!token) return setter(null)
@@ -787,15 +783,15 @@ export default function ComparePage() {
     try {
       setLoading(true)
       setError(null)
-      
+
       const [channel1Videos, channel2Videos] = await Promise.all([
         fetchChannelVideos(channel1.id),
         fetchChannelVideos(channel2.id)
       ])
-      
+
       setChannel1Videos(channel1Videos)
       setChannel2Videos(channel2Videos)
-      
+
       // Show a comparison view by setting a specific state
       // We'll create a new state to indicate we're in video comparison mode
       setShowVideos("comparison")
@@ -815,7 +811,7 @@ export default function ComparePage() {
     try {
       setLoading(true)
       setError(null)
-      
+
       const [channel1Data, channel2Data] = await Promise.all([
         fetchChannelData(channel1Id),
         fetchChannelData(channel2Id)
@@ -836,15 +832,15 @@ export default function ComparePage() {
       if (typeof window !== 'undefined') {
         const token = localStorage.getItem('youtube_access_token')
         if (token) {
-            fetchTopCountries(channel1Id, setChannel1Countries)
-            fetchTopCountries(channel2Id, setChannel2Countries)
-            fetchChannelAnalytics(channel1Id, setChannel1Analytics)
-            fetchChannelAnalytics(channel2Id, setChannel2Analytics)
+          fetchTopCountries(channel1Id, setChannel1Countries)
+          fetchTopCountries(channel2Id, setChannel2Countries)
+          fetchChannelAnalytics(channel1Id, setChannel1Analytics)
+          fetchChannelAnalytics(channel2Id, setChannel2Analytics)
             // resolve top video IDs to titles+thumbnails for better UX
-            ;(async () => {
+            ; (async () => {
               try {
-                const c1vids = (c1Videos || []).slice(0,5).map((v:any)=>v.id)
-                const c2vids = (c2Videos || []).slice(0,5).map((v:any)=>v.id)
+                const c1vids = (c1Videos || []).slice(0, 5).map((v: any) => v.id)
+                const c2vids = (c2Videos || []).slice(0, 5).map((v: any) => v.id)
                 const [r1, r2] = await Promise.all([fetchVideoDetails(c1vids), fetchVideoDetails(c2vids)])
                 setChannel1TopVideosResolved(r1)
                 setChannel2TopVideosResolved(r2)
@@ -852,7 +848,7 @@ export default function ComparePage() {
                 console.warn('resolve top videos failed', e)
               }
             })()
-          }
+        }
       }
       setShowVideos(null)
     } catch (err: any) {
@@ -867,9 +863,9 @@ export default function ComparePage() {
     try {
       setVideosLoading(true)
       setShowVideos(channelNumber)
-      
+
       const videos = await fetchChannelVideos(channelId)
-      
+
       if (channelNumber === "channel1") {
         setChannel1Videos(videos)
       } else {
@@ -887,14 +883,14 @@ export default function ComparePage() {
     const subscribers = parseInt(channel.subscriberCount)
     const views = parseInt(channel.viewCount)
     const videos = parseInt(channel.videoCount)
-    
+
     // Normalize values (these are example weights)
     const subscriberScore = subscribers / 10000
     const viewScore = views / 100000
     const videoScore = videos / 10
-    
+
     const totalScore = subscriberScore + viewScore + videoScore
-    
+
     // Simple ranking - lower score = higher rank
     return totalScore > 100 ? "100+" : Math.max(1, Math.floor(totalScore)).toString()
   }
@@ -903,21 +899,21 @@ export default function ComparePage() {
     const subscribers = parseInt(channel.subscriberCount)
     const views = parseInt(channel.viewCount)
     const videos = parseInt(channel.videoCount)
-    
+
     const tips = []
-    
+
     if (subscribers < 1000) {
       tips.push("Focus on consistent content creation to build your subscriber base")
     }
-    
+
     if (views / videos < 1000) {
       tips.push("Improve your thumbnails and titles to increase click-through rates")
     }
-    
+
     tips.push("Post consistently and engage with your audience in comments")
     tips.push("Use relevant keywords in your titles and descriptions")
     tips.push("Collaborate with other creators in your niche")
-    
+
     return tips
   }
 
@@ -995,79 +991,8 @@ export default function ComparePage() {
       </header>
 
       <div className="flex flex-1">
-        {/* Mobile Sidebar Overlay */}
-        {sidebarOpen && (
-          <div className="fixed inset-0 bg-black/50 md:hidden z-30 top-16" onClick={() => setSidebarOpen(false)}></div>
-        )}
-
-        {/* Mobile Sidebar */}
-        <aside
-          className={`fixed left-0 top-16 bottom-0 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 md:hidden z-40 ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-            <nav className="p-4 space-y-2">
-                {navLinks.map((link) => {
-                  const Icon = link.icon
-                  const isActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href))
-                  return (
-                    <SidebarButton
-                      key={link.id}
-                      id={link.id}
-                      href={link.href}
-                      label={link.label}
-                      Icon={Icon}
-                      isActive={isActive}
-                      onClick={() => handleNavClick(link.href, link.id)}
-                    />
-                  )
-                })}
-            </nav>
-
-          <div className="absolute bottom-4 left-4 right-4">
-            <Button
-              onClick={handleSignOut}
-              className="w-full justify-start h-12 text-sm"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              <span>Sign Out</span>
-            </Button>
-          </div>
-        </aside>
-
-        {/* Desktop Sidebar */}
-        <aside className="hidden md:block w-64 border-r border-gray-200 bg-white fixed left-0 top-16 bottom-0 overflow-y-auto">
-          <nav className="p-4 space-y-1">
-            {navLinks.map((link) => {
-              const Icon = link.icon
-              const isActive = pathname === link.href || (link.href !== '/' && pathname?.startsWith(link.href))
-              return (
-                <SidebarButton
-                  key={link.id}
-                  id={link.id}
-                  href={link.href}
-                  label={link.label}
-                  Icon={Icon}
-                  isActive={isActive}
-                  onClick={() => handleNavClick(link.href, link.id)}
-                />
-              )
-            })}
-          </nav>
-
-          <div className="absolute bottom-4 left-4 right-4">
-            <Button
-              onClick={handleSignOut}
-              className="w-full justify-start h-12 text-sm"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              <span>Sign Out</span>
-            </Button>
-          </div>
-        </aside>
-
-        {/* Main Content */}
-        <main className="flex-1 md:ml-64 pb-16 md:pb-0">
+        {/* Main Content (sidebar removed for this page) */}
+        <main className="flex-1 md:ml-0 pb-16 md:pb-0">
           <div className="p-4 md:p-6 lg:p-8">
             {/* Header with Back Button - Only show on desktop */}
             <div className="hidden md:flex items-center justify-between mb-6">
@@ -1090,7 +1015,7 @@ export default function ComparePage() {
             {/* Channel ID Input Section */}
             <div className="mb-8 bg-white border border-gray-200 rounded-xl md:rounded-2xl p-4 md:p-6 backdrop-blur-sm shadow-sm">
               <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-4">Enter Channel IDs to Compare</h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Channel 1 ID</label>
@@ -1102,30 +1027,30 @@ export default function ComparePage() {
                       placeholder="UC_x5XG1OV2P6uZZ5FSM9Ttw"
                       className="flex-1"
                     />
-                      <Button 
-                        variant="outline" 
-                        size="icon"
-                        onClick={async () => {
-                          if (!channel1Id?.trim()) return
-                          setError(null)
-                          try {
-                            setChannel1Loading(true)
-                            const ch = await fetchChannelData(channel1Id.trim())
-                            setChannel1(ch)
-                            setShowVideos(null)
-                          } catch (err: any) {
-                            setError(err.message || 'Error fetching channel')
-                          } finally {
-                            setChannel1Loading(false)
-                          }
-                        }}
-                        disabled={!channel1Id || channel1Loading}
-                      >
-                        {channel1Loading ? <div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" /> : <Search className="w-4 h-4" />}
-                      </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={async () => {
+                        if (!channel1Id?.trim()) return
+                        setError(null)
+                        try {
+                          setChannel1Loading(true)
+                          const ch = await fetchChannelData(channel1Id.trim())
+                          setChannel1(ch)
+                          setShowVideos(null)
+                        } catch (err: any) {
+                          setError(err.message || 'Error fetching channel')
+                        } finally {
+                          setChannel1Loading(false)
+                        }
+                      }}
+                      disabled={!channel1Id || channel1Loading}
+                    >
+                      {channel1Loading ? <div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" /> : <Search className="w-4 h-4" />}
+                    </Button>
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Channel 2 ID</label>
                   <div className="flex gap-2">
@@ -1136,8 +1061,8 @@ export default function ComparePage() {
                       placeholder="UC3XTzVzaHQEd30rQbuvCtTQ"
                       className="flex-1"
                     />
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="icon"
                       onClick={async () => {
                         if (!channel2Id?.trim()) return
@@ -1160,14 +1085,14 @@ export default function ComparePage() {
                   </div>
                 </div>
               </div>
-              
+
               {error && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
                   <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
                   <p className="text-red-700 text-sm">{error}</p>
                 </div>
               )}
-              
+
               <Button
                 onClick={handleCompare}
                 disabled={loading || !channel1Id.trim() || !channel2Id.trim()}
@@ -1216,15 +1141,15 @@ export default function ComparePage() {
                 }
                 {/* Channel Overview */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                  <ChannelCard 
-                    channel={channel1} 
-                    rank={getChannelRank(channel1)} 
-                    isWinner={getChannelRank(channel1) < getChannelRank(channel2)} 
+                  <ChannelCard
+                    channel={channel1}
+                    rank={getChannelRank(channel1)}
+                    isWinner={getChannelRank(channel1) < getChannelRank(channel2)}
                   />
-                  <ChannelCard 
-                    channel={channel2} 
-                    rank={getChannelRank(channel2)} 
-                    isWinner={getChannelRank(channel2) < getChannelRank(channel1)} 
+                  <ChannelCard
+                    channel={channel2}
+                    rank={getChannelRank(channel2)}
+                    isWinner={getChannelRank(channel2) < getChannelRank(channel1)}
                   />
                 </div>
 
@@ -1285,7 +1210,7 @@ export default function ComparePage() {
                     <BarChart3 className="w-5 h-5 text-blue-500" />
                     Performance Comparison
                   </h2>
-                  
+
                   {/* Mobile-friendly metric cards */}
                   <div className="grid grid-cols-1 gap-4 md:hidden">
                     {/* Channel 1 Metrics */}
@@ -1304,9 +1229,9 @@ export default function ComparePage() {
                           <span className="text-sm text-gray-600">Video Count</span>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{formatNumber(channel1.videoCount)}</span>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => handleShowVideos(channel1.id, "channel1")}
                               className="h-6 px-2 text-xs"
                             >
@@ -1332,7 +1257,7 @@ export default function ComparePage() {
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* Channel 2 Metrics */}
                     <div className="bg-purple-50 rounded-lg p-4">
                       <h3 className="font-bold text-gray-900 mb-3 text-center">{channel2.title}</h3>
@@ -1349,9 +1274,9 @@ export default function ComparePage() {
                           <span className="text-sm text-gray-600">Video Count</span>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{formatNumber(channel2.videoCount)}</span>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => handleShowVideos(channel2.id, "channel2")}
                               className="h-6 px-2 text-xs"
                             >
@@ -1377,7 +1302,7 @@ export default function ComparePage() {
                         </div>
                       </div>
                     </div>
-                    
+
                     {/* Difference Metrics */}
                     <div className="bg-gray-50 rounded-lg p-4">
                       <h3 className="font-bold text-gray-900 mb-3 text-center">Differences</h3>
@@ -1421,7 +1346,7 @@ export default function ComparePage() {
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Desktop table view - hidden on mobile */}
                   <div className="hidden md:block overflow-x-auto">
                     <table className="w-full">
@@ -1473,9 +1398,9 @@ export default function ComparePage() {
                           <td className="py-3 px-4 font-medium">
                             <div className="flex items-center gap-2">
                               {formatNumber(channel1.videoCount)}
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => handleShowVideos(channel1.id, "channel1")}
                                 className="h-6 px-2 text-xs"
                               >
@@ -1487,9 +1412,9 @@ export default function ComparePage() {
                           <td className="py-3 px-4 font-medium">
                             <div className="flex items-center gap-2">
                               {formatNumber(channel2.videoCount)}
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => handleShowVideos(channel2.id, "channel2")}
                                 className="h-6 px-2 text-xs"
                               >
@@ -1555,10 +1480,10 @@ export default function ComparePage() {
                       </tbody>
                     </table>
                   </div>
-                  
+
                   {/* Add Compare Videos Button */}
                   <div className="mt-6 flex justify-center">
-                    <Button 
+                    <Button
                       onClick={handleCompareVideos}
                       className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-2 px-6"
                     >
@@ -1573,14 +1498,14 @@ export default function ComparePage() {
                   <div className="bg-white border border-gray-200 rounded-xl md:rounded-2xl p-4 md:p-6 backdrop-blur-sm shadow-sm">
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-lg md:text-xl font-bold text-gray-900">
-                        {showVideos === "channel1" 
-                          ? `${channel1?.title} - Videos` 
-                          : showVideos === "channel2" 
-                          ? `${channel2?.title} - Videos` 
-                          : `Video Comparison: ${channel1?.title} vs ${channel2?.title}`}
+                        {showVideos === "channel1"
+                          ? `${channel1?.title} - Videos`
+                          : showVideos === "channel2"
+                            ? `${channel2?.title} - Videos`
+                            : `Video Comparison: ${channel1?.title} vs ${channel2?.title}`}
                       </h2>
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         onClick={() => setShowVideos(null)}
                         className="flex items-center gap-2"
                       >
@@ -1588,7 +1513,7 @@ export default function ComparePage() {
                         Back to Comparison
                       </Button>
                     </div>
-                    
+
                     {videosLoading ? (
                       <div className="flex justify-center items-center h-32">
                         <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -1604,9 +1529,9 @@ export default function ComparePage() {
                                 <div key={video.id} className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition">
                                   <div className="flex gap-3">
                                     <div className="flex-shrink-0">
-                                      <img 
-                                        src={video.thumbnail} 
-                                        alt={video.title} 
+                                      <img
+                                        src={video.thumbnail}
+                                        alt={video.title}
                                         className="w-24 h-16 object-cover rounded"
                                       />
                                     </div>
@@ -1631,13 +1556,13 @@ export default function ComparePage() {
                                         {new Date(video.publishedAt).toLocaleDateString()}
                                       </div>
                                       <div className="mt-3 text-xs text-gray-600 space-y-1">
-                                        <div><strong>Duration:</strong> {formatDuration(video.duration)}</div>
+                                        <div><strong>Duration:</strong> {formatDuration(video.duration ?? null)}</div>
                                         <div><strong>Status:</strong> {video.privacyStatus || 'N/A'}</div>
                                         {video.localizations && typeof video.localizations === 'object' && (
                                           <div><strong>Localizations:</strong> {Object.keys(video.localizations).join(', ')}</div>
                                         )}
                                         {video.tags && video.tags.length > 0 && (
-                                          <div><strong>Tags:</strong> {video.tags.slice(0,5).join(', ')}</div>
+                                          <div><strong>Tags:</strong> {video.tags.slice(0, 5).join(', ')}</div>
                                         )}
                                       </div>
                                     </div>
@@ -1646,7 +1571,7 @@ export default function ComparePage() {
                               ))}
                             </div>
                           </div>
-                          
+
                           <div>
                             <h3 className="font-bold text-gray-900 mb-3 text-center">{channel2?.title}</h3>
                             <div className="space-y-3">
@@ -1654,9 +1579,9 @@ export default function ComparePage() {
                                 <div key={video.id} className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition">
                                   <div className="flex gap-3">
                                     <div className="flex-shrink-0">
-                                      <img 
-                                        src={video.thumbnail} 
-                                        alt={video.title} 
+                                      <img
+                                        src={video.thumbnail}
+                                        alt={video.title}
                                         className="w-24 h-16 object-cover rounded"
                                       />
                                     </div>
@@ -1681,13 +1606,13 @@ export default function ComparePage() {
                                         {new Date(video.publishedAt).toLocaleDateString()}
                                       </div>
                                       <div className="mt-3 text-xs text-gray-600 space-y-1">
-                                        <div><strong>Duration:</strong> {formatDuration(video.duration)}</div>
+                                        <div><strong>Duration:</strong> {formatDuration(video.duration ?? null)}</div>
                                         <div><strong>Status:</strong> {video.privacyStatus || 'N/A'}</div>
                                         {video.localizations && typeof video.localizations === 'object' && (
                                           <div><strong>Localizations:</strong> {Object.keys(video.localizations).join(', ')}</div>
                                         )}
                                         {video.tags && video.tags.length > 0 && (
-                                          <div><strong>Tags:</strong> {video.tags.slice(0,5).join(', ')}</div>
+                                          <div><strong>Tags:</strong> {video.tags.slice(0, 5).join(', ')}</div>
                                         )}
                                       </div>
                                     </div>
@@ -1697,7 +1622,7 @@ export default function ComparePage() {
                             </div>
                           </div>
                         </div>
-                        
+
                         {/* Video comparison summary */}
                         <div className="bg-blue-50 rounded-xl p-4">
                           <h3 className="font-bold text-gray-900 mb-3">Video Comparison Summary</h3>
@@ -1705,36 +1630,36 @@ export default function ComparePage() {
                             <div className="bg-white p-3 rounded-lg text-center">
                               <p className="text-sm text-gray-600">Avg. Views</p>
                               <p className="font-bold text-lg">
-                                {channel1 && channel1Videos.length > 0 
-                                  ? formatNumber(channel1Videos.reduce((sum, video) => sum + video.viewCount, 0) / channel1Videos.length) 
+                                {channel1 && channel1Videos.length > 0
+                                  ? formatNumber(channel1Videos.reduce((sum, video) => sum + video.viewCount, 0) / channel1Videos.length)
                                   : "N/A"}
                                 <span className="text-sm font-normal text-gray-500"> vs </span>
-                                {channel2 && channel2Videos.length > 0 
-                                  ? formatNumber(channel2Videos.reduce((sum, video) => sum + video.viewCount, 0) / channel2Videos.length) 
+                                {channel2 && channel2Videos.length > 0
+                                  ? formatNumber(channel2Videos.reduce((sum, video) => sum + video.viewCount, 0) / channel2Videos.length)
                                   : "N/A"}
                               </p>
                             </div>
                             <div className="bg-white p-3 rounded-lg text-center">
                               <p className="text-sm text-gray-600">Avg. Likes</p>
                               <p className="font-bold text-lg">
-                                {channel1 && channel1Videos.length > 0 
-                                  ? formatNumber(channel1Videos.reduce((sum, video) => sum + video.likeCount, 0) / channel1Videos.length) 
+                                {channel1 && channel1Videos.length > 0
+                                  ? formatNumber(channel1Videos.reduce((sum, video) => sum + video.likeCount, 0) / channel1Videos.length)
                                   : "N/A"}
                                 <span className="text-sm font-normal text-gray-500"> vs </span>
-                                {channel2 && channel2Videos.length > 0 
-                                  ? formatNumber(channel2Videos.reduce((sum, video) => sum + video.likeCount, 0) / channel2Videos.length) 
+                                {channel2 && channel2Videos.length > 0
+                                  ? formatNumber(channel2Videos.reduce((sum, video) => sum + video.likeCount, 0) / channel2Videos.length)
                                   : "N/A"}
                               </p>
                             </div>
                             <div className="bg-white p-3 rounded-lg text-center">
                               <p className="text-sm text-gray-600">Avg. Comments</p>
                               <p className="font-bold text-lg">
-                                {channel1 && channel1Videos.length > 0 
-                                  ? formatNumber(channel1Videos.reduce((sum, video) => sum + video.commentCount, 0) / channel1Videos.length) 
+                                {channel1 && channel1Videos.length > 0
+                                  ? formatNumber(channel1Videos.reduce((sum, video) => sum + video.commentCount, 0) / channel1Videos.length)
                                   : "N/A"}
                                 <span className="text-sm font-normal text-gray-500"> vs </span>
-                                {channel2 && channel2Videos.length > 0 
-                                  ? formatNumber(channel2Videos.reduce((sum, video) => sum + video.commentCount, 0) / channel2Videos.length) 
+                                {channel2 && channel2Videos.length > 0
+                                  ? formatNumber(channel2Videos.reduce((sum, video) => sum + video.commentCount, 0) / channel2Videos.length)
                                   : "N/A"}
                               </p>
                             </div>
@@ -1747,9 +1672,9 @@ export default function ComparePage() {
                           <div key={video.id} className="border border-gray-200 rounded-lg p-3 hover:shadow-md transition">
                             <div className="flex gap-3">
                               <div className="flex-shrink-0">
-                                <img 
-                                  src={video.thumbnail} 
-                                  alt={video.title} 
+                                <img
+                                  src={video.thumbnail}
+                                  alt={video.title}
                                   className="w-24 h-16 object-cover rounded"
                                 />
                               </div>
@@ -1774,13 +1699,13 @@ export default function ComparePage() {
                                   {new Date(video.publishedAt).toLocaleDateString()}
                                 </div>
                                 <div className="mt-3 text-xs text-gray-600 space-y-1">
-                                  <div><strong>Duration:</strong> {formatDuration(video.duration)}</div>
+                                  <div><strong>Duration:</strong> {formatDuration(video.duration ?? null)}</div>
                                   <div><strong>Status:</strong> {video.privacyStatus || 'N/A'}</div>
                                   {video.localizations && typeof video.localizations === 'object' && (
                                     <div><strong>Localizations:</strong> {Object.keys(video.localizations).join(', ')}</div>
                                   )}
                                   {video.tags && video.tags.length > 0 && (
-                                    <div><strong>Tags:</strong> {video.tags.slice(0,5).join(', ')}</div>
+                                    <div><strong>Tags:</strong> {video.tags.slice(0, 5).join(', ')}</div>
                                   )}
                                 </div>
                               </div>
@@ -1794,8 +1719,8 @@ export default function ComparePage() {
 
                 {/* Why This Channel is Better */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                  <InsightCard 
-                    channel={channel1} 
+                  <InsightCard
+                    channel={channel1}
                     isWinner={getChannelRank(channel1) < getChannelRank(channel2)}
                     comparisonData={{
                       channel1Subscribers: parseInt(channel1.subscriberCount),
@@ -1804,8 +1729,8 @@ export default function ComparePage() {
                       channel2Views: parseInt(channel2.viewCount)
                     }}
                   />
-                  <InsightCard 
-                    channel={channel2} 
+                  <InsightCard
+                    channel={channel2}
                     isWinner={getChannelRank(channel2) < getChannelRank(channel1)}
                     comparisonData={{
                       channel1Subscribers: parseInt(channel1.subscriberCount),
@@ -1828,24 +1753,24 @@ export default function ComparePage() {
                           <div><strong>Total watch minutes (period):</strong> {formatNumber(channel1Analytics.summary?.totalWatchMinutes || 0)}</div>
                           <div><strong>Top videos:</strong></div>
                           <ol className="text-xs list-decimal ml-5 space-y-1 mt-1">
-                              {channel1TopVideosResolved.length ? (
-                                channel1TopVideosResolved.map((vv:any) => (
-                                  <li key={vv.id} className="flex items-center gap-3">
-                                    <img src={vv.thumbnail} alt={vv.title} className="w-16 h-10 object-cover rounded" />
-                                    <div className="flex-1">
-                                      <div className="text-sm font-medium text-gray-900 line-clamp-1">{vv.title}</div>
-                                      <div className="text-xs text-gray-500">Views: {formatNumber(vv.viewCount)}</div>
-                                    </div>
-                                  </li>
-                                ))
-                              ) : (
-                                (channel1Analytics.topVideos || []).map((v:any) => (
-                                  <li key={v.videoId} className="flex justify-between">
-                                    <span>{v.videoId}</span>
-                                    <span className="font-semibold">{formatNumber(v.views)}</span>
-                                  </li>
-                                ))
-                              )}
+                            {channel1TopVideosResolved.length ? (
+                              channel1TopVideosResolved.map((vv: any) => (
+                                <li key={vv.id} className="flex items-center gap-3">
+                                  <img src={vv.thumbnail} alt={vv.title} className="w-16 h-10 object-cover rounded" />
+                                  <div className="flex-1">
+                                    <div className="text-sm font-medium text-gray-900 line-clamp-1">{vv.title}</div>
+                                    <div className="text-xs text-gray-500">Views: {formatNumber(vv.viewCount)}</div>
+                                  </div>
+                                </li>
+                              ))
+                            ) : (
+                              (channel1Analytics.topVideos || []).map((v: any) => (
+                                <li key={v.videoId} className="flex justify-between">
+                                  <span>{v.videoId}</span>
+                                  <span className="font-semibold">{formatNumber(v.views)}</span>
+                                </li>
+                              ))
+                            )}
                           </ol>
                         </div>
                       ) : (
@@ -1854,15 +1779,15 @@ export default function ComparePage() {
                       <div className="mt-3">
                         <h4 className="font-medium">Recommendations</h4>
                         <ul className="text-sm text-gray-700 list-disc ml-5 mt-2 space-y-1">
-                            <li>Improve first 10 seconds hook if average view duration is low.</li>
-                            <li>Optimize thumbnails: use high-contrast faces/text and A/B test thumbnails.</li>
-                            <li>Include top keywords in title and first 3 tags.</li>
-                            <li>Post at the channel's best day/hour shown above to maximize initial velocity.</li>
-                            <li>Consider localizing titles/descriptions for top countries ({channel1Countries.map(c=>c.country).slice(0,3).join(', ') || 'N/A'}).</li>
-                            {channel1TopKeywords && channel1TopKeywords.length > 0 && (
-                              <li>Example improved title: "{channel1TopKeywords[0].slice(0,40)} — {channel1.title.split(' ')[0]} Review"</li>
-                            )}
-                          </ul>
+                          <li>Improve first 10 seconds hook if average view duration is low.</li>
+                          <li>Optimize thumbnails: use high-contrast faces/text and A/B test thumbnails.</li>
+                          <li>Include top keywords in title and first 3 tags.</li>
+                          <li>Post at the channel's best day/hour shown above to maximize initial velocity.</li>
+                          <li>Consider localizing titles/descriptions for top countries ({channel1Countries.map(c => c.country).slice(0, 3).join(', ') || 'N/A'}).</li>
+                          {channel1TopKeywords && channel1TopKeywords.length > 0 && (
+                            <li>Example improved title: "{channel1TopKeywords[0].slice(0, 40)} — {channel1.title.split(' ')[0]} Review"</li>
+                          )}
+                        </ul>
                       </div>
                     </div>
 
@@ -1875,7 +1800,7 @@ export default function ComparePage() {
                           <div><strong>Top videos:</strong></div>
                           <ol className="text-xs list-decimal ml-5 space-y-1 mt-1">
                             {channel2TopVideosResolved.length ? (
-                              channel2TopVideosResolved.map((vv:any) => (
+                              channel2TopVideosResolved.map((vv: any) => (
                                 <li key={vv.id} className="flex items-center gap-3">
                                   <img src={vv.thumbnail} alt={vv.title} className="w-16 h-10 object-cover rounded" />
                                   <div className="flex-1">
@@ -1885,7 +1810,7 @@ export default function ComparePage() {
                                 </li>
                               ))
                             ) : (
-                              (channel2Analytics.topVideos || []).map((v:any) => (
+                              (channel2Analytics.topVideos || []).map((v: any) => (
                                 <li key={v.videoId} className="flex justify-between">
                                   <span>{v.videoId}</span>
                                   <span className="font-semibold">{formatNumber(v.views)}</span>
@@ -1913,7 +1838,7 @@ export default function ComparePage() {
                 {/* Tips to Go Viral */}
                 <div className="bg-white border border-gray-200 rounded-xl md:rounded-2xl p-4 md:p-6 backdrop-blur-sm shadow-sm">
                   <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-4">Tips to Go Viral</h2>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <ViralTipsCard channel={channel1} tips={getViralTips(channel1)} />
                     <ViralTipsCard channel={channel2} tips={getViralTips(channel2)} />
@@ -1922,15 +1847,15 @@ export default function ComparePage() {
 
                 {/* Enhanced Analytics */}
                 <div className="space-y-6">
-                  <EnhancedAnalyticsCard 
-                    channel={channel1} 
-                    videos={channel1Videos} 
-                    isWinner={getChannelRank(channel1) < getChannelRank(channel2)} 
+                  <EnhancedAnalyticsCard
+                    channel={channel1}
+                    videos={channel1Videos}
+                    isWinner={getChannelRank(channel1) < getChannelRank(channel2)}
                   />
-                  <EnhancedAnalyticsCard 
-                    channel={channel2} 
-                    videos={channel2Videos} 
-                    isWinner={getChannelRank(channel2) < getChannelRank(channel1)} 
+                  <EnhancedAnalyticsCard
+                    channel={channel2}
+                    videos={channel2Videos}
+                    isWinner={getChannelRank(channel2) < getChannelRank(channel1)}
                   />
                 </div>
               </div>
@@ -1976,9 +1901,6 @@ function computeTopKeywords(videos: YouTubeVideo[], topN = 8) {
       let tagsArr: string[] = []
       if (Array.isArray(v.tags)) {
         tagsArr = v.tags as string[]
-      } else if (typeof v.tags === 'string' && v.tags.trim()) {
-        // some APIs may return comma-separated string of keywords
-        tagsArr = v.tags.split(',').map((t) => t.trim()).filter(Boolean)
       }
 
       tagsArr.forEach((t: string) => {
@@ -1990,7 +1912,7 @@ function computeTopKeywords(videos: YouTubeVideo[], topN = 8) {
       console.warn('computeTopKeywords: skipping video due to error', e, v)
     }
   })
-  return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0, topN).map(e=>e[0])
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, topN).map(e => e[0])
 }
 
 function formatDuration(iso: string | null) {

@@ -4,11 +4,12 @@ import Link from "next/link"
 import Image from "next/image"
 import SidebarButton from '@/components/ui/sidebar-button'
 import { Button } from '@/components/ui/button'
-import { Home, User, GitCompare, Video, Upload, Play, LogOut, Menu, X, CheckCircle, Plus, List, Settings } from "lucide-react"
+import { Home, User, GitCompare, Video, Upload, Play, LogOut, Menu, X, CheckCircle, Plus, List, Settings, Bell, ChevronDown, Youtube } from "lucide-react"
 import { useRouter, usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { useState, useEffect, useRef, useMemo } from "react"
 import { MobileBottomNav } from '@/components/mobile-bottom-nav'
+// SharedSidebar removed from this page
 
 export default function BulkUploadPage() {
   const router = useRouter()
@@ -668,98 +669,8 @@ export default function BulkUploadPage() {
         </div>
       </header>
       <div className="flex">
-        {/* Mobile Sidebar Overlay */}
-        {sidebarOpen && (
-          <div className="fixed inset-0 bg-black/50 md:hidden z-30 top-16" onClick={() => setSidebarOpen(false)}></div>
-        )}
-
-        {/* Mobile Sidebar - slide-in */}
-        <aside
-          className={`fixed left-0 top-16 bottom-0 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 md:hidden z-40 overflow-y-auto ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-            }`}
-          style={{ WebkitOverflowScrolling: 'touch' as any }}
-        >
-          <nav className="p-4 space-y-2">
-            {navLinks.map((link) => {
-              const Icon = link.icon as any
-              const isActive = activePage === link.id
-              return (
-                <SidebarButton
-                  key={link.id}
-                  id={link.id}
-                  href={link.href}
-                  label={link.label}
-                  Icon={Icon}
-                  isActive={isActive}
-                  onClick={() => setSidebarOpen(false)}
-                />
-              )
-            })}
-          </nav>
-
-          <div className="absolute bottom-4 left-4 right-4">
-            <Button
-              onClick={() => { setSidebarOpen(false); handleSignOut() }}
-              disabled={isLoading}
-              className="w-full justify-start h-12 text-sm"
-            >
-              {isLoading ? (
-                <>
-                  <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                  Signing Out...
-                </>
-              ) : (
-                <>
-                  <LogOut className="w-4 h-4 mr-2" />
-                  <span>Sign Out</span>
-                </>
-              )}
-            </Button>
-          </div>
-        </aside>
-
-        {/* Desktop Sidebar - fixed expanded layout */}
-        <aside className="hidden md:flex flex-col w-64 border-r border-gray-200 bg-white fixed left-0 top-16 bottom-0 overflow-y-auto">
-          <nav className="p-4 space-y-1 flex-1">
-            {navLinks.map((link) => {
-              const Icon = link.icon as any
-              const isActive = activePage === link.id
-              return (
-                <SidebarButton
-                  key={link.id}
-                  id={link.id}
-                  href={link.href}
-                  label={link.label}
-                  Icon={Icon}
-                  isActive={isActive}
-                />
-              )
-            })}
-          </nav>
-
-          <div className="px-4 py-4 border-t border-gray-100">
-            <Button
-              onClick={handleSignOut}
-              disabled={isLoading}
-              className="w-full justify-start h-12 text-sm"
-            >
-              {isLoading ? (
-                <>
-                  <span className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                  Signing Out...
-                </>
-              ) : (
-                <>
-                  <LogOut className="w-4 h-4 mr-2" />
-                  <span>Sign Out</span>
-                </>
-              )}
-            </Button>
-          </div>
-        </aside>
-
-        {/* Main content */}
-        <main className={`flex-1 md:ml-64 md:mr-80 pb-20 md:pb-0 p-6`}>
+        {/* Main content (sidebar removed for this page) */}
+        <main className={`flex-1 md:ml-0 md:mr-80 pb-20 md:pb-0 p-6`}>
           <div className="max-w-5xl mx-auto">
             <div className="mb-6 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 border border-gray-200 p-6">
               <h1 className="text-2xl font-bold">Bulk Upload</h1>

@@ -29,6 +29,7 @@ import {
   Hash
 } from "lucide-react"
 import Link from "next/link"
+// SharedSidebar removed from this page
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Breadcrumb } from "@/components/breadcrumb"
@@ -190,103 +191,8 @@ export default function BulkUploadPage() {
       </header>
 
       <div className="flex">
-        {/* Mobile Sidebar Overlay */}
-        {sidebarOpen && (
-          <div className="fixed inset-0 bg-black/50 md:hidden z-30 top-16" onClick={() => setSidebarOpen(false)}></div>
-        )}
-
-        {/* Mobile Sidebar */}
-        <aside
-          className={`fixed left-0 top-16 bottom-0 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 md:hidden z-40 ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          <nav className="p-4 space-y-2">
-            {navLinks.map((link) => {
-              const Icon = link.icon
-              return (
-                <Link
-                  key={link.id}
-                  href={link.href}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                    link.id === "ai-tools"
-                      ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium">{link.label}</span>
-                </Link>
-              )
-            })}
-          </nav>
-
-          <div className="absolute bottom-4 left-4 right-4">
-            <Button
-              onClick={handleSignOut}
-              disabled={isLoading}
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg bg-transparent border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-            >
-              {isLoading ? (
-                <>
-                  <span className="w-4 h-4 mr-2 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></span>
-                  Signing Out...
-                </>
-              ) : (
-                <>
-                  <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
-                  <span>Sign Out</span>
-                </>
-              )}
-            </Button>
-          </div>
-        </aside>
-
-        {/* Desktop Sidebar */}
-        <aside className="hidden md:block w-64 border-r border-gray-200 bg-white fixed left-0 top-16 bottom-0 overflow-y-auto">
-          <nav className="p-4 space-y-1">
-            {navLinks.map((link) => {
-              const Icon = link.icon
-              return (
-                <Link
-                  key={link.id}
-                  href={link.href}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition text-sm ${
-                    link.id === "ai-tools"
-                      ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-blue-700 border border-blue-300/50 shadow-sm"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                  }`}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0" />
-                  <span className="font-medium">{link.label}</span>
-                </Link>
-              )
-            })}
-          </nav>
-
-          <div className="absolute bottom-4 left-4 right-4">
-            <Button
-              onClick={handleSignOut}
-              disabled={isLoading}
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg bg-transparent border border-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-            >
-              {isLoading ? (
-                <>
-                  <span className="w-4 h-4 mr-2 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></span>
-                  Signing Out...
-                </>
-              ) : (
-                <>
-                  <LogOut className="w-4 h-4 mr-2 flex-shrink-0" />
-                  <span>Sign Out</span>
-                </>
-              )}
-            </Button>
-          </div>
-        </aside>
-
-        {/* Main Content */}
-        <main className="flex-1 md:ml-64 pb-20 md:pb-0">
+        {/* Main Content (sidebar removed for this page) */}
+        <main className="flex-1 md:ml-0 pb-20 md:pb-0">
           <div className="p-4 md:p-6 lg:p-8">
             {/* Header */}
             <div className="mb-6 md:mb-8 rounded-xl md:rounded-2xl bg-gradient-to-r from-blue-50 to-purple-50 border border-gray-200 p-4 md:p-8">

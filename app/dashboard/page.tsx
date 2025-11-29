@@ -27,6 +27,7 @@ export default function DashboardPage() {
   const { data: session } = useSession()
   const [isLoading, setIsLoading] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [chartSeries, setChartSeries] = useState<'views' | 'subs'>('views')
   const [activePage, setActivePage] = useState('dashboard')
   const [youtubeChannel, setYoutubeChannel] = useState<YouTubeChannel | null>(null)
   const [additionalChannels, setAdditionalChannels] = useState<YouTubeChannel[]>([])
@@ -52,7 +53,7 @@ export default function DashboardPage() {
 
   const navLinks = [
     { icon: Home, label: 'Dashboard', href: '/dashboard', id: 'dashboard', badge: null },
-    { icon: BarChart3, label: 'Analytics', href: '/analytics', id: 'analytics', badge: null },
+    { icon: FileText, label: 'Vid-Info', href: '/vid-info', id: 'vid-info', badge: null },
     { icon: Video, label: 'Content', href: '/content', id: 'content', badge: '12' },
     { icon: Upload, label: 'Bulk Upload', href: '/bulk-upload', id: 'bulk-upload', badge: null },
     { icon: GitCompare, label: 'Compare', href: '/compare', id: 'compare', badge: null },
@@ -71,6 +72,10 @@ export default function DashboardPage() {
     if (n >= 1000) return (n / 1000).toFixed(1) + "K"
     return n.toString()
   }
+
+  // Reusable base class for small analytics cards
+  const cardBase = 'group relative bg-white rounded-2xl border border-gray-200 p-4 md:p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-2 overflow-hidden'
+  const smallCardBase = 'bg-gray-50 rounded-xl p-3 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 transition-all hover:shadow-md border border-transparent hover:border-blue-200 flex flex-col gap-2'
 
   // Mock analytics data
   const analyticsData = {
@@ -172,10 +177,9 @@ export default function DashboardPage() {
                     {notifications.map((notif) => (
                       <div key={notif.id} className="p-4 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
                         <div className="flex items-start gap-3">
-                          <div className={`w-2 h-2 rounded-full mt-2 ${
-                            notif.type === 'success' ? 'bg-green-500' :
-                            notif.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-                          }`}></div>
+                          <div className={`w-2 h-2 rounded-full mt-2 ${notif.type === 'success' ? 'bg-green-500' :
+                              notif.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
+                            }`}></div>
                           <div className="flex-1">
                             <p className="text-sm text-gray-900">{notif.message}</p>
                             <p className="text-xs text-gray-500 mt-1">{notif.time}</p>
@@ -277,9 +281,8 @@ export default function DashboardPage() {
 
         {/* Enhanced Sidebar */}
         <aside
-          className={`fixed left-0 top-16 bottom-0 w-72 bg-white border-r border-gray-200 transform transition-all duration-300 z-40 overflow-y-auto ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          } md:translate-x-0`}
+          className={`fixed left-0 top-16 bottom-0 w-72 bg-white border-r border-gray-200 transform transition-all duration-300 z-40 overflow-y-auto ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            } md:translate-x-0`}
         >
           {/* Channel Selector */}
           {youtubeChannel && (
@@ -315,11 +318,10 @@ export default function DashboardPage() {
                       setActivePage(link.id)
                       setSidebarOpen(false)
                     }}
-                    className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                      isActive
+                    className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive
                         ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
                         : 'text-gray-700 hover:bg-gray-100'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-3">
                       <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-gray-600'}`} />
@@ -328,13 +330,12 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     {link.badge && (
-                      <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${
-                        isActive
+                      <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${isActive
                           ? 'bg-white/20 text-white'
                           : link.badge === 'New'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-blue-100 text-blue-700'
-                      }`}>
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-blue-100 text-blue-700'
+                        }`}>
                         {link.badge}
                       </span>
                     )}
@@ -344,33 +345,7 @@ export default function DashboardPage() {
             })}
           </nav>
 
-          {/* Quick Stats in Sidebar */}
-          <div className="p-4 border-t border-gray-200">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 px-3">Quick Stats</p>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between px-3 py-2 bg-blue-50 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-medium text-gray-700">Views</span>
-                </div>
-                <span className="text-sm font-bold text-blue-600">{formatNumber(analyticsData.views)}</span>
-              </div>
-              <div className="flex items-center justify-between px-3 py-2 bg-purple-50 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-purple-600" />
-                  <span className="text-sm font-medium text-gray-700">Subscribers</span>
-                </div>
-                <span className="text-sm font-bold text-purple-600">{formatNumber(analyticsData.subscribers)}</span>
-              </div>
-              <div className="flex items-center justify-between px-3 py-2 bg-green-50 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-green-600" />
-                  <span className="text-sm font-medium text-gray-700">Growth</span>
-                </div>
-                <span className="text-sm font-bold text-green-600">+{analyticsData.growth.subscribers}%</span>
-              </div>
-            </div>
-          </div>
+          {/* Quick Stats removed per request */}
 
           {/* Upgrade Card */}
           <div className="p-4 border-t border-gray-200">
@@ -417,14 +392,14 @@ export default function DashboardPage() {
             </div>
 
             {/* Analytics Overview - Enhanced Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
               {/* Total Views */}
-              <div className="group relative bg-white rounded-2xl border border-gray-200 p-6 hover:border-blue-300 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 overflow-hidden">
+              <div className={`${cardBase} hover:border-blue-300`}>
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-full blur-2xl"></div>
                 <div className="relative">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                      <Eye className="w-6 h-6 text-white" />
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                      <Eye className="w-5 h-5 text-white" />
                     </div>
                     <div className="flex items-center gap-1 text-sm font-bold text-green-600">
                       <ArrowUpRight className="w-4 h-4" />
@@ -439,12 +414,12 @@ export default function DashboardPage() {
               </div>
 
               {/* Subscribers */}
-              <div className="group relative bg-white rounded-2xl border border-gray-200 p-6 hover:border-purple-300 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 overflow-hidden">
+              <div className={`${cardBase} hover:border-purple-300`}>
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-full blur-2xl"></div>
                 <div className="relative">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                      <Users className="w-6 h-6 text-white" />
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                      <Users className="w-5 h-5 text-white" />
                     </div>
                     <div className="flex items-center gap-1 text-sm font-bold text-green-600">
                       <ArrowUpRight className="w-4 h-4" />
@@ -459,12 +434,12 @@ export default function DashboardPage() {
               </div>
 
               {/* Watch Time */}
-              <div className="group relative bg-white rounded-2xl border border-gray-200 p-6 hover:border-green-300 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 overflow-hidden">
+              <div className={`${cardBase} hover:border-green-300`}>
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-full blur-2xl"></div>
                 <div className="relative">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                      <Clock className="w-6 h-6 text-white" />
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                      <Clock className="w-5 h-5 text-white" />
                     </div>
                     <div className="flex items-center gap-1 text-sm font-bold text-green-600">
                       <ArrowUpRight className="w-4 h-4" />
@@ -479,12 +454,12 @@ export default function DashboardPage() {
               </div>
 
               {/* Engagement */}
-              <div className="group relative bg-white rounded-2xl border border-gray-200 p-6 hover:border-orange-300 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 overflow-hidden">
+              <div className={`${cardBase} hover:border-orange-300`}>
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-500/10 to-red-500/10 rounded-full blur-2xl"></div>
                 <div className="relative">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                      <TrendingUp className="w-6 h-6 text-white" />
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                      <TrendingUp className="w-5 h-5 text-white" />
                     </div>
                     <div className="flex items-center gap-1 text-sm font-bold text-green-600">
                       <ArrowUpRight className="w-4 h-4" />
@@ -498,25 +473,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Revenue */}
-              <div className="group relative bg-white rounded-2xl border border-gray-200 p-6 hover:border-yellow-300 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-yellow-500/10 to-amber-500/10 rounded-full blur-2xl"></div>
-                <div className="relative">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                      <DollarSign className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="flex items-center gap-1 text-sm font-bold text-green-600">
-                      <ArrowUpRight className="w-4 h-4" />
-                      <span>{analyticsData.growth.revenue}%</span>
-                    </div>
-                  </div>
-                  <p className="text-sm font-semibold text-gray-600 mb-1">Est. Revenue</p>
-                  <p className="text-3xl font-black bg-gradient-to-r from-yellow-600 to-amber-600 bg-clip-text text-transparent">
-                    ${formatNumber(analyticsData.revenue)}
-                  </p>
-                </div>
-              </div>
+              {/* Est. Revenue card removed per design request */}
             </div>
 
             {/* Two Column Layout */}
@@ -524,19 +481,26 @@ export default function DashboardPage() {
               {/* Left Column - Chart & Videos */}
               <div className="lg:col-span-2 space-y-8">
                 {/* Growth Chart */}
-                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                <div className={`${cardBase} shadow-sm`}>
                   <div className="flex items-center justify-between mb-6">
                     <div>
                       <h3 className="text-xl font-black text-gray-900">Channel Growth</h3>
                       <p className="text-sm text-gray-600 mt-1">Your performance over the last 30 days</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button className="px-3 py-1.5 text-xs font-semibold bg-blue-100 text-blue-700 rounded-lg">Views</button>
-                      <button className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg">Subs</button>
-                      <button className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg">Revenue</button>
+                      <button
+                        onClick={() => setChartSeries('views')}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg ${chartSeries === 'views' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700'}`}>
+                        Views
+                      </button>
+                      <button
+                        onClick={() => setChartSeries('subs')}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg ${chartSeries === 'subs' ? 'bg-purple-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+                        Subs
+                      </button>
                     </div>
                   </div>
-                  <div className="h-72 flex items-end justify-between gap-1.5">
+                  <div className="h-44 md:h-72 flex items-end justify-between gap-1.5">
                     {[30, 45, 35, 60, 50, 75, 65, 85, 70, 90, 80, 95, 88, 100, 92, 98, 85, 94, 89, 96].map((height, i) => (
                       <div key={i} className="flex-1 group/bar cursor-pointer relative">
                         <div
@@ -552,7 +516,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Recent Videos */}
-                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                <div className={`${cardBase} shadow-sm`}>
                   <div className="flex items-center justify-between mb-6">
                     <div>
                       <h3 className="text-xl font-black text-gray-900">Recent Videos</h3>
@@ -564,45 +528,33 @@ export default function DashboardPage() {
                       </Button>
                     </Link>
                   </div>
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
                     {recentVideos.map((video) => (
-                      <div key={video.id} className="group flex items-center gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 transition-all hover:shadow-md border border-transparent hover:border-blue-200">
-                        <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0 text-3xl shadow-lg group-hover:scale-105 transition-transform">
-                          {video.thumbnail}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-bold text-gray-900 truncate group-hover:text-blue-600 transition-colors">{video.title}</h4>
-                          <div className="flex items-center gap-4 mt-2">
-                            <div className="flex items-center gap-1 text-sm text-gray-600">
-                              <Eye className="w-4 h-4" />
-                              <span>{video.views}</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-sm text-gray-600">
-                              <Heart className="w-4 h-4" />
-                              <span>{video.likes}</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-sm text-gray-600">
-                              <MessageSquare className="w-4 h-4" />
-                              <span>{video.comments}</span>
+                      <div key={video.id} className={`${smallCardBase}`}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-md flex-shrink-0">
+                            {video.thumbnail}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold text-gray-900 truncate">{video.title}</h4>
+                            <div className="flex items-center gap-3 mt-2 text-xs text-gray-600">
+                              <div className="flex items-center gap-1">
+                                <Eye className="w-4 h-4" />
+                                <span>{video.views}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Heart className="w-4 h-4" />
+                                <span>{video.likes}</span>
+                              </div>
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${
-                            video.status === 'published'
-                              ? 'bg-green-50 border-green-200'
-                              : 'bg-yellow-50 border-yellow-200'
-                          }`}>
-                            <div className={`w-2 h-2 rounded-full ${
-                              video.status === 'published' ? 'bg-green-500' : 'bg-yellow-500'
-                            }`}></div>
-                            <span className={`text-xs font-bold capitalize ${
-                              video.status === 'published' ? 'text-green-700' : 'text-yellow-700'
-                            }`}>
-                              {video.status}
-                            </span>
+                        <div className="flex items-center justify-between mt-3">
+                          <div className={`flex items-center gap-2 px-3 py-1 rounded-lg border ${video.status === 'published' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                            <div className={`w-2 h-2 rounded-full ${video.status === 'published' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                            <span className={`text-xs font-bold capitalize ${video.status === 'published' ? 'text-green-700' : 'text-yellow-700'}`}>{video.status}</span>
                           </div>
-                          <button className="p-2 rounded-lg hover:bg-gray-200 transition-colors opacity-0 group-hover:opacity-100">
+                          <button className="p-2 rounded-lg hover:bg-gray-200 transition-colors">
                             <MoreHorizontal className="w-4 h-4 text-gray-600" />
                           </button>
                         </div>
@@ -615,23 +567,23 @@ export default function DashboardPage() {
               {/* Right Column - Actions & Insights */}
               <div className="space-y-6">
                 {/* Quick Actions */}
-                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                <div className={`${cardBase} shadow-sm`}>
                   <h3 className="text-lg font-black text-gray-900 mb-4">Quick Actions</h3>
                   <div className="space-y-3">
                     <Link href="/upload">
-                      <button className="w-full flex items-center gap-3 p-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-xl transition-all hover:-translate-y-0.5">
+                      <button className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-xl transition-all hover:-translate-y-0.5">
                         <Upload className="w-5 h-5" />
                         <span className="font-semibold">Upload Video</span>
                       </button>
                     </Link>
                     <Link href="/content">
-                      <button className="w-full flex items-center gap-3 p-4 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all hover:-translate-y-0.5">
+                      <button className="w-full flex items-center gap-3 p-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all hover:-translate-y-0.5">
                         <Video className="w-5 h-5 text-gray-700" />
                         <span className="font-semibold text-gray-900">Manage Content</span>
                       </button>
                     </Link>
                     <Link href="/analytics">
-                      <button className="w-full flex items-center gap-3 p-4 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all hover:-translate-y-0.5">
+                      <button className="w-full flex items-center gap-3 p-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all hover:-translate-y-0.5">
                         <BarChart3 className="w-5 h-5 text-gray-700" />
                         <span className="font-semibold text-gray-900">View Analytics</span>
                       </button>
