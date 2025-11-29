@@ -9,7 +9,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { useState, useEffect, useRef, useMemo } from "react"
 import { MobileBottomNav } from '@/components/mobile-bottom-nav'
-// SharedSidebar removed from this page
+import SharedSidebar from '@/components/shared-sidebar'
 
 export default function BulkUploadPage() {
   const router = useRouter()
@@ -668,9 +668,12 @@ export default function BulkUploadPage() {
           </div>
         </div>
       </header>
-      <div className="flex">
-        {/* Main content (sidebar removed for this page) */}
-        <main className={`flex-1 md:ml-0 md:mr-80 pb-20 md:pb-0 p-6`}>
+        <div className="flex">
+          {/* Shared Sidebar */}
+          <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="bulk-upload" />
+
+          {/* Main content */}
+          <main className={`flex-1 md:ml-72 md:mr-80 pb-20 md:pb-0 p-6`}>
           <div className="max-w-5xl mx-auto">
             <div className="mb-6 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 border border-gray-200 p-6">
               <h1 className="text-2xl font-bold">Bulk Upload</h1>

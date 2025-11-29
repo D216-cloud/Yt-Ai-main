@@ -7,6 +7,7 @@ import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { Button } from "@/components/ui/button"
+import SharedSidebar from "@/components/shared-sidebar"
 import { Input } from "@/components/ui/input"
 import {
   Play,
@@ -991,8 +992,10 @@ export default function ComparePage() {
       </header>
 
       <div className="flex flex-1">
-        {/* Main Content (sidebar removed for this page) */}
-        <main className="flex-1 md:ml-0 pb-16 md:pb-0">
+        {/* Shared Sidebar */}
+        <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="compare" />
+        {/* Main Content */}
+        <main className="flex-1 md:ml-72 pb-16 md:pb-0">
           <div className="p-4 md:p-6 lg:p-8">
             {/* Header with Back Button - Only show on desktop */}
             <div className="hidden md:flex items-center justify-between mb-6">

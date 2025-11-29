@@ -29,7 +29,7 @@ import {
   Hash
 } from "lucide-react"
 import Link from "next/link"
-// SharedSidebar removed from this page
+import SharedSidebar from "@/components/shared-sidebar"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Breadcrumb } from "@/components/breadcrumb"
@@ -191,8 +191,11 @@ export default function BulkUploadPage() {
       </header>
 
       <div className="flex">
-        {/* Main Content (sidebar removed for this page) */}
-        <main className="flex-1 md:ml-0 pb-20 md:pb-0">
+        {/* Shared Sidebar */}
+        <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="ai-tools" />
+
+        {/* Main Content */}
+        <main className="flex-1 md:ml-72 pb-20 md:pb-0">
           <div className="p-4 md:p-6 lg:p-8">
             {/* Header */}
             <div className="mb-6 md:mb-8 rounded-xl md:rounded-2xl bg-gradient-to-r from-blue-50 to-purple-50 border border-gray-200 p-4 md:p-8">
