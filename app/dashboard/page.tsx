@@ -143,7 +143,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
       {/* Enhanced Desktop Navbar */}
-      <header className="sticky top-0 z-50 border-b border-gray-200/80 bg-white/80 backdrop-blur-xl shadow-sm">
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200/80 bg-white/80 backdrop-blur-xl shadow-sm h-16">
         <div className="flex h-16 items-center justify-between px-4 md:px-6 lg:px-8">
           {/* Left: Logo & Search */}
           <div className="flex items-center gap-4 flex-1">
@@ -397,10 +397,10 @@ export default function DashboardPage() {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 md:ml-72 p-4 md:p-8 pb-20 md:pb-8">
+        <main className="flex-1 pt-20 md:pt-20 md:ml-72 p-4 md:p-8 pb-20 md:pb-8">
           <div className="max-w-7xl mx-auto">
             {/* Welcome Section */}
-            <div className="mb-8">
+            <div className="mb-8 mt-8 md:mt-10">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                 <div>
                   <h1 className="text-3xl md:text-4xl font-black text-gray-900 mb-2">
@@ -663,7 +663,7 @@ export default function DashboardPage() {
                 {/* Quick Actions */}
                 <div className={`${cardBase} shadow-sm`}>
                   <h3 className="text-lg font-black text-gray-900 mb-4">Quick Actions</h3>
-                  <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3 md:block">
                     <Link href="/upload">
                       <button className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-xl transition-all hover:-translate-y-0.5">
                         <Upload className="w-5 h-5" />

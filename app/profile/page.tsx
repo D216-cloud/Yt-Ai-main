@@ -203,7 +203,7 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Mobile Header */}
-      <header className="md:hidden sticky top-0 z-40 bg-white border-b border-gray-100 pt-2 pb-2 px-4">
+      <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100 pt-2 pb-2 px-4">
         <div className="flex h-14 items-center justify-between">
           <div className="flex items-center space-x-3">
             <Button
@@ -248,7 +248,7 @@ export default function ProfilePage() {
       </header>
 
       {/* Desktop Header */}
-      <header className="hidden md:block sticky top-0 z-40 border-b border-gray-200 bg-white h-16">
+      <header className="hidden md:block fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white h-16">
         <div className="flex h-16 items-center justify-between px-6 lg:px-8">
           <Link href="/" className="flex items-center space-x-3 group">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg group-hover:shadow-xl transition flex-shrink-0">
@@ -365,7 +365,7 @@ export default function ProfilePage() {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 md:ml-64 pb-20 md:pb-0">
+        <main className="flex-1 pt-14 md:pt-16 md:ml-64 pb-20 md:pb-0">
           <div className="p-4 md:p-6 lg:p-8">
       {/* Header with Gradient Animation */}
       <div className="mb-6 md:mb-8 rounded-xl md:rounded-2xl bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 border border-blue-300 p-[2px] shadow-lg hover:shadow-2xl transition-all duration-300">

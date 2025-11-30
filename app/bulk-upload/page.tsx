@@ -588,7 +588,7 @@ export default function BulkUploadPage() {
   return (
     <div>
       {/* Mobile Header */}
-      <header className="md:hidden sticky top-0 z-40 bg-white border-b border-gray-100 pt-2 pb-2 px-4">
+      <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100 pt-2 pb-2 px-4">
         <div className="flex h-14 items-center justify-between">
           <div className="flex items-center space-x-3">
             <button
@@ -635,7 +635,7 @@ export default function BulkUploadPage() {
       </header>
 
       {/* Desktop Header */}
-      <header className="hidden md:block sticky top-0 z-40 border-b border-gray-200 bg-white h-16">
+      <header className="hidden md:block fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white h-16">
         <div className="flex h-16 items-center justify-between px-6 lg:px-8">
           <a href="/" className="flex items-center space-x-3 group">
             <Image
@@ -673,7 +673,7 @@ export default function BulkUploadPage() {
         <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="bulk-upload" />
 
         {/* Main content */}
-        <main className={`flex-1 md:ml-72 md:mr-80 pb-20 md:pb-0 p-4 md:p-8`}>
+        <main className={`flex-1 pt-14 md:pt-16 md:ml-72 md:mr-80 pb-20 md:pb-0 p-4 md:p-8`}>
           <div className="max-w-5xl mx-auto">
             {/* Hero Section */}
             <div className="relative mb-8 md:mb-12 overflow-hidden">
