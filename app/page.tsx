@@ -12,7 +12,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main>
+      <main className="pt-20 md:pt-20">
         <HeroSection />
         <HowItWorksSection />
         <FeaturesSection />

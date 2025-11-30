@@ -111,7 +111,7 @@ export default function SignupPage() {
       </div>
 
       {/* Main Content */}
-      <div className="relative z-10 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8 min-h-[calc(100vh-64px)]">
+      <div className="relative z-10 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8 pt-20 md:pt-20 min-h-[calc(100vh-64px)]">
         <div className="w-full max-w-md">
           {/* Card */}
           <div className="bg-white/70 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-8 sm:p-10">

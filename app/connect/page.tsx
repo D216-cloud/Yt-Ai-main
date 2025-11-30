@@ -435,7 +435,7 @@ export default function ConnectPage() {
 
 
       {/* Main Content - Centered Card */}
-      <div className="relative flex-1 flex items-center justify-center overflow-hidden bg-gradient-to-b from-gray-50 to-white py-12 px-4">
+      <div className="relative flex-1 flex items-center justify-center overflow-hidden bg-gradient-to-b from-gray-50 to-white pt-20 md:pt-20 py-12 px-4">
         {/* Centered Container */}
         <div className="relative z-10 w-full max-w-2xl mx-auto">
           {/* Decorative gradient background */}

@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import SharedSidebar from "@/components/shared-sidebar"
+// import { Header } from "@/components/header" // Using custom page header for consistency with Dashboard
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,6 +13,7 @@ import {
   Video, Calendar, Eye, ThumbsUp, MessageSquare, User, Hash, Clock,
   TrendingUp, BarChart3, Award, ExternalLink, FileText, Activity,
   TrendingDown, Target, Zap, CheckCircle, AlertCircle
+  , Menu, X
 } from "lucide-react"
 
 interface VideoData {
@@ -38,6 +41,7 @@ export default function VideoInfoPage() {
   const [videoData, setVideoData] = useState<VideoData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const extractVideoId = (url: string): string | null => {
     try {
@@ -459,8 +463,47 @@ export default function VideoInfoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
+      {/* Mobile Header */}
+      <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100 pt-2 pb-2 px-4">
+        <div className="flex h-14 items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-2 rounded-md text-gray-600"
+            >
+              {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+            <a href="/" className="flex items-center space-x-2 group">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg group-hover:shadow-xl transition flex-shrink-0">
+                <Video className="h-4 w-4 text-white" />
+              </div>
+              <span className="font-bold text-gray-900 text-sm">YouTubeAI Pro</span>
+            </a>
+          </div>
+          <div></div>
+        </div>
+      </header>
+
+      {/* Desktop Header */}
+      <header className="hidden md:block fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white h-16">
+        <div className="flex h-16 items-center justify-between px-6 lg:px-8">
+          <a href="/" className="flex items-center space-x-3 group">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg group-hover:shadow-xl transition flex-shrink-0">
+              <Video className="h-5 w-5 text-white" />
+            </div>
+            <span className="text-lg font-bold text-gray-900">YouTubeAI Pro</span>
+          </a>
+          <div></div>
+        </div>
+      </header>
+
+      <div className="flex">
+        {/* Shared Sidebar */}
+        <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="vid-info" />
+
+        <main className="flex-1 pt-20 md:pt-20 md:ml-72 p-4 md:p-8 pb-20 md:pb-8">
+          <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
             Video Intelligence Dashboard
@@ -783,6 +826,8 @@ export default function VideoInfoPage() {
             </CardContent>
           </Card>
         )}
+          </div>
+        </main>
       </div>
     </div>
   )

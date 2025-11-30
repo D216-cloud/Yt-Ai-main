@@ -365,7 +365,7 @@ export default function ProfilePage() {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 pt-14 md:pt-16 md:ml-64 pb-20 md:pb-0">
+        <main className="flex-1 pt-20 md:pt-20 md:ml-64 pb-20 md:pb-0">
           <div className="p-4 md:p-6 lg:p-8">
       {/* Header with Gradient Animation */}
       <div className="mb-6 md:mb-8 rounded-xl md:rounded-2xl bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 border border-blue-300 p-[2px] shadow-lg hover:shadow-2xl transition-all duration-300">

@@ -673,7 +673,7 @@ export default function BulkUploadPage() {
         <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="bulk-upload" />
 
         {/* Main content */}
-        <main className={`flex-1 pt-14 md:pt-16 md:ml-72 md:mr-80 pb-20 md:pb-0 p-4 md:p-8`}>
+        <main className={`flex-1 pt-20 md:pt-20 md:ml-72 md:mr-80 pb-20 md:pb-0 p-4 md:p-8`}>
           <div className="max-w-5xl mx-auto">
             {/* Hero Section */}
             <div className="relative mb-8 md:mb-12 overflow-hidden">

@@ -448,7 +448,7 @@ export default function ContentPage() {
                 </aside>
 
                 {/* Main Content */}
-                <main className="flex-1 md:ml-72 p-4 md:p-8 pb-20 md:pb-8">
+                <main className="flex-1 pt-20 md:pt-20 md:ml-72 p-4 md:p-8 pb-20 md:pb-8">
                     <div className="max-w-7xl mx-auto">
                         {/* Header */}
                         <div className="mb-8">

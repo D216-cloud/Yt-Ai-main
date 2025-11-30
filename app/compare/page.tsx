@@ -995,7 +995,7 @@ export default function ComparePage() {
         {/* Shared Sidebar */}
         <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="compare" />
         {/* Main Content */}
-        <main className="flex-1 pt-14 md:pt-16 md:ml-72 pb-16 md:pb-0">
+        <main className="flex-1 pt-20 md:pt-20 md:ml-72 pb-16 md:pb-0">
           <div className="p-4 md:p-6 lg:p-8">
             {/* Header with Back Button - Only show on desktop */}
             <div className="hidden md:flex items-center justify-between mb-6">
