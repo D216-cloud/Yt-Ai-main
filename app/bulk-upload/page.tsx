@@ -668,49 +668,108 @@ export default function BulkUploadPage() {
           </div>
         </div>
       </header>
-        <div className="flex">
-          {/* Shared Sidebar */}
-          <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="bulk-upload" />
+      <div className="flex">
+        {/* Shared Sidebar */}
+        <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="bulk-upload" />
 
-          {/* Main content */}
-          <main className={`flex-1 md:ml-72 md:mr-80 pb-20 md:pb-0 p-6`}>
+        {/* Main content */}
+        <main className={`flex-1 md:ml-72 md:mr-80 pb-20 md:pb-0 p-4 md:p-8`}>
           <div className="max-w-5xl mx-auto">
-            <div className="mb-6 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 border border-gray-200 p-6">
-              <h1 className="text-2xl font-bold">Bulk Upload</h1>
-              <p className="text-sm text-gray-600 mt-1">Top-level bulk upload workspace (separate from Dashboard).</p>
+            {/* Hero Section */}
+            <div className="relative mb-8 md:mb-12 overflow-hidden">
+              {/* Background Gradient */}
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-3xl opacity-60"></div>
+
+              {/* Decorative Elements */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-3xl"></div>
+              <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-pink-400/20 to-red-400/20 rounded-full blur-3xl"></div>
+
+              {/* Content */}
+              <div className="relative px-6 md:px-12 py-8 md:py-16 text-center">
+                {/* Announcement Badge */}
+                <div className="inline-flex items-center gap-2 px-4 py-2 mb-6 md:mb-8 bg-white/80 backdrop-blur-sm border border-emerald-200 rounded-full shadow-sm hover:shadow-md transition-shadow">
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                  <span className="text-xs md:text-sm font-medium text-gray-700">
+                    New! Upload videos without recording bots
+                  </span>
+                </div>
+
+                {/* Main Headline */}
+                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-4 md:mb-6">
+                  <span className="block text-gray-900">Upload videos.</span>
+                  <span className="block text-gray-900">Centralize feedback</span>
+                  <span className="block bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                    automatically.
+                  </span>
+                </h1>
+
+                {/* Subtitle */}
+                <p className="text-base md:text-lg lg:text-xl text-gray-600 max-w-3xl mx-auto mb-8 md:mb-10 leading-relaxed px-4">
+                  Upload and organize videos automatically. Focus on what matters -
+                  connecting with your audience across multiple channels.
+                </p>
+
+                {/* CTA Button */}
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="group inline-flex items-center gap-3 px-6 md:px-8 py-3 md:py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-base md:text-lg font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                >
+                  <span>Get started - it's free</span>
+                  <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
-            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-red-500 to-pink-500 flex items-center justify-center text-white">
-                  <Upload className="w-6 h-6" />
+            {/* Action Cards Section */}
+            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-6 md:p-8 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-red-500 via-pink-500 to-purple-500 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                  <Upload className="w-7 h-7" />
                 </div>
-                <div>
-                  <h2 className="text-lg font-semibold">Manage bulk uploads</h2>
-                  <p className="text-sm text-gray-600">Upload batches to multiple channels from one place.</p>
+                <div className="flex-1">
+                  <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">Manage bulk uploads</h2>
+                  <p className="text-sm md:text-base text-gray-600">Upload batches to multiple channels from one place.</p>
                 </div>
               </div>
 
-              <div className="border-dashed border-2 border-gray-200 rounded-xl p-8 text-center">
-                <p className="text-gray-600 mb-4">Upload batches to one or more connected channels. Select a channel and upload video files.</p>
-                <div className="flex justify-center gap-3">
-                  <button
-                    onClick={() => setShowUploadModal(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg"
-                  >
-                    Upload Video
-                  </button>
-                  <button
-                    onClick={() => setShowAddBulkModal(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded-lg"
-                  >
-                    Add Bulk Video
-                  </button>
-                  <Link href="/connect">
-                    <button className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg">
-                      Connect Channels
+              {/* Action Area */}
+              <div className="p-6 md:p-8">
+                <div className="border-dashed border-2 border-gray-300 rounded-2xl p-6 md:p-10 text-center bg-gradient-to-br from-gray-50 to-white hover:border-gray-400 transition-colors">
+                  <div className="mb-6">
+                    <div className="inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 mb-4">
+                      <Upload className="w-8 h-8 md:w-10 md:h-10 text-purple-600" />
+                    </div>
+                    <p className="text-sm md:text-base text-gray-700 max-w-2xl mx-auto leading-relaxed">
+                      Upload batches to one or more connected channels. Select a channel and upload video files to get started.
+                    </p>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-col sm:flex-row justify-center items-center gap-3 md:gap-4">
+                    <button
+                      onClick={() => setShowUploadModal(true)}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-sm md:text-base font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105"
+                    >
+                      <Upload className="w-4 h-4 md:w-5 md:h-5" />
+                      Upload Video
                     </button>
-                  </Link>
+                    <button
+                      onClick={() => setShowAddBulkModal(true)}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-700 hover:to-emerald-600 text-white text-sm md:text-base font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105"
+                    >
+                      <Plus className="w-4 h-4 md:w-5 md:h-5" />
+                      Add Bulk Video
+                    </button>
+                    <Link href="/connect" className="w-full sm:w-auto">
+                      <button className="w-full inline-flex items-center justify-center gap-2 px-5 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white text-sm md:text-base font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105">
+                        <Youtube className="w-4 h-4 md:w-5 md:h-5" />
+                        Connect Channels
+                      </button>
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>

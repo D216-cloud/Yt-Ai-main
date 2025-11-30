@@ -7,7 +7,7 @@ import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Play, ChevronRight, Lock, Loader2, Youtube, CheckCircle, User, LogOut, RefreshCw, AlertCircle, X } from "lucide-react"
+import { Play, ChevronRight, Lock, Loader2, Youtube, CheckCircle, User, LogOut, RefreshCw, AlertCircle, X, Sparkles } from "lucide-react"
 import { Header } from "@/components/header"
 
 interface YouTubeChannel {
@@ -52,6 +52,13 @@ export default function ConnectPage() {
     loadAdditionalChannels()
     cleanupTempData()
   }, [])
+
+  // Auto-redirect to dashboard if already connected
+  useEffect(() => {
+    if (status === 'authenticated' && youtubeChannel && !showUnlockAnimation && !isRedirecting) {
+      router.push('/dashboard')
+    }
+  }, [status, youtubeChannel, showUnlockAnimation, isRedirecting, router])
 
   const loadMainChannel = () => {
     try {
@@ -422,454 +429,230 @@ export default function ConnectPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      {/* Mobile & Desktop Header */}
-      <div className="w-full md:hidden pt-2 px-4 pb-4 bg-white border-b border-gray-100 sticky top-0 z-40">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg">
-              <Play className="h-6 w-6 text-white fill-white" />
-            </div>
-            <div>
-              <p className="text-base font-bold text-gray-900">TubeBoost AI</p>
-              {session?.user && (
-                <p className="text-xs text-gray-500">{session.user.email}</p>
-              )}
-            </div>
-          </div>
-          {session?.user && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => signOut({ callbackUrl: "/signup" })}
-              className="text-gray-600 text-xs"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      </div>
+      {/* Use shared Header component */}
+      <Header />
 
-      {/* Desktop Header */}
-      <div className="hidden md:flex h-16 items-center px-8 border-b border-gray-200 bg-white w-full">
-        <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
-          <Link href="/" className="flex items-center space-x-3 group">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg group-hover:shadow-xl transition flex-shrink-0">
-              <Play className="h-6 w-6 text-white fill-white" />
-            </div>
-            <span className="text-xl font-bold text-gray-900">TubeBoost AI</span>
-          </Link>
-          {session?.user && (
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 text-white font-semibold text-sm">
-                  {session.user.name?.[0]?.toUpperCase() || session.user.email?.[0]?.toUpperCase() || "U"}
-                </div>
-                <div className="text-left">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {session.user.name || session.user.email?.split("@")[0]}
-                  </p>
-                  <p className="text-xs text-gray-500">{session.user.email}</p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => signOut({ callbackUrl: "/signup" })}
-                className="text-gray-600 border-gray-300 hover:bg-gray-50"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col md:flex-row md:items-center md:justify-center md:py-12">
-        {/* Desktop Centered Container */}
-        <div className="w-full md:max-w-6xl md:mx-auto flex flex-col md:flex-row md:gap-8 md:px-8">
-          {/* Left Section - Auth Methods */}
-          <div className="w-full md:w-1/2 flex flex-col p-4 md:p-8 overflow-y-auto">
-            <div className="flex flex-col justify-center h-full md:h-auto md:min-h-[500px]">
-              <div className="max-w-md mx-auto w-full">
-                <div className="mb-8">
-                  <div className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-full px-3 py-1.5 mb-4">
-                    <Youtube className="w-4 h-4 text-red-500" />
-                    <span className="text-xs md:text-sm font-semibold text-gray-700">Connect YouTube</span>
-                  </div>
-                  <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-3">Unlock Automation</h1>
-                  <p className="text-sm md:text-lg text-gray-600">
-                    Securely connect your channel to access AI-powered growth tools
-                  </p>
-                </div>
 
-                <div className="space-y-4">
-                  <h2 className="text-lg md:text-xl font-bold text-gray-900">Connect Your YouTube Channel</h2>
+      {/* Main Content - Centered Card */}
+      <div className="relative flex-1 flex items-center justify-center overflow-hidden bg-gradient-to-b from-gray-50 to-white py-12 px-4">
+        {/* Centered Container */}
+        <div className="relative z-10 w-full max-w-2xl mx-auto">
+          {/* Decorative gradient background */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full blur-3xl opacity-30 -z-10" />
 
-                  {/* Error Display */}
-                  {error && (
-                    <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 flex items-start gap-3 animate-shake">
-                      <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-red-800 text-sm font-medium">{error}</p>
-                        <button
-                          onClick={() => setError(null)}
-                          className="text-red-600 text-xs underline hover:text-red-800 mt-1"
-                        >
-                          Dismiss
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Google OAuth Button */}
-                  <button
-                    onClick={handleConnectWithGoogle}
-                    disabled={isAuthLoading}
-                    className="w-full p-4 md:p-5 rounded-lg border-2 border-gray-200 bg-white hover:border-gray-300 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 md:w-14 md:h-14 bg-white rounded-lg flex items-center justify-center font-bold text-lg md:text-xl border border-gray-200 flex-shrink-0">
-                        G
-                      </div>
-                      <div className="text-left flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 mb-1 text-sm md:text-base">Google Sign-In</h3>
-                        <p className="text-gray-600 text-xs md:text-sm">Connect your YouTube channel with Google OAuth</p>
-                      </div>
-                      <ChevronRight className="w-5 h-5 md:w-6 md:h-6 text-gray-400 flex-shrink-0" />
-                    </div>
-                  </button>
-
-                  {/* Security Badge */}
-                  <div className="bg-green-50 border border-green-300 rounded-lg p-3 md:p-4 flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5 md:w-6 md:h-6 text-green-600 flex-shrink-0" />
-                    <p className="text-green-700 text-xs md:text-sm font-medium">
-                      Secure connection with Google OAuth
-                    </p>
-                  </div>
-
-                  {/* Instructions */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 md:p-4">
-                    <h3 className="font-semibold text-blue-900 text-sm mb-2">Connection Instructions</h3>
-                    <ul className="text-blue-800 text-xs space-y-1">
-                      <li>• Click the button above to start the connection process</li>
-                      <li>• Sign in with your Google account</li>
-                      <li>• Grant permission to access your YouTube channel</li>
-                      <li>• You'll be redirected back to this page when complete</li>
-                    </ul>
+          {/* Unlock Animation Overlay */}
+          {showUnlockAnimation && (
+            <div className="absolute inset-0 bg-white z-50 flex flex-col items-center justify-center rounded-3xl">
+              <div className="relative mb-6">
+                {/* Animated unlock icon */}
+                <div className="relative w-32 h-32">
+                  <div className="absolute inset-0 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full animate-ping opacity-75"></div>
+                  <div className="relative w-32 h-32 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center shadow-2xl">
+                    <CheckCircle className="w-16 h-16 text-white animate-bounce-in" />
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Right Section - Channel Preview */}
-          <div className="w-full md:w-1/2 flex flex-col items-center justify-center p-4 md:p-8 border-t md:border-t-0 md:border-l border-gray-200">
-            <div className="bg-gradient-to-b from-gray-50 to-white rounded-lg p-6 md:p-8 w-full max-w-md mx-auto border border-gray-200 shadow-sm relative overflow-hidden">
-              {/* Unlock Animation Overlay */}
-              {showUnlockAnimation && (
-                <div className="absolute inset-0 bg-white z-50 flex flex-col items-center justify-center">
-                  <div className="relative mb-6">
-                    {/* Animated unlock icon */}
-                    <div className="relative w-32 h-32">
-                      <div className="absolute inset-0 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full animate-ping opacity-75"></div>
-                      <div className="relative w-32 h-32 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center shadow-2xl">
-                        <CheckCircle className="w-16 h-16 text-white animate-bounce-in" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Channel Logo */}
-                  {youtubeChannel?.thumbnail && (
-                    <div className="relative mb-4 animate-scale-in">
-                      <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-600 rounded-full blur-xl opacity-50 animate-pulse"></div>
-                      <img
-                        src={youtubeChannel.thumbnail}
-                        alt={youtubeChannel.title}
-                        className="relative w-24 h-24 rounded-full border-4 border-white shadow-xl object-cover"
-                      />
-                    </div>
-                  )}
-
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2 animate-fade-in-up">
-                    Channel Unlocked! 🎉
-                  </h2>
-                  <p className="text-gray-600 text-center px-4 mb-4 animate-fade-in-up-delay">
-                    {youtubeChannel?.title}
-                  </p>
-
-                  {isRedirecting ? (
-                    <div className="flex items-center gap-2 text-blue-600 animate-pulse">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span className="font-semibold">Redirecting to Dashboard...</span>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 animate-fade-in">
-                      Loading your dashboard...
-                    </p>
-                  )}
+              {/* Channel Logo */}
+              {youtubeChannel?.thumbnail && (
+                <div className="relative mb-4 animate-scale-in">
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-600 rounded-full blur-xl opacity-50 animate-pulse"></div>
+                  <img
+                    src={youtubeChannel.thumbnail}
+                    alt={youtubeChannel.title}
+                    className="relative w-24 h-24 rounded-full border-4 border-white shadow-xl object-cover"
+                  />
                 </div>
               )}
 
-              <div className="text-center">
-                {isLoading ? (
-                  <div className="w-20 h-20 md:w-24 md:h-24 mx-auto mb-6 flex items-center justify-center">
-                    <div className="animate-spin">
-                      <Loader2 className="w-12 h-12 md:w-16 md:h-16 text-blue-600" />
-                    </div>
-                  </div>
-                ) : youtubeChannel?.thumbnail ? (
-                  // Show actual channel logo/thumbnail
-                  <div className="w-20 h-20 md:w-24 md:h-24 mx-auto mb-6 relative group">
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-600 rounded-full blur-md opacity-50 group-hover:opacity-75 transition-opacity"></div>
-                    <img
-                      src={youtubeChannel.thumbnail}
-                      alt={youtubeChannel.title}
-                      className="relative w-20 h-20 md:w-24 md:h-24 rounded-full border-4 border-white shadow-xl object-cover ring-2 ring-blue-200 hover:ring-blue-400 transition-all"
-                    />
-                    <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-green-500 rounded-full border-4 border-white flex items-center justify-center shadow-lg">
-                      <CheckCircle className="w-4 h-4 text-white" />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="w-20 h-20 md:w-24 md:h-24 mx-auto mb-6 relative">
-                    <div className="absolute inset-0 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center shadow-lg hover:shadow-xl transition">
-                      <Youtube className="w-10 h-10 md:w-12 md:h-12 text-white" />
-                    </div>
-                  </div>
-                )}
+              <h2 className="text-2xl font-bold text-gray-900 mb-2 animate-fade-in-up">
+                Channel Unlocked! 🎉
+              </h2>
+              <p className="text-gray-600 text-center px-4 mb-4 animate-fade-in-up-delay">
+                {youtubeChannel?.title}
+              </p>
 
-                <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">
-                  {isLoading ? "Connecting..." : youtubeChannel ? youtubeChannel.title : "Your Channel"}
-                </h3>
-                <p className="text-gray-600 text-sm md:text-base mb-6">
-                  {isLoading
-                    ? "Setting up your YouTube automation..."
-                    : youtubeChannel
-                      ? youtubeChannel.customUrl || "Channel connected successfully"
-                      : "Ready to connect and automate your YouTube growth"}
+              {isRedirecting ? (
+                <div className="flex items-center gap-2 text-blue-600 animate-pulse">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="font-semibold">Redirecting to Dashboard...</span>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 animate-fade-in">
+                  Loading your dashboard...
                 </p>
+              )}
+            </div>
+          )}
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-3 gap-2 md:gap-3 bg-gray-50 rounded-lg p-4 md:p-5 mb-6 border border-gray-200">
-                  <div>
-                    <p className="text-gray-600 text-xs md:text-sm mb-1 font-medium">Subscribers</p>
-                    <p className="text-lg md:text-xl font-bold text-gray-900">
-                      {youtubeChannel ? formatNumber(youtubeChannel.subscriberCount) : "--"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600 text-xs md:text-sm mb-1 font-medium">Videos</p>
-                    <p className="text-lg md:text-xl font-bold text-gray-900">
-                      {youtubeChannel ? formatNumber(youtubeChannel.videoCount) : "--"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600 text-xs md:text-sm mb-1 font-medium">Views</p>
-                    <p className="text-lg md:text-xl font-bold text-gray-900">
-                      {youtubeChannel ? formatNumber(youtubeChannel.viewCount) : "--"}
-                    </p>
-                  </div>
+          <div className="text-center relative z-10">
+            {isLoading ? (
+              <div className="w-28 h-28 md:w-32 md:h-32 mx-auto mb-8 flex items-center justify-center">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-600 rounded-full blur-xl opacity-50 animate-pulse"></div>
+                  <Loader2 className="relative w-16 h-16 md:w-20 md:h-20 text-blue-600 animate-spin" />
                 </div>
-
-                {/* Permissions */}
-                <div className="text-left bg-gray-50 rounded-lg p-4 md:p-5 space-y-2 mb-6 border border-gray-200">
-                  <p className="text-gray-900 font-semibold text-xs md:text-sm">We'll access:</p>
-                  <ul className="space-y-1.5">
-                    <li className="flex items-center gap-2 text-gray-600 text-xs md:text-sm">
-                      <CheckCircle className="w-4 h-4 md:w-5 md:h-5 text-blue-500 flex-shrink-0" />
-                      Channel analytics
-                    </li>
-                    <li className="flex items-center gap-2 text-gray-600 text-xs md:text-sm">
-                      <CheckCircle className="w-4 h-4 md:w-5 md:h-5 text-blue-500 flex-shrink-0" />
-                      Video management
-                    </li>
-                    <li className="flex items-center gap-2 text-gray-600 text-xs md:text-sm">
-                      <CheckCircle className="w-4 h-4 md:w-5 md:h-5 text-blue-500 flex-shrink-0" />
-                      AI optimization
-                    </li>
-                  </ul>
+              </div>
+            ) : youtubeChannel?.thumbnail ? (
+              // Show actual channel logo/thumbnail
+              <div className="w-28 h-28 md:w-32 md:h-32 mx-auto mb-8 relative group">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-600 rounded-full blur-lg opacity-50 group-hover:opacity-75 transition-opacity animate-pulse"></div>
+                <img
+                  src={youtubeChannel.thumbnail}
+                  alt={youtubeChannel.title}
+                  className="relative w-28 h-28 md:w-32 md:h-32 rounded-full border-4 border-white shadow-2xl object-cover ring-4 ring-blue-200 group-hover:ring-blue-400 transition-all"
+                />
+                <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full border-4 border-white flex items-center justify-center shadow-lg">
+                  <CheckCircle className="w-5 h-5 text-white" />
                 </div>
+              </div>
+            ) : (
+              <div className="w-28 h-28 md:w-32 md:h-32 mx-auto mb-8 relative group">
+                <div className="absolute inset-0 bg-gradient-to-br from-red-400 to-pink-600 rounded-full blur-lg opacity-50 group-hover:opacity-75 transition-opacity"></div>
+                <div className="relative w-28 h-28 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center shadow-2xl ring-4 ring-red-200 group-hover:ring-red-300 transition-all">
+                  <Youtube className="w-14 h-14 md:w-16 md:h-16 text-white" />
+                </div>
+              </div>
+            )}
 
-                {/* Action Buttons */}
-                <div className="space-y-3">
-                  {youtubeChannel ? (
-                    <>
-                      <Button
-                        onClick={() => router.push("/dashboard")}
-                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 md:py-4 rounded-lg text-base"
-                      >
-                        <CheckCircle className="w-5 h-5 mr-2" />
-                        Go to Dashboard
-                      </Button>
+            <h3 className="text-2xl md:text-3xl font-black text-gray-900 mb-3">
+              {isLoading ? "Connecting..." : youtubeChannel ? youtubeChannel.title : "Your Channel"}
+            </h3>
+            <p className="text-gray-600 text-sm md:text-base mb-8 leading-relaxed">
+              {isLoading
+                ? "Setting up your YouTube automation..."
+                : youtubeChannel
+                  ? youtubeChannel.customUrl || "Channel connected successfully"
+                  : "Ready to connect and automate your YouTube growth"}
+            </p>
 
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={handleRefreshChannel}
-                          variant="outline"
-                          disabled={isLoading}
-                          className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50 py-2 disabled:opacity-50"
-                        >
-                          {isLoading ? (
-                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                          ) : (
-                            <RefreshCw className="w-4 h-4 mr-1" />
-                          )}
-                          Refresh
-                        </Button>
+            {/* Stats Grid - Enhanced */}
+            <div className="grid grid-cols-3 gap-3 md:gap-4 bg-gradient-to-br from-gray-50 to-blue-50 rounded-2xl p-5 md:p-6 mb-8 border border-gray-200 shadow-inner">
+              <div className="text-center">
+                <p className="text-gray-600 text-xs md:text-sm mb-2 font-semibold">Subscribers</p>
+                <p className="text-xl md:text-2xl font-black bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  {youtubeChannel ? formatNumber(youtubeChannel.subscriberCount) : "--"}
+                </p>
+              </div>
+              <div className="text-center border-x border-gray-300">
+                <p className="text-gray-600 text-xs md:text-sm mb-2 font-semibold">Videos</p>
+                <p className="text-xl md:text-2xl font-black bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  {youtubeChannel ? formatNumber(youtubeChannel.videoCount) : "--"}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-gray-600 text-xs md:text-sm mb-2 font-semibold">Views</p>
+                <p className="text-xl md:text-2xl font-black bg-gradient-to-r from-pink-600 to-red-600 bg-clip-text text-transparent">
+                  {youtubeChannel ? formatNumber(youtubeChannel.viewCount) : "--"}
+                </p>
+              </div>
+            </div>
 
-                        <Button
-                          onClick={handleDisconnect}
-                          variant="outline"
-                          className="flex-1 border-red-300 text-red-600 hover:bg-red-50 py-2"
-                        >
-                          Disconnect
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
+            {/* Permissions - Enhanced */}
+            <div className="text-left bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-5 md:p-6 space-y-3 mb-8 border border-blue-200 shadow-sm">
+              <p className="text-gray-900 font-bold text-sm md:text-base flex items-center gap-2">
+                <Lock className="w-4 h-4 text-blue-600" />
+                Secure Access Permissions
+              </p>
+              <ul className="space-y-2.5">
+                <li className="flex items-center gap-3 text-gray-700 text-xs md:text-sm">
+                  <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <span>Channel analytics & insights</span>
+                </li>
+                <li className="flex items-center gap-3 text-gray-700 text-xs md:text-sm">
+                  <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="w-4 h-4 text-purple-600" />
+                  </div>
+                  <span>Video management tools</span>
+                </li>
+                <li className="flex items-center gap-3 text-gray-700 text-xs md:text-sm">
+                  <div className="w-6 h-6 rounded-full bg-pink-100 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="w-4 h-4 text-pink-600" />
+                  </div>
+                  <span>AI-powered optimization</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Action Buttons - Enhanced */}
+            <div className="space-y-3">
+              {youtubeChannel ? (
+                <>
+                  <Button
+                    onClick={() => router.push("/dashboard")}
+                    className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white font-bold py-4 md:py-5 rounded-xl text-base md:text-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
+                  >
+                    <CheckCircle className="w-5 h-5 mr-2" />
+                    Go to Dashboard
+                  </Button>
+
+                  <div className="flex gap-3">
                     <Button
-                      onClick={handleConnectWithGoogle}
-                      disabled={isAuthLoading || isLoading}
-                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 md:py-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-base"
+                      onClick={handleRefreshChannel}
+                      variant="outline"
+                      disabled={isLoading}
+                      className="flex-1 border-2 border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 py-3 disabled:opacity-50 rounded-xl font-semibold shadow-sm hover:shadow-md transition-all"
                     >
-                      {isAuthLoading || isLoading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 md:w-5 md:h-5 mr-2 animate-spin" />
-                          {isLoading ? "Initializing..." : "Authenticating..."}
-                        </>
+                      {isLoading ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       ) : (
-                        "Connect with Google"
+                        <RefreshCw className="w-4 h-4 mr-2" />
                       )}
+                      Refresh
                     </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Recent Activity & Connected Channels Section */}
-      <div className="w-full border-t border-gray-200 bg-gray-50 py-8 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Recent Activity */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <RefreshCw className="w-5 h-5 text-blue-600" />
-                  Recent Activity
-                </h3>
-                {recentActivities.length > 0 && (
-                  <span className="text-xs text-gray-500">{recentActivities.length} activities</span>
-                )}
-              </div>
-
-              {recentActivities.length === 0 ? (
-                <div className="text-center py-8">
-                  <Youtube className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 text-sm">No recent activity yet</p>
-                  <p className="text-gray-400 text-xs mt-1">Connect a channel to see activity</p>
-                </div>
+                    <Button
+                      onClick={handleDisconnect}
+                      variant="outline"
+                      className="flex-1 border-2 border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 py-3 rounded-xl font-semibold shadow-sm hover:shadow-md transition-all"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Disconnect
+                    </Button>
+                  </div>
+                </>
               ) : (
-                <div className="space-y-3">
-                  {recentActivities.map((activity) => (
-                    <div key={activity.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${activity.type === 'connect' ? 'bg-green-100' :
-                          activity.type === 'disconnect' ? 'bg-red-100' :
-                            activity.type === 'refresh' ? 'bg-blue-100' : 'bg-purple-100'
-                        }`}>
-                        {activity.type === 'connect' && <CheckCircle className="w-5 h-5 text-green-600" />}
-                        {activity.type === 'disconnect' && <X className="w-5 h-5 text-red-600" />}
-                        {activity.type === 'refresh' && <RefreshCw className="w-5 h-5 text-blue-600" />}
-                        {activity.type === 'oauth' && <Youtube className="w-5 h-5 text-purple-600" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{activity.channelName}</p>
-                        <p className="text-xs text-gray-600 mt-0.5">{activity.details}</p>
-                        <p className="text-xs text-gray-400 mt-1">
-                          {new Date(activity.timestamp).toLocaleString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                <>
+                  <Button
+                    onClick={handleConnectWithGoogle}
+                    disabled={isAuthLoading || isLoading}
+                    className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 text-white font-bold py-4 md:py-5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed text-base md:text-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
+                  >
+                    {isAuthLoading || isLoading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        {isLoading ? "Initializing..." : "Authenticating..."}
+                      </>
+                    ) : (
+                      <>
+                        <Youtube className="w-5 h-5 mr-2" />
+                        Connect with Google
+                      </>
+                    )}
+                  </Button>
 
-            {/* Connected Channels */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <Youtube className="w-5 h-5 text-red-600" />
-                  Connected Channels
-                </h3>
-                <span className="text-xs text-gray-500">
-                  {youtubeChannel ? (additionalChannels.length + 1) : additionalChannels.length} channel{(youtubeChannel ? additionalChannels.length + 1 : additionalChannels.length) !== 1 ? 's' : ''}
-                </span>
-              </div>
-
-              {!youtubeChannel && additionalChannels.length === 0 ? (
-                <div className="text-center py-8">
-                  <Youtube className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 text-sm">No channels connected</p>
-                  <p className="text-gray-400 text-xs mt-1">Connect your first channel to get started</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* Main Channel */}
-                  {youtubeChannel && (
-                    <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 rounded-lg">
-                      <img
-                        src={youtubeChannel.thumbnail}
-                        alt={youtubeChannel.title}
-                        className="w-12 h-12 rounded-full border-2 border-white shadow-sm object-cover"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{youtubeChannel.title}</p>
-                          <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-medium rounded-full">Main</span>
-                        </div>
-                        <p className="text-xs text-gray-600 mt-0.5">{formatNumber(youtubeChannel.subscriberCount)} subscribers</p>
-                      </div>
-                      <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
-                    </div>
-                  )}
-
-                  {/* Additional Channels */}
-                  {additionalChannels.map((channel) => (
-                    <div key={channel.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
-                      <img
-                        src={channel.thumbnail}
-                        alt={channel.title}
-                        className="w-12 h-12 rounded-full border border-gray-200 object-cover"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{channel.title}</p>
-                        <p className="text-xs text-gray-600 mt-0.5">{formatNumber(channel.subscriberCount)} subscribers</p>
-                      </div>
-                      <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
-                    </div>
-                  ))}
-                </div>
+                  {/* Skip Button */}
+                  <Button
+                    onClick={() => router.push("/dashboard")}
+                    variant="ghost"
+                    className="w-full text-gray-600 hover:text-gray-900 hover:bg-gray-100 py-3 rounded-xl font-medium transition-all"
+                  >
+                    Skip for now
+                  </Button>
+                </>
               )}
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Mobile Bottom Safe Area */}
-      <div className="md:hidden h-4 bg-white"></div>
+        {/* Mobile Bottom Safe Area */}
+        <div className="md:hidden h-4 bg-white"></div>
 
-      {/* Animations */}
-      <style jsx>{`
+        {/* Animations */}
+        <style jsx>{`
         @keyframes bounce-in {
           0% {
             transform: scale(0);
@@ -927,6 +710,7 @@ export default function ConnectPage() {
           animation: fade-in 0.5s ease-out 1s both;
         }
       `}</style>
+      </div>
     </div>
   )
 }

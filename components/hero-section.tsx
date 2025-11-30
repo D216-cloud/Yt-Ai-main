@@ -144,12 +144,8 @@ export function HeroSection() {
 
                     {/* Main Headline - Enhanced */}
                     <div className={`mb-8 transition-all duration-1000 delay-100 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-                        <h1 className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-black tracking-tight text-gray-900 mb-6 leading-[1.1]">
-                            Relevant data-driven
-                            <br />
-                            <span className="inline-block mt-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 animate-gradient-text">
-                                insights for creators.
-                            </span>
+                        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-gray-900 mb-6 leading-tight">
+                            Relevant data-driven insights for creators.
                         </h1>
 
                         <p className="text-xl sm:text-2xl text-gray-600 max-w-3xl mx-auto mb-6 font-medium leading-relaxed">

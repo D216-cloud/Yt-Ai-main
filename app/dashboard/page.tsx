@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import SidebarButton from '@/components/ui/sidebar-button'
 import { Button } from '@/components/ui/button'
-import { Home, User, GitCompare, Video, Upload, Play, LogOut, Menu, X, TrendingUp, Users, Eye, Clock, BarChart3, Sparkles, Calendar, CheckCircle, AlertCircle, Zap, Target, Award, ArrowUpRight, Bell, Search, Settings, ChevronDown, Youtube, Activity, FileText, Layers, TrendingDown, DollarSign, Heart, MessageSquare, Share2, MoreHorizontal } from "lucide-react"
+import { Home, User, GitCompare, Video, Upload, Play, LogOut, Menu, X, TrendingUp, Users, Eye, Clock, BarChart3, Sparkles, Calendar, CheckCircle, AlertCircle, Zap, Target, Award, ArrowUpRight, Bell, Search, Settings, ChevronDown, Youtube, Activity, FileText, Layers, TrendingDown, DollarSign, Heart, MessageSquare, Share2, MoreHorizontal, Lightbulb, Image as ImageIcon } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { useState, useEffect } from "react"
@@ -73,9 +73,9 @@ export default function DashboardPage() {
     return n.toString()
   }
 
-  // Reusable base class for small analytics cards
+  // Reusable base class for analytics cards and small cards
   const cardBase = 'group relative bg-white rounded-2xl border border-gray-200 p-4 md:p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-2 overflow-hidden'
-  const smallCardBase = 'bg-gray-50 rounded-xl p-3 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 transition-all hover:shadow-md border border-transparent hover:border-blue-200 flex flex-col gap-2'
+  const smallCardBase = 'bg-white/50 hover:bg-white rounded-xl p-3 transition-all hover:shadow-md border border-transparent hover:border-gray-200 flex flex-col gap-2'
 
   // Mock analytics data
   const analyticsData = {
@@ -91,6 +91,40 @@ export default function DashboardPage() {
       engagement: 15,
       revenue: 28
     }
+  }
+
+  function ChannelSummary({ channel }: { channel: YouTubeChannel | null }) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-2xl p-4 md:p-6 flex flex-col md:flex-row items-start md:items-center gap-4 shadow-sm hover:shadow-lg transition-all">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-md">
+            {channel?.thumbnail ? (
+              <img src={channel.thumbnail} alt={channel.title} className="w-16 h-16 object-cover rounded-lg" />
+            ) : (
+              <Play className="w-6 h-6" />
+            )}
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-lg md:text-xl font-black text-gray-900 truncate">{channel?.title || 'Creator Studio'}</h2>
+            <p className="text-sm text-gray-500 truncate">{channel?.customUrl || channel?.id || 'No channel connected'}</p>
+          </div>
+        </div>
+        <div className="w-full md:w-auto grid grid-cols-3 gap-4 text-center mt-3 md:mt-0 md:ml-auto">
+          <div>
+            <div className="text-xs text-gray-500">Subscribers</div>
+            <div className="text-lg font-bold text-gray-900">{formatNumber(analyticsData.subscribers)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-gray-500">Views</div>
+            <div className="text-lg font-bold text-gray-900">{formatNumber(analyticsData.views)}</div>
+          </div>
+          <div>
+            <div className="text-xs text-gray-500">Watch Time</div>
+            <div className="text-lg font-bold text-gray-900">{formatNumber(analyticsData.watchTime)}h</div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const recentVideos = [
@@ -288,7 +322,7 @@ export default function DashboardPage() {
           {youtubeChannel && (
             <div className="p-4 border-b border-gray-200">
               <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
-                <div className="relative flex-shrink-0">
+                <div className="relative shrink-0">
                   <img
                     src={youtubeChannel.thumbnail}
                     alt={youtubeChannel.title}
@@ -300,7 +334,7 @@ export default function DashboardPage() {
                   <p className="font-bold text-gray-900 text-sm truncate">{youtubeChannel.title}</p>
                   <p className="text-xs text-gray-600">{formatNumber(youtubeChannel.subscriberCount)} subscribers</p>
                 </div>
-                <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
               </div>
             </div>
           )}
@@ -391,8 +425,13 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* Channel Summary */}
+            <div className="mb-6">
+              <ChannelSummary channel={youtubeChannel} />
+            </div>
+
             {/* Analytics Overview - Enhanced Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
               {/* Total Views */}
               <div className={`${cardBase} hover:border-blue-300`}>
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-full blur-2xl"></div>
@@ -406,10 +445,18 @@ export default function DashboardPage() {
                       <span>{analyticsData.growth.views}%</span>
                     </div>
                   </div>
-                  <p className="text-sm font-semibold text-gray-600 mb-1">Total Views</p>
-                  <p className="text-3xl font-black bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                    {formatNumber(analyticsData.views)}
-                  </p>
+                  <p className="text-sm font-semibold text-gray-600 mb-3">Total Views</p>
+                  <div className="flex items-center justify-center">
+                    <button
+                      onClick={() => router.push('/ai-tools')}
+                      aria-label="Find keywords for your channel"
+                      title="Find keywords for your channel"
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-md transition"
+                    >
+                      <Search className="w-4 h-4" />
+                      <span>Find Keywords</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -426,10 +473,18 @@ export default function DashboardPage() {
                       <span>{analyticsData.growth.subscribers}%</span>
                     </div>
                   </div>
-                  <p className="text-sm font-semibold text-gray-600 mb-1">Subscribers</p>
-                  <p className="text-3xl font-black bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                    {formatNumber(analyticsData.subscribers)}
-                  </p>
+                  <p className="text-sm font-semibold text-gray-600 mb-3">Subscribers</p>
+                  <div className="flex items-center justify-center">
+                    <button
+                      onClick={() => router.push('/bulk-upload')}
+                      aria-label="Smart Bulk Upload"
+                      title="Smart Bulk Upload"
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 px-4 bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-md transition"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>Smart Bulk Upload</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -446,10 +501,18 @@ export default function DashboardPage() {
                       <span>{analyticsData.growth.watchTime}%</span>
                     </div>
                   </div>
-                  <p className="text-sm font-semibold text-gray-600 mb-1">Watch Time</p>
-                  <p className="text-3xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                    {formatNumber(analyticsData.watchTime)}h
-                  </p>
+                  <p className="text-sm font-semibold text-gray-600 mb-3">Watch Time</p>
+                  <div className="flex items-center justify-center">
+                    <button
+                      onClick={() => router.push('/ai-tools?tool=idea')}
+                      aria-label="Find Best Idea"
+                      title="Find Best Idea"
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-semibold shadow-md transition"
+                    >
+                      <Lightbulb className="w-4 h-4" />
+                      <span>Find Best Idea</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -466,10 +529,18 @@ export default function DashboardPage() {
                       <span>{analyticsData.growth.engagement}%</span>
                     </div>
                   </div>
-                  <p className="text-sm font-semibold text-gray-600 mb-1">Engagement</p>
-                  <p className="text-3xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
-                    {analyticsData.engagement}%
-                  </p>
+                  <p className="text-sm font-semibold text-gray-600 mb-3">Engagement</p>
+                  <div className="flex items-center justify-center">
+                    <button
+                      onClick={() => router.push('/ai-tools?tool=thumbnail')}
+                      aria-label="Generate Thumbnail"
+                      title="Generate Thumbnail"
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 px-4 bg-orange-600 hover:bg-orange-700 text-white font-semibold shadow-md transition"
+                    >
+                      <ImageIcon className="w-4 h-4" />
+                      <span>Generate Thumbnail</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -500,18 +571,26 @@ export default function DashboardPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="h-44 md:h-72 flex items-end justify-between gap-1.5">
+                  <div className="h-36 sm:h-44 md:h-72 flex items-end justify-between gap-1.5">
                     {[30, 45, 35, 60, 50, 75, 65, 85, 70, 90, 80, 95, 88, 100, 92, 98, 85, 94, 89, 96].map((height, i) => (
                       <div key={i} className="flex-1 group/bar cursor-pointer relative">
                         <div
-                          className="w-full bg-gradient-to-t from-blue-600 via-purple-600 to-pink-600 rounded-t-lg transition-all duration-300 group-hover/bar:from-blue-700 group-hover/bar:via-purple-700 group-hover/bar:to-pink-700 group-hover/bar:shadow-lg"
+                          className={`w-full rounded-t-lg transition-all duration-300 group-hover/bar:shadow-lg ${chartSeries === 'views' ? 'bg-gradient-to-t from-blue-600 via-purple-600 to-pink-600 group-hover/bar:from-blue-700 group-hover/bar:via-purple-700 group-hover/bar:to-pink-700' : 'bg-gradient-to-t from-purple-600 via-pink-600 to-indigo-600 group-hover/bar:from-purple-700 group-hover/bar:via-pink-700 group-hover/bar:to-indigo-700'}`}
                           style={{ height: `${height}%` }}
                         />
                         <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity whitespace-nowrap">
-                          {Math.round(height * 100)} views
+                          {chartSeries === 'views' ? `${Math.round(height * 100)} views` : `${Math.round(height * 10)} subs`}
                         </div>
                       </div>
                     ))}
+                  </div>
+                  {/* Chart axis labels */}
+                  <div className="mt-3 flex items-center justify-between text-xs text-gray-400">
+                    <span>Day 1</span>
+                    <span>Day 5</span>
+                    <span>Day 10</span>
+                    <span>Day 15</span>
+                    <span>Day 20</span>
                   </div>
                 </div>
 
@@ -528,16 +607,16 @@ export default function DashboardPage() {
                       </Button>
                     </Link>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {recentVideos.map((video) => (
-                      <div key={video.id} className={`${smallCardBase}`}>
-                        <div className="flex items-center gap-3">
-                          <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-md flex-shrink-0">
-                            {video.thumbnail}
+                      <div key={video.id} className={`${smallCardBase} hover:shadow-lg hover:-translate-y-1 transition-transform`}>
+                        <div className="flex items-start gap-3">
+                          <div className="w-16 h-12 sm:w-20 sm:h-14 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center shrink-0">
+                            <div className="w-full h-full flex items-center justify-center text-2xl">{video.thumbnail}</div>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-gray-900 truncate">{video.title}</h4>
-                            <div className="flex items-center gap-3 mt-2 text-xs text-gray-600">
+                            <h4 className="font-semibold text-gray-900 truncate mb-1">{video.title}</h4>
+                            <div className="flex items-center gap-3 text-xs text-gray-600">
                               <div className="flex items-center gap-1">
                                 <Eye className="w-4 h-4" />
                                 <span>{video.views}</span>
@@ -546,17 +625,32 @@ export default function DashboardPage() {
                                 <Heart className="w-4 h-4" />
                                 <span>{video.likes}</span>
                               </div>
+                              <div className="flex items-center gap-1">
+                                <MessageSquare className="w-4 h-4" />
+                                <span>{video.comments}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="items-start hidden sm:flex">
+                            <div className="flex flex-col items-end gap-2">
+                              <button className="p-1 rounded-md hover:bg-gray-100 transition-colors" title="More">
+                                <MoreHorizontal className="w-4 h-4 text-gray-600" />
+                              </button>
+                              <button className="p-1 rounded-md hover:bg-gray-100 transition-colors" title="Share">
+                                <Share2 className="w-4 h-4 text-gray-600" />
+                              </button>
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between mt-3">
+                        <div className="mt-3 flex items-center justify-between">
                           <div className={`flex items-center gap-2 px-3 py-1 rounded-lg border ${video.status === 'published' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
                             <div className={`w-2 h-2 rounded-full ${video.status === 'published' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
                             <span className={`text-xs font-bold capitalize ${video.status === 'published' ? 'text-green-700' : 'text-yellow-700'}`}>{video.status}</span>
                           </div>
-                          <button className="p-2 rounded-lg hover:bg-gray-200 transition-colors">
-                            <MoreHorizontal className="w-4 h-4 text-gray-600" />
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button className="text-xs px-3 py-1 rounded-md border hover:bg-gray-100">Edit</button>
+                            <button className="text-xs px-3 py-1 rounded-md bg-gray-100 hover:bg-gray-200">Details</button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -588,6 +682,12 @@ export default function DashboardPage() {
                         <span className="font-semibold text-gray-900">View Analytics</span>
                       </button>
                     </Link>
+                    <Link href="/upload/shorts">
+                      <button className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded-lg hover:shadow-xl transition-all hover:-translate-y-0.5">
+                        <Video className="w-5 h-5" />
+                        <span className="font-semibold">Create Short</span>
+                      </button>
+                    </Link>
                   </div>
                 </div>
 
@@ -601,15 +701,15 @@ export default function DashboardPage() {
                   </div>
                   <div className="space-y-4">
                     <div className="flex items-start gap-3 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
-                      <Zap className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                      <Zap className="w-5 h-5 shrink-0 mt-0.5" />
                       <p className="text-sm">Your engagement is <strong>15% higher</strong> than similar channels</p>
                     </div>
                     <div className="flex items-start gap-3 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
-                      <Target className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                      <Target className="w-5 h-5 shrink-0 mt-0.5" />
                       <p className="text-sm">Best posting time: <strong>Tuesday, 2-4 PM</strong></p>
                     </div>
                     <div className="flex items-start gap-3 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
-                      <Award className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                      <Award className="w-5 h-5 shrink-0 mt-0.5" />
                       <p className="text-sm">On track for <strong>50K subscribers</strong> this month!</p>
                     </div>
                   </div>
