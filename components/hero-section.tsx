@@ -192,7 +192,7 @@ export function HeroSection() {
                     </div>
 
                     {/* Trust Indicators - Enhanced */}
-                    <div className={`grid grid-cols-1 sm:grid-cols-3 gap-8 max-w-3xl mx-auto mb-20 transition-all duration-1000 delay-300 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                    <div className={`grid grid-cols-2 sm:grid-cols-3 gap-8 max-w-3xl mx-auto mb-20 transition-all duration-1000 delay-300 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                         {/* Stat 1 */}
                         <div className="group text-center p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200/50 hover:border-blue-300 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                             <Users className="w-8 h-8 text-blue-600 mx-auto mb-3 group-hover:scale-110 transition-transform" />
@@ -254,7 +254,7 @@ export function HeroSection() {
                                 {/* Dashboard Content */}
                                 <div className="p-8 sm:p-12 bg-gradient-to-b from-white via-gray-50/30 to-white">
                                     {/* Stats Grid */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 mb-8">
                                         {[
                                             { label: "Total Views", value: "127.5K", change: "+23%", icon: BarChart3, gradient: "from-blue-500 to-cyan-500", bg: "from-blue-50 to-cyan-50" },
                                             { label: "Subscribers", value: "45.2K", change: "+18%", icon: Users, gradient: "from-purple-500 to-pink-500", bg: "from-purple-50 to-pink-50" },

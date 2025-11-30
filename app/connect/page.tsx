@@ -528,7 +528,7 @@ export default function ConnectPage() {
             </p>
 
             {/* Stats Grid - Enhanced */}
-            <div className="grid grid-cols-3 gap-3 md:gap-4 bg-gradient-to-br from-gray-50 to-blue-50 rounded-2xl p-5 md:p-6 mb-8 border border-gray-200 shadow-inner">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 bg-gradient-to-br from-gray-50 to-blue-50 rounded-2xl p-5 md:p-6 mb-8 border border-gray-200 shadow-inner">
               <div className="text-center">
                 <p className="text-gray-600 text-xs md:text-sm mb-2 font-semibold">Subscribers</p>
                 <p className="text-xl md:text-2xl font-black bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
