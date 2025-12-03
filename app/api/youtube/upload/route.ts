@@ -12,11 +12,27 @@ export async function POST(req: NextRequest) {
     const privacy = formData.get("privacy") as string
     const madeForKids = formData.get("madeForKids") === "true"
     const category = formData.get("category") as string
-    const expectedChannelId = formData.get("channelId") as string // Channel we expect to upload to
+    const channelIds = formData.get("channelIds") as string
+    let expectedChannelId = formData.get("channelId") as string
+    
+    // Handle channelIds array format
+    if (!expectedChannelId && channelIds) {
+      try {
+        const parsedChannelIds = JSON.parse(channelIds)
+        if (Array.isArray(parsedChannelIds) && parsedChannelIds.length > 0) {
+          expectedChannelId = parsedChannelIds[0]
+        }
+      } catch (e) {
+        console.log('Failed to parse channelIds, continuing without validation')
+      }
+    }
 
     console.log('=== UPLOAD API DEBUG ===')
     console.log('Expected Channel ID:', expectedChannelId)
     console.log('Access Token (first 20 chars):', accessToken?.substring(0, 20))
+    console.log('Video file size:', videoFile?.size)
+    console.log('Video title:', title)
+    console.log('Tags:', tags)
 
     // Sanity-check required environment variables
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
@@ -38,9 +54,9 @@ export async function POST(req: NextRequest) {
 
     // Initialize OAuth2 client
     const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
+      process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID,
+      process.env.YOUTUBE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI || `${process.env.NEXTAUTH_URL}/api/auth/callback/google`
     )
 
     oauth2Client.setCredentials({

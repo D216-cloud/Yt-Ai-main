@@ -2,14 +2,13 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import SidebarButton from '@/components/ui/sidebar-button'
-import { Button } from '@/components/ui/button'
-import { Home, User, GitCompare, Video, Upload, Play, LogOut, Menu, X, CheckCircle, Plus, List, Settings, Bell, ChevronDown, Youtube } from "lucide-react"
+import { Home, User, GitCompare, Video, Upload, Play, LogOut, Menu, X, CheckCircle, Plus, List, Settings, Bell, ChevronDown, Youtube, Zap, Clock, Users, TrendingUp } from "lucide-react"
 import { useRouter, usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { useState, useEffect, useRef, useMemo } from "react"
 import { MobileBottomNav } from '@/components/mobile-bottom-nav'
 import SharedSidebar from '@/components/shared-sidebar'
+import ChannelSummary from '@/components/channel-summary'
 
 export default function BulkUploadPage() {
   const router = useRouter()
@@ -436,43 +435,18 @@ export default function BulkUploadPage() {
     if (!file) return
     const validTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']
     if (!validTypes.includes(file.type)) {
-      alert('Please select a valid video file (MP4, WebM, MOV, AVI)')
+      alert('Unsupported file type. Please select an MP4, WebM, MOV or AVI.')
       return
     }
-    // Suggest a title based on filename (nice UX boost)
-    const name = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
-    setUploadData((d) => ({ ...d, title: d.title || name }))
     setSelectedFile(file)
-    try {
-      const url = URL.createObjectURL(file)
-      setPreviewSrc(url)
-    } catch (e) { }
+    setUploadData((s) => ({ ...s, title: file.name.replace(/\.[^/.]+$/, '') }))
+    setPreviewSrc('')
+    setShowDetails(true)
   }
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    const file = e.dataTransfer.files?.[0]
-    if (file) {
-      const fakeEvent = { target: { files: [file] } } as unknown as React.ChangeEvent<HTMLInputElement>
-      handleFileSelect(fakeEvent)
-    }
-  }
-
-  const estimateUploadTime = (bytes: number, mbps: number) => {
-    if (!bytes || !mbps) return '—'
-    const bits = bytes * 8
-    const seconds = bits / (mbps * 1_000_000)
-    if (seconds < 60) return `${Math.ceil(seconds)}s`
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.round(seconds % 60)
-    return `${mins}m ${secs}s`
-  }
-
+  // Upload the currently selected file from the modal to YouTube
   const handleUpload = async () => {
-    if (!selectedFile) { alert('Please select a video file'); return }
-    if (!uploadData.title.trim()) { alert('Please enter a title'); return }
-    if (!selectedUploadChannel) { alert('Please select a channel'); return }
-
+    if (!selectedFile) { alert('No file selected to upload'); return }
     const accessToken = localStorage.getItem('youtube_access_token')
     if (!accessToken) { alert('YouTube access token missing. Connect channel.'); return }
 
@@ -480,24 +454,22 @@ export default function BulkUploadPage() {
     setUploadProgress(0)
 
     try {
-      const formData = new FormData()
-      formData.append('video', selectedFile)
-      formData.append('title', uploadData.title)
-      formData.append('description', uploadData.description)
-      formData.append('tags', uploadData.tags)
-      formData.append('privacy', uploadData.privacy)
-      formData.append('madeForKids', String(uploadData.madeForKids))
-      formData.append('language', uploadData.language || 'en')
-      formData.append('license', uploadData.license || 'standard')
-      formData.append('category', uploadData.category)
-      formData.append('access_token', accessToken)
-      // support multiple channel upload; fallback to single selected channel
-      const channelIds = selectedUploadChannel ? [selectedUploadChannel.id] : []
-      formData.append('channelIds', JSON.stringify(channelIds))
-
-      // Use XMLHttpRequest so we can get real upload progress events
       await new Promise<void>((resolve, reject) => {
         try {
+          const fd = new FormData()
+          fd.append('video', selectedFile)
+          fd.append('title', uploadData.title || selectedFile.name.replace(/\.[^/.]+$/, ''))
+          fd.append('description', uploadData.description || '')
+          fd.append('tags', uploadData.tags || '')
+          fd.append('privacy', uploadData.privacy || 'unlisted')
+          fd.append('madeForKids', String(uploadData.madeForKids || false))
+          fd.append('category', uploadData.category || '22')
+          fd.append('language', uploadData.language || 'en')
+          fd.append('license', uploadData.license || 'standard')
+          fd.append('access_token', accessToken)
+          const channelIds = selectedUploadChannel ? [selectedUploadChannel.id] : []
+          fd.append('channelIds', JSON.stringify(channelIds))
+
           const xhr = new XMLHttpRequest()
           xhr.open('POST', '/api/youtube/upload')
           xhr.upload.onprogress = (e) => {
@@ -511,46 +483,28 @@ export default function BulkUploadPage() {
               try {
                 const data = JSON.parse(xhr.responseText)
                 if (data.success) {
-                  setUploadProgress(100)
-                  alert('Upload successful!')
-                  // Add uploaded video to Bulk Queue (so private/unlisted shows in the right-side queue)
-                  try {
-                    const id = String(Date.now()) + Math.floor(Math.random() * 1000)
-                    const item = {
-                      id,
-                      title: uploadData.title,
-                      fileName: selectedFile?.name || '',
-                      size: selectedFile?.size || 0,
-                      thumbnail: data.thumbnail || data.thumbnailUrl || '',
-                      cloudUrl: data.videoUrl || data.youtubeUrl || '',
-                      youtubeId: data.videoId || data.youtubeId || '',
-                      public_id: data.public_id || '',
-                      status: 'done',
-                      progress: 100,
-                      privacy: uploadData.privacy || 'unlisted'
-                    }
-                    setBulkVideos(prev => [...prev, item])
-                  } catch (e) { console.warn('Failed to add uploaded video to bulk queue', e) }
-
-                  setShowUploadModal(false)
-                  // reset
+                  // reset modal state and selected file
                   setSelectedFile(null)
                   setUploadData({ title: '', description: '', tags: '', category: '22', privacy: 'public', madeForKids: false, language: 'en', license: 'standard' })
+                  setShowDetails(false)
+                  setShowUploadModal(false)
                   resolve()
-                } else {
-                  reject(new Error(data.error || 'Upload failed'))
+                  return
                 }
+                reject(new Error(data.error || 'Upload failed'))
               } catch (err) { reject(err) }
             } else {
               reject(new Error('Upload failed with status ' + xhr.status))
             }
           }
           xhr.onerror = () => reject(new Error('Network error during upload'))
-          xhr.send(formData)
+          xhr.send(fd)
         } catch (err) { reject(err) }
       })
+
+      alert('Upload completed successfully')
     } catch (err: any) {
-      console.error(err)
+      console.error('Upload failed', err)
       alert('Upload failed: ' + (err?.message || 'Please try again'))
     } finally {
       setIsUploading(false)
@@ -584,6 +538,19 @@ export default function BulkUploadPage() {
 
   // helper to access the currently-editing bulk item (used in the details editor)
   const currentEditingItem = editingBulkId ? bulkVideos.find(b => b.id === editingBulkId) : null
+
+  function estimateUploadTime(size: number, uploadSpeedMbps: number): string {
+    if (uploadSpeedMbps <= 0) return 'Unknown'
+    const bits = size * 8
+    const bps = uploadSpeedMbps * 1_000_000
+    const seconds = bits / bps
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = Math.floor(seconds % 60)
+    if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds}s`
+    }
+    return `${remainingSeconds}s`
+  }
 
   return (
     <div>
@@ -673,158 +640,52 @@ export default function BulkUploadPage() {
         <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="bulk-upload" />
 
         {/* Main content */}
-        <main className={`flex-1 pt-20 md:pt-20 md:ml-72 md:mr-80 pb-20 md:pb-0 p-4 md:p-8`}>
+        <main className={`flex-1 pt-20 md:pt-20 md:ml-72 md:mr-24 pb-20 md:pb-0 p-4 md:p-8 md:pr-12`}>
           <div className="max-w-5xl mx-auto">
-            {/* Hero Section */}
-            <div className="relative mb-8 md:mb-12 overflow-hidden">
-              {/* Background Gradient */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-3xl opacity-60"></div>
+            {/* Hero removed per request (kept page layout intact) */}
 
-              {/* Decorative Elements */}
-              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-3xl"></div>
-              <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-pink-400/20 to-red-400/20 rounded-full blur-3xl"></div>
-
-              {/* Content */}
-              <div className="relative px-6 md:px-12 py-8 md:py-16 text-center">
-                {/* Announcement Badge */}
-                <div className="inline-flex items-center gap-2 px-4 py-2 mb-6 md:mb-8 bg-white/80 backdrop-blur-sm border border-emerald-200 rounded-full shadow-sm hover:shadow-md transition-shadow">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                  <span className="text-xs md:text-sm font-medium text-gray-700">
-                    New! Upload videos without recording bots
-                  </span>
+            {/* Welcome & Smart Upload */}
+            <div className="mb-6 mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-black text-gray-900 mb-1">Welcome back, {session?.user?.name?.split(' ')[0] || 'Creator'}! 👋</h1>
+                  <p className="text-gray-600">Manage smart uploads for your connected channel below.</p>
                 </div>
+              </div>
 
-                {/* Main Headline */}
-                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-4 md:mb-6">
-                  <span className="block text-gray-900">Upload videos.</span>
-                  <span className="block text-gray-900">Centralize feedback</span>
-                  <span className="block bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                    automatically.
-                  </span>
-                </h1>
-
-                {/* Subtitle */}
-                <p className="text-base md:text-lg lg:text-xl text-gray-600 max-w-3xl mx-auto mb-8 md:mb-10 leading-relaxed px-4">
-                  Upload and organize videos automatically. Focus on what matters -
-                  connecting with your audience across multiple channels.
-                </p>
-
-                {/* CTA Button */}
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="group inline-flex items-center gap-3 px-6 md:px-8 py-3 md:py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-base md:text-lg font-semibold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                >
-                  <span>Get started - it's free</span>
-                  <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </button>
+              <div className="mb-4 max-w-4xl mx-auto">
+                <ChannelSummary
+                  channel={selectedUploadChannel}
+                  wide={true}
+                  analyticsData={{
+                    views: selectedUploadChannel ? parseInt(selectedUploadChannel.viewCount || '0') : 0,
+                    subscribers: selectedUploadChannel ? parseInt(selectedUploadChannel.subscriberCount || '0') : 0,
+                    watchTime: 0,
+                  }}
+                />
+                <p className="text-sm text-gray-600 mt-3">Hello — are you ready? Start a Smart Upload for <span className="font-semibold">{selectedUploadChannel?.title || 'your channel'}</span>.</p>
               </div>
             </div>
 
-            {/* Action Cards Section */}
-            <div className="bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-              {/* Header */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-6 md:p-8 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-red-500 via-pink-500 to-purple-500 flex items-center justify-center text-white shadow-lg flex-shrink-0">
-                  <Upload className="w-7 h-7" />
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">Manage bulk uploads</h2>
-                  <p className="text-sm md:text-base text-gray-600">Upload batches to multiple channels from one place.</p>
-                </div>
-              </div>
-
-              {/* Action Area */}
-              <div className="p-6 md:p-8">
-                <div className="border-dashed border-2 border-gray-300 rounded-2xl p-6 md:p-10 text-center bg-gradient-to-br from-gray-50 to-white hover:border-gray-400 transition-colors">
-                  <div className="mb-6">
-                    <div className="inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 mb-4">
-                      <Upload className="w-8 h-8 md:w-10 md:h-10 text-purple-600" />
-                    </div>
-                    <p className="text-sm md:text-base text-gray-700 max-w-2xl mx-auto leading-relaxed">
-                      Upload batches to one or more connected channels. Select a channel and upload video files to get started.
-                    </p>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex flex-col sm:flex-row justify-center items-center gap-3 md:gap-4">
-                    <button
-                      onClick={() => setShowUploadModal(true)}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-sm md:text-base font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105"
-                    >
-                      <Upload className="w-4 h-4 md:w-5 md:h-5" />
-                      Upload Video
-                    </button>
-                    <button
-                      onClick={() => setShowAddBulkModal(true)}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-700 hover:to-emerald-600 text-white text-sm md:text-base font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105"
-                    >
-                      <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                      Add Bulk Video
-                    </button>
-                    <Link href="/connect" className="w-full sm:w-auto">
-                      <button className="w-full inline-flex items-center justify-center gap-2 px-5 md:px-6 py-2.5 md:py-3 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white text-sm md:text-base font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105">
-                        <Youtube className="w-4 h-4 md:w-5 md:h-5" />
-                        Connect Channels
-                      </button>
-                    </Link>
-                  </div>
+            <div className="mb-6">
+              <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
+                <h3 className="text-xl font-black text-gray-900 mb-2">Smart Upload</h3>
+                <p className="text-sm text-gray-600 mb-4">Start a single, smart upload for the selected channel</p>
+                <div className="flex items-center justify-center">
+                  <button
+                    onClick={() => router.push('/bulk-upload/upload')}
+                    className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl shadow-lg hover:shadow-xl transition"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Start New Upload
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         </main>
       </div>
-      {/* Bulk List Panel (desktop) */}
-      <aside className="hidden md:block w-80 fixed right-0 top-16 bottom-0 border-l border-gray-200 bg-white overflow-y-auto p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-bold">Bulk Upload Queue</h3>
-          <label className="text-xs flex items-center gap-2 text-gray-600">
-            <input type="checkbox" checked={showOnlyUnlisted} onChange={(e) => setShowOnlyUnlisted(e.target.checked)} className="w-4 h-4" />
-            <span>Unlisted only</span>
-          </label>
-        </div>
-        {filteredBulkVideos.length === 0 ? (
-          bulkVideos.length === 0 ? (
-            <div className="text-sm text-gray-500">No bulk videos added yet. Click "Add Bulk Video" to create items.</div>
-          ) : (
-            <div className="text-sm text-gray-500">No bulk videos match the current filter.
-              <button onClick={() => setShowOnlyUnlisted(false)} className="ml-2 text-sm text-blue-600 underline">Show all</button>
-            </div>
-          )
-        ) : (
-          <div className="space-y-3">
-            {filteredBulkVideos.map((v) => (
-              <div key={v.id} className="p-3 border rounded-md bg-gray-50">
-                <div className="flex items-start gap-3">
-                  <div className="w-20 h-12 rounded overflow-hidden bg-black flex items-center justify-center">
-                    {v.thumbnail ? (
-                      <img src={v.thumbnail} alt={v.title || v.fileName || 'thumb'} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="text-xs text-white px-2">No preview</div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold truncate">{v.title || v.fileName || 'Untitled'}</p>
-                    <p className="text-xs text-gray-500 truncate">{v.size ? `${(v.size / (1024 * 1024)).toFixed(1)} MB` : '—'}</p>
-                    <div className="mt-1">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${v.privacy === 'public' ? 'bg-blue-100 text-blue-700' : v.privacy === 'unlisted' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700'}`}>{(v.privacy || 'unlisted').toString().toUpperCase()}</span>
-                    </div>
-                    <div className="mt-2 h-2 bg-gray-200 rounded overflow-hidden">
-                      <div className="bg-green-500 h-2" style={{ width: `${v.progress || 0}%` }} />
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <button onClick={() => openPreviewForItem(v)} className="px-3 py-1 border rounded text-sm">Preview</button>
-                  <span className={"ml-auto text-xs font-semibold " + (v.status === 'error' ? 'text-red-600' : 'text-green-600')}>{v.status === 'error' ? 'Error' : 'Uploaded'}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </aside>
+      {/* Bulk Upload Queue (desktop) removed per request */}
 
       {/* Upload Modal */}
       {showUploadModal && (
@@ -856,7 +717,16 @@ export default function BulkUploadPage() {
 
               {!showDetails && (
                 <div
-                  onDrop={(e) => { e.preventDefault(); handleDrop(e as unknown as React.DragEvent<HTMLDivElement>); setTimeout(() => setShowDetails(true), 120) }}
+                  onDrop={(e) => { 
+                    e.preventDefault()
+                    const files = Array.from(e.dataTransfer.files)
+                    const videoFile = files.find(f => f.type.startsWith('video/'))
+                    if (videoFile) {
+                      setSelectedFile(videoFile)
+                      setUploadData(prev => ({ ...prev, title: videoFile.name.replace(/\.[^/.]+$/, '') }))
+                      setTimeout(() => setShowDetails(true), 120)
+                    }
+                  }}
                   onDragOver={(e) => e.preventDefault()}
                   className="w-full rounded-xl p-12 text-center bg-white border border-gray-200 shadow-sm"
                 >

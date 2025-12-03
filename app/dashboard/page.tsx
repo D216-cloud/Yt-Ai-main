@@ -8,6 +8,7 @@ import { Home, User, GitCompare, Video, Upload, Play, LogOut, Menu, X, TrendingU
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { useState, useEffect } from "react"
+import ChannelSummary from '@/components/channel-summary'
 
 interface YouTubeChannel {
   id: string
@@ -91,40 +92,6 @@ export default function DashboardPage() {
       engagement: 15,
       revenue: 28
     }
-  }
-
-  function ChannelSummary({ channel }: { channel: YouTubeChannel | null }) {
-    return (
-      <div className="bg-white border border-gray-200 rounded-2xl p-4 md:p-6 flex flex-col md:flex-row items-start md:items-center gap-4 shadow-sm hover:shadow-lg transition-all">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 md:w-16 md:h-16 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-md">
-            {channel?.thumbnail ? (
-              <img src={channel.thumbnail} alt={channel.title} className="w-16 h-16 object-cover rounded-lg" />
-            ) : (
-              <Play className="w-6 h-6" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-lg md:text-xl font-black text-gray-900 truncate">{channel?.title || 'Creator Studio'}</h2>
-            <p className="text-sm text-gray-500 truncate">{channel?.customUrl || channel?.id || 'No channel connected'}</p>
-          </div>
-        </div>
-        <div className="w-full md:w-auto grid grid-cols-3 gap-4 text-center mt-3 md:mt-0 md:ml-auto">
-          <div>
-            <div className="text-xs text-gray-500">Subscribers</div>
-            <div className="text-lg font-bold text-gray-900">{formatNumber(analyticsData.subscribers)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-500">Views</div>
-            <div className="text-lg font-bold text-gray-900">{formatNumber(analyticsData.views)}</div>
-          </div>
-          <div>
-            <div className="text-xs text-gray-500">Watch Time</div>
-            <div className="text-lg font-bold text-gray-900">{formatNumber(analyticsData.watchTime)}h</div>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   const recentVideos = [

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import SharedSidebar from "@/components/shared-sidebar"
-// import { Header } from "@/components/header" // Using custom page header for consistency with Dashboard
+import DashboardHeader from "@/components/dashboard-header"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,8 +12,9 @@ import { Badge } from "@/components/ui/badge"
 import {
   Video, Calendar, Eye, ThumbsUp, MessageSquare, User, Hash, Clock,
   TrendingUp, BarChart3, Award, ExternalLink, FileText, Activity,
-  TrendingDown, Target, Zap, CheckCircle, AlertCircle
-  , Menu, X
+  TrendingDown, Target, Zap, CheckCircle, AlertCircle, Users, Globe,
+  PlayCircle, Settings, Star, Bookmark, TrendingUp as Growth,
+  PieChart, Upload, Sun, Moon, MapPin, Link2, Heart
 } from "lucide-react"
 
 interface VideoData {
@@ -36,12 +37,53 @@ interface VideoData {
   snippet?: any
 }
 
+interface DetailedVideoData extends VideoData {
+  engagementRate: number
+  viewsPerDay: number
+  category: string
+  uploadHour: number
+  uploadDay: string
+  daysOld: number
+  performance: 'excellent' | 'good' | 'average' | 'poor'
+}
+
+interface ChannelData {
+  id: string
+  title: string
+  description: string
+  thumbnail: string
+  publishedAt: string
+  subscriberCount: string
+  viewCount: string
+  videoCount: string
+  country?: string
+  customUrl?: string
+  defaultLanguage?: string
+  keywords?: string
+  topVideos?: DetailedVideoData[]
+  recentVideos?: DetailedVideoData[]
+  uploadSchedule?: any
+  averageViews?: number
+  engagementRate?: number
+  growthRate?: number
+  bestPerformingCategories?: string[]
+  uploadTimes?: { hour: number; count: number }[]
+  uploadDays?: { day: number; count: number }[]
+  channelAge: number
+  healthScore: number
+  consistencyScore: number
+  trendsScore: number
+}
+
 export default function VideoInfoPage() {
-  const [videoUrl, setVideoUrl] = useState("")
+  const [inputUrl, setInputUrl] = useState("")
+  const [analysisType, setAnalysisType] = useState<'video' | 'channel'>('video')
   const [videoData, setVideoData] = useState<VideoData | null>(null)
+  const [channelData, setChannelData] = useState<ChannelData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [expandedVideo, setExpandedVideo] = useState<string | null>(null)
 
   const extractVideoId = (url: string): string | null => {
     try {
@@ -61,12 +103,36 @@ export default function VideoInfoPage() {
     }
   }
 
+  const extractChannelId = (url: string): string | null => {
+    try {
+      url = url.trim()
+      // Channel ID format: UCxxxxxxxxxxxxxxxxxx (24 characters)
+      let match = url.match(/youtube\.com\/channel\/([a-zA-Z0-9_-]{24})/)
+      if (match) return match[1]
+      // Custom URL format: @username or /c/username or /user/username
+      match = url.match(/youtube\.com\/@([a-zA-Z0-9_.-]+)/)
+      if (match) return `@${match[1]}`
+      match = url.match(/youtube\.com\/c\/([a-zA-Z0-9_.-]+)/)
+      if (match) return `c/${match[1]}`
+      match = url.match(/youtube\.com\/user\/([a-zA-Z0-9_.-]+)/)
+      if (match) return `user/${match[1]}`
+      // Direct channel ID
+      if (/^UC[a-zA-Z0-9_-]{22}$/.test(url)) return url
+      // @username format
+      if (/^@[a-zA-Z0-9_.-]+$/.test(url)) return url
+      return null
+    } catch (e) {
+      return null
+    }
+  }
+
   const fetchVideoData = async () => {
     try {
       setLoading(true)
       setError(null)
-      const videoId = extractVideoId(videoUrl)
-      if (!videoId) throw new Error("Invalid YouTube URL. Supports videos & Shorts")
+      setChannelData(null)
+      const videoId = extractVideoId(inputUrl)
+      if (!videoId) throw new Error("Invalid YouTube video URL. Supports videos & Shorts")
 
       const accessToken = localStorage.getItem('youtube_access_token')
       const response = await fetch(`/api/youtube/videosByIds?ids=${videoId}${accessToken ? `&access_token=${accessToken}` : ''}`)
@@ -80,6 +146,37 @@ export default function VideoInfoPage() {
       setError(err instanceof Error ? err.message : "Failed to fetch video")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchChannelData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      setVideoData(null)
+      const channelId = extractChannelId(inputUrl)
+      if (!channelId) throw new Error("Invalid YouTube channel URL. Supports /channel/, /@username, /c/, /user/ formats")
+
+      const accessToken = localStorage.getItem('youtube_access_token')
+      const response = await fetch(`/api/youtube/channel-analysis?id=${encodeURIComponent(channelId)}${accessToken ? `&access_token=${accessToken}` : ''}`)
+      const data = await response.json()
+
+      if (!response.ok) throw new Error(data.error || 'Failed to fetch channel data')
+      if (!data.channel) throw new Error("Channel not found")
+
+      setChannelData(data.channel)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch channel data")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAnalyze = () => {
+    if (analysisType === 'video') {
+      fetchVideoData()
+    } else {
+      fetchChannelData()
     }
   }
 
@@ -462,41 +559,139 @@ export default function VideoInfoPage() {
     return categories[categoryId] || "Unknown"
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
-      {/* Mobile Header */}
-      <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100 pt-2 pb-2 px-4">
-        <div className="flex h-14 items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-md text-gray-600"
-            >
-              {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-            <a href="/" className="flex items-center space-x-2 group">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg group-hover:shadow-xl transition flex-shrink-0">
-                <Video className="h-4 w-4 text-white" />
-              </div>
-              <span className="font-bold text-gray-900 text-sm">YouTubeAI Pro</span>
-            </a>
-          </div>
-          <div></div>
-        </div>
-      </header>
+  const getBestUploadTimes = (channelData: ChannelData) => {
+    if (!channelData.uploadTimes || !channelData.uploadDays) {
+      return {
+        bestHours: [14, 15, 16, 17, 18, 19, 20],
+        bestDays: [4, 5, 6, 0],
+        timeAnalysis: "Default recommendations based on general YouTube trends"
+      }
+    }
 
-      {/* Desktop Header */}
-      <header className="hidden md:block fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white h-16">
-        <div className="flex h-16 items-center justify-between px-6 lg:px-8">
-          <a href="/" className="flex items-center space-x-3 group">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg group-hover:shadow-xl transition flex-shrink-0">
-              <Video className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-lg font-bold text-gray-900">YouTubeAI Pro</span>
-          </a>
-          <div></div>
-        </div>
-      </header>
+    const sortedHours = [...channelData.uploadTimes].sort((a, b) => b.count - a.count)
+    const sortedDays = [...channelData.uploadDays].sort((a, b) => b.count - a.count)
+    
+    return {
+      bestHours: sortedHours.slice(0, 5).map(h => h.hour),
+      bestDays: sortedDays.slice(0, 4).map(d => d.day),
+      timeAnalysis: `Based on ${channelData.videoCount} videos analysis`,
+      topHour: sortedHours[0],
+      topDay: sortedDays[0]
+    }
+  }
+
+  const formatUploadTime = (hour: number) => {
+    const ampm = hour >= 12 ? 'PM' : 'AM'
+    const displayHour = hour % 12 || 12
+    return `${displayHour}:00 ${ampm}`
+  }
+
+  const formatDayName = (day: number) => {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    return days[day]
+  }
+
+  const calculateChannelHealthScore = (channelData: ChannelData) => {
+    let score = 0
+    const maxScore = 100
+
+    // Subscriber count scoring (25 points max)
+    const subs = parseInt(channelData.subscriberCount || '0')
+    if (subs >= 1000000) score += 25
+    else if (subs >= 100000) score += 20
+    else if (subs >= 10000) score += 15
+    else if (subs >= 1000) score += 10
+    else if (subs >= 100) score += 5
+
+    // Video count and consistency (20 points max)
+    const videoCount = parseInt(channelData.videoCount || '0')
+    const channelAgeYears = channelData.channelAge || 1
+    const videosPerYear = videoCount / channelAgeYears
+    if (videosPerYear >= 52) score += 20 // Weekly uploads
+    else if (videosPerYear >= 24) score += 15 // Bi-weekly
+    else if (videosPerYear >= 12) score += 10 // Monthly
+    else if (videosPerYear >= 6) score += 5 // Bi-monthly
+
+    // Engagement rate (20 points max)
+    const engagement = channelData.engagementRate || 0
+    if (engagement >= 5) score += 20
+    else if (engagement >= 3) score += 15
+    else if (engagement >= 2) score += 10
+    else if (engagement >= 1) score += 5
+
+    // Average views vs subscribers ratio (15 points max)
+    const avgViews = channelData.averageViews || 0
+    const viewsToSubsRatio = subs > 0 ? (avgViews / subs) * 100 : 0
+    if (viewsToSubsRatio >= 10) score += 15 // 10%+ of subscribers watch each video
+    else if (viewsToSubsRatio >= 5) score += 12
+    else if (viewsToSubsRatio >= 2) score += 8
+    else if (viewsToSubsRatio >= 1) score += 4
+
+    // Channel completeness (10 points max)
+    let completeness = 0
+    if (channelData.description && channelData.description.length > 100) completeness += 3
+    if (channelData.keywords) completeness += 2
+    if (channelData.customUrl) completeness += 2
+    if (channelData.country) completeness += 1
+    if (channelData.thumbnail) completeness += 2
+    score += completeness
+
+    // Growth potential (10 points max)
+    const totalViews = parseInt(channelData.viewCount || '0')
+    const viewsPerSub = subs > 0 ? totalViews / subs : 0
+    if (viewsPerSub >= 100) score += 10
+    else if (viewsPerSub >= 50) score += 7
+    else if (viewsPerSub >= 20) score += 5
+    else if (viewsPerSub >= 10) score += 3
+
+    return Math.min(Math.max(score, 0), maxScore)
+  }
+
+  const getHealthScoreColor = (score: number) => {
+    if (score >= 80) return 'from-green-500 to-emerald-600'
+    if (score >= 60) return 'from-blue-500 to-cyan-600'
+    if (score >= 40) return 'from-yellow-500 to-orange-500'
+    return 'from-red-500 to-pink-600'
+  }
+
+  const getHealthScoreLabel = (score: number) => {
+    if (score >= 80) return '🚀 Excellent'
+    if (score >= 60) return '⚡ Good'
+    if (score >= 40) return '📈 Growing'
+    return '🎯 Developing'
+  }
+
+  const toggleVideoDetails = (videoId: string) => {
+    setExpandedVideo(expandedVideo === videoId ? null : videoId)
+  }
+
+  const getVideoPerformance = (video: DetailedVideoData, avgViews: number) => {
+    const viewRatio = avgViews > 0 ? parseInt(video.viewCount) / avgViews : 1
+    if (viewRatio >= 2) return 'excellent'
+    if (viewRatio >= 1.2) return 'good'
+    if (viewRatio >= 0.8) return 'average'
+    return 'poor'
+  }
+
+  const formatVideoDetails = (video: DetailedVideoData) => {
+    const publishDate = new Date(video.publishedAt)
+    const now = new Date()
+    const daysOld = Math.floor((now.getTime() - publishDate.getTime()) / (1000 * 60 * 60 * 24))
+    const viewsPerDay = daysOld > 0 ? parseInt(video.viewCount) / daysOld : parseInt(video.viewCount)
+    const engagement = (parseInt(video.likeCount) + parseInt(video.commentCount)) / parseInt(video.viewCount) * 100
+    
+    return {
+      daysOld,
+      viewsPerDay: Math.round(viewsPerDay),
+      engagementRate: engagement.toFixed(2),
+      uploadHour: publishDate.getHours(),
+      uploadDay: formatDayName(publishDate.getDay())
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
+      <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex">
         {/* Shared Sidebar */}
@@ -504,328 +699,1423 @@ export default function VideoInfoPage() {
 
         <main className="flex-1 pt-20 md:pt-20 md:ml-72 p-4 md:p-8 pb-20 md:pb-8">
           <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
-            Video Intelligence Dashboard
-          </h1>
-          <p className="text-gray-600">Analyze YouTube videos & Shorts performance</p>
-        </div>
-
-        <Card className="mb-8 border-2 border-blue-100 shadow-xl">
-          <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50">
-            <CardTitle className="flex items-center gap-2">
-              <Video className="w-5 h-5 text-blue-600" />
-              Enter YouTube Video or Shorts URL
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Input
-                placeholder="https://www.youtube.com/watch?v=... or /shorts/..."
-                value={videoUrl}
-                onChange={(e) => setVideoUrl(e.target.value)}
-                className="flex-1"
-                onKeyDown={(e) => e.key === 'Enter' && fetchVideoData()}
-              />
-              <Button
-                onClick={fetchVideoData}
-                disabled={loading || !videoUrl.trim()}
-                className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600"
-              >
-                {loading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <Activity className="w-4 h-4 mr-2" />
-                    Analyze Video
-                  </>
-                )}
-              </Button>
-            </div>
-            {error && (
-              <div className="mt-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-start gap-2">
-                <TrendingDown className="w-4 h-4 mt-0.5" />
-                <span>{error}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {loading && (
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex flex-col md:flex-row gap-6">
-                <Skeleton className="w-full md:w-1/3 aspect-video rounded-xl" />
-                <div className="flex-1 space-y-4">
-                  <Skeleton className="h-8 w-3/4" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-2/3" />
+            <div className="mb-8">
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+                YouTube Intelligence Dashboard
+              </h1>
+              <p className="text-gray-600">Deep analytics for videos, shorts & channels</p>
+              
+              {/* Analysis Type Toggle - Mobile Responsive */}
+              <div className="mt-6 flex items-center justify-center px-4">
+                <div className="bg-white rounded-xl p-1 shadow-lg border-2 border-blue-100 w-full max-w-md">
+                  <div className="grid grid-cols-2 gap-1">
+                    <button
+                      onClick={() => {
+                        setAnalysisType('video')
+                        setChannelData(null)
+                        setVideoData(null)
+                        setError(null)
+                        setExpandedVideo(null)
+                      }}
+                      className={`px-3 sm:px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 text-sm sm:text-base ${
+                        analysisType === 'video'
+                          ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                          : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                      }`}
+                    >
+                      <Video className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <span className="hidden sm:inline">Video Analysis</span>
+                      <span className="sm:hidden">Video</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAnalysisType('channel')
+                        setChannelData(null)
+                        setVideoData(null)
+                        setError(null)
+                        setExpandedVideo(null)
+                      }}
+                      className={`px-3 sm:px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 text-sm sm:text-base ${
+                        analysisType === 'channel'
+                          ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                          : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                      }`}
+                    >
+                      <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+                      <span className="hidden sm:inline">Channel Analysis</span>
+                      <span className="sm:hidden">Channel</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            </div>
 
-        {videoData && (
-          <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3 gap-2 bg-white p-1 rounded-lg shadow-md">
-              <TabsTrigger value="overview">
-                <BarChart3 className="w-4 h-4 mr-2" />Overview
-              </TabsTrigger>
-              <TabsTrigger value="metadata">
-                <FileText className="w-4 h-4 mr-2" />Metadata
-              </TabsTrigger>
-              <TabsTrigger value="insights">
-                <TrendingUp className="w-4 h-4 mr-2" />Performance Insights
-              </TabsTrigger>
-            </TabsList>
+            <Card className="mb-8 border-2 border-blue-100 shadow-xl">
+              <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50">
+                <CardTitle className="flex items-center gap-2">
+                  {analysisType === 'video' ? (
+                    <>
+                      <Video className="w-5 h-5 text-blue-600" />
+                      Enter YouTube Video or Shorts URL
+                    </>
+                  ) : (
+                    <>
+                      <Users className="w-5 h-5 text-blue-600" />
+                      Enter YouTube Channel URL
+                    </>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Input
+                    placeholder={analysisType === 'video' 
+                      ? "https://www.youtube.com/watch?v=... or /shorts/..."
+                      : "https://www.youtube.com/@username or /channel/UCxxxx..."
+                    }
+                    value={inputUrl}
+                    onChange={(e) => setInputUrl(e.target.value)}
+                    className="flex-1"
+                    onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
+                  />
+                  <Button
+                    onClick={handleAnalyze}
+                    disabled={loading || !inputUrl.trim()}
+                    className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Activity className="w-4 h-4 mr-2" />
+                        Analyze {analysisType === 'video' ? 'Video' : 'Channel'}
+                      </>
+                    )}
+                  </Button>
+                </div>
+                {error && (
+                  <div className="mt-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-start gap-2">
+                    <TrendingDown className="w-4 h-4 mt-0.5" />
+                    <span>{error}</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-            <TabsContent value="overview" className="space-y-6">
-              <Card className="border-2 border-blue-100 shadow-xl overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="flex flex-col md:flex-row">
-                    <div className="w-full md:w-2/5 bg-black">
-                      <img
-                        src={videoData.snippet?.thumbnails?.maxres?.url || videoData.thumbnail}
-                        alt={videoData.title}
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                    <div className="flex-1 p-6 bg-gradient-to-br from-blue-50 to-purple-50">
-                      <div className="flex items-start justify-between mb-4">
-                        <h2 className="text-2xl font-bold text-gray-900 flex-1">{videoData.title}</h2>
-                        <a href={`https://www.youtube.com/watch?v=${videoData.id}`} target="_blank" rel="noopener noreferrer">
-                          <Button size="sm" variant="outline" className="gap-2 ml-4">
-                            <ExternalLink className="w-4 h-4" />Watch
-                          </Button>
-                        </a>
-                      </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                        <div className="flex items-center gap-2">
-                          <User className="w-4 h-4 text-gray-500" />
-                          <span className="font-medium truncate">{videoData.channelTitle}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-gray-500" />
-                          <span className="font-medium">{new Date(videoData.publishedAt).toLocaleDateString()}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-gray-500" />
-                          <span className="font-medium">{videoData.contentDetails ? formatDuration(videoData.contentDetails.duration) : videoData.duration}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Award className="w-4 h-4 text-gray-500" />
-                          <span className="font-medium">{getCategoryName(videoData.categoryId)}</span>
-                        </div>
-                        {videoData.status && (
-                          <div className="flex items-center gap-2">
-                            <Badge variant={videoData.status.privacyStatus === 'public' ? 'default' : 'secondary'}>
-                              {videoData.status.privacyStatus}
-                            </Badge>
-                          </div>
-                        )}
-                      </div>
+            {loading && (
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex flex-col md:flex-row gap-6">
+                    <Skeleton className="w-full md:w-1/3 aspect-video rounded-xl" />
+                    <div className="flex-1 space-y-4">
+                      <Skeleton className="h-8 w-3/4" />
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-2/3" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
+            )}
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Card className="border-2 border-blue-100 bg-gradient-to-br from-blue-50 to-blue-100 shadow-lg">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-3">
-                      <div className="p-3 bg-blue-600 rounded-lg">
-                        <Eye className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600 font-medium">Views</p>
-                        <p className="text-2xl font-bold text-blue-900">{formatNumber(videoData.viewCount)}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+            {videoData && (
+              <Tabs defaultValue="overview" className="space-y-6">
+                <TabsList className="grid w-full grid-cols-3 gap-2 bg-white p-1 rounded-lg shadow-md">
+                  <TabsTrigger value="overview">
+                    <BarChart3 className="w-4 h-4 mr-2" />Overview
+                  </TabsTrigger>
+                  <TabsTrigger value="metadata">
+                    <FileText className="w-4 h-4 mr-2" />Metadata
+                  </TabsTrigger>
+                  <TabsTrigger value="insights">
+                    <TrendingUp className="w-4 h-4 mr-2" />Performance Insights
+                  </TabsTrigger>
+                </TabsList>
 
-                <Card className="border-2 border-green-100 bg-gradient-to-br from-green-50 to-green-100 shadow-lg">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-3">
-                      <div className="p-3 bg-green-600 rounded-lg">
-                        <ThumbsUp className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600 font-medium">Likes</p>
-                        <p className="text-2xl font-bold text-green-900">{formatNumber(videoData.likeCount)}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-2 border-purple-100 bg-gradient-to-br from-purple-50 to-purple-100 shadow-lg">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-3">
-                      <div className="p-3 bg-purple-600 rounded-lg">
-                        <MessageSquare className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600 font-medium">Comments</p>
-                        <p className="text-2xl font-bold text-purple-900">{formatNumber(videoData.commentCount)}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-2 border-orange-100 bg-gradient-to-br from-orange-50 to-orange-100 shadow-lg">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-3">
-                      <div className="p-3 bg-orange-600 rounded-lg">
-                        <TrendingUp className="w-6 h-6 text-white" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-600 font-medium">Engagement</p>
-                        <p className="text-2xl font-bold text-orange-900">{calculateEngagementRate()}%</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="metadata" className="space-y-6">
-              <Card className="border-2 border-blue-100 shadow-xl">
-                <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50">
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-blue-600" />
-                    Video Description
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                    <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">
-                      {videoData.description || "No description available"}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {videoData.tags && videoData.tags.length > 0 && (
-                <Card className="border-2 border-blue-100 shadow-xl">
-                  <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50">
-                    <CardTitle className="flex items-center gap-2">
-                      <Hash className="w-5 h-5 text-blue-600" />
-                      Tags & Keywords ({videoData.tags.length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <div className="flex flex-wrap gap-2">
-                      {videoData.tags.map((tag, index) => (
-                        <Badge
-                          key={index}
-                          variant="secondary"
-                          className="px-4 py-2 text-sm bg-gradient-to-r from-blue-100 to-purple-100 text-blue-900 border border-blue-200"
-                        >
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
-            <TabsContent value="insights" className="space-y-6">
-              {(() => {
-                const insights = getPerformanceInsights()
-                return (
-                  <>
-                    {/* Viral Score Header */}
-                    <Card className="border-4 border-purple-200 shadow-2xl bg-gradient-to-br from-purple-50 via-blue-50 to-purple-50">
-                      <CardContent className="p-8 text-center">
-                        <div className="inline-block p-6 bg-white rounded-full shadow-lg mb-4">
-                          <Target className="w-16 h-16 text-purple-600" />
-                        </div>
-                        <h2 className="text-4xl font-bold text-gray-900 mb-2">Viral Score: {insights.viralScore}/100</h2>
-                        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                          {insights.viralScore > 70 ? "🔥 Exceptional Performance!" :
-                            insights.viralScore > 50 ? "⚡ Strong Potential" :
-                              insights.viralScore > 30 ? "📊 Room for Growth" :
-                                "🎯 Optimization Needed"}
-                        </p>
-                        <div className="mt-6 bg-gray-200 rounded-full h-4 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all ${insights.viralScore > 70 ? 'bg-gradient-to-r from-green-500 to-emerald-600' :
-                                insights.viralScore > 50 ? 'bg-gradient-to-r from-blue-500 to-cyan-600' :
-                                  insights.viralScore > 30 ? 'bg-gradient-to-r from-yellow-500 to-orange-600' :
-                                    'bg-gradient-to-r from-red-500 to-pink-600'
-                              }`}
-                            style={{ width: `${insights.viralScore}%` }}
+                <TabsContent value="overview" className="space-y-6">
+                  <Card className="border-2 border-blue-100 shadow-xl overflow-hidden">
+                    <CardContent className="p-0">
+                      <div className="flex flex-col md:flex-row">
+                        <div className="w-full md:w-2/5 bg-black">
+                          <img
+                            src={videoData.snippet?.thumbnails?.maxres?.url || videoData.thumbnail}
+                            alt={videoData.title}
+                            className="w-full h-full object-contain"
                           />
+                        </div>
+                        <div className="flex-1 p-6 bg-gradient-to-br from-blue-50 to-purple-50">
+                          <div className="flex items-start justify-between mb-4">
+                            <h2 className="text-2xl font-bold text-gray-900 flex-1">{videoData.title}</h2>
+                            <a href={`https://www.youtube.com/watch?v=${videoData.id}`} target="_blank" rel="noopener noreferrer">
+                              <Button size="sm" variant="outline" className="gap-2 ml-4">
+                                <ExternalLink className="w-4 h-4" />Watch
+                              </Button>
+                            </a>
+                          </div>
+
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4 text-gray-500" />
+                              <span className="font-medium truncate">{videoData.channelTitle}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-gray-500" />
+                              <span className="font-medium">{new Date(videoData.publishedAt).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-gray-500" />
+                              <span className="font-medium">{videoData.contentDetails ? formatDuration(videoData.contentDetails.duration) : videoData.duration}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Award className="w-4 h-4 text-gray-500" />
+                              <span className="font-medium">{getCategoryName(videoData.categoryId)}</span>
+                            </div>
+                            {videoData.status && (
+                              <div className="flex items-center gap-2">
+                                <Badge variant={videoData.status.privacyStatus === 'public' ? 'default' : 'secondary'}>
+                                  {videoData.status.privacyStatus}
+                                </Badge>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <Card className="border-2 border-blue-100 bg-gradient-to-br from-blue-50 to-blue-100 shadow-lg">
+                      <CardContent className="p-6">
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 bg-blue-600 rounded-lg">
+                            <Eye className="w-6 h-6 text-white" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600 font-medium">Views</p>
+                            <p className="text-2xl font-bold text-blue-900">{formatNumber(videoData.viewCount)}</p>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
 
-                    {/* All Sections */}
-                    {insights.sections.map((section, sectionIndex) => (
-                      <Card key={sectionIndex} className="border-2 border-blue-100 shadow-xl">
-                        <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50">
-                          <CardTitle className="text-xl font-bold">{section.title}</CardTitle>
-                        </CardHeader>
-                        <CardContent className="pt-6">
-                          <div className="space-y-4">
-                            {section.items.map((item, itemIndex) => (
+                    <Card className="border-2 border-green-100 bg-gradient-to-br from-green-50 to-green-100 shadow-lg">
+                      <CardContent className="p-6">
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 bg-green-600 rounded-lg">
+                            <ThumbsUp className="w-6 h-6 text-white" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600 font-medium">Likes</p>
+                            <p className="text-2xl font-bold text-green-900">{formatNumber(videoData.likeCount)}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-2 border-purple-100 bg-gradient-to-br from-purple-50 to-purple-100 shadow-lg">
+                      <CardContent className="p-6">
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 bg-purple-600 rounded-lg">
+                            <MessageSquare className="w-6 h-6 text-white" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600 font-medium">Comments</p>
+                            <p className="text-2xl font-bold text-purple-900">{formatNumber(videoData.commentCount)}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-2 border-orange-100 bg-gradient-to-br from-orange-50 to-orange-100 shadow-lg">
+                      <CardContent className="p-6">
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 bg-orange-600 rounded-lg">
+                            <TrendingUp className="w-6 h-6 text-white" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600 font-medium">Engagement</p>
+                            <p className="text-2xl font-bold text-orange-900">{calculateEngagementRate()}%</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="metadata" className="space-y-6">
+                  <Card className="border-2 border-blue-100 shadow-xl">
+                    <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50">
+                      <CardTitle className="flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-blue-600" />
+                        Video Description
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-6">
+                      <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                        <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">
+                          {videoData.description || "No description available"}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {videoData.tags && videoData.tags.length > 0 && (
+                    <Card className="border-2 border-blue-100 shadow-xl">
+                      <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50">
+                        <CardTitle className="flex items-center gap-2">
+                          <Hash className="w-5 h-5 text-blue-600" />
+                          Tags & Keywords ({videoData.tags.length})
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-6">
+                        <div className="flex flex-wrap gap-2">
+                          {videoData.tags.map((tag, index) => (
+                            <Badge
+                              key={index}
+                              variant="secondary"
+                              className="px-4 py-2 text-sm bg-gradient-to-r from-blue-100 to-purple-100 text-blue-900 border border-blue-200"
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="insights" className="space-y-6">
+                  {(() => {
+                    const insights = getPerformanceInsights()
+                    return (
+                      <>
+                        {/* Viral Score Header */}
+                        <Card className="border-4 border-purple-200 shadow-2xl bg-gradient-to-br from-purple-50 via-blue-50 to-purple-50">
+                          <CardContent className="p-8 text-center">
+                            <div className="inline-block p-6 bg-white rounded-full shadow-lg mb-4">
+                              <Target className="w-16 h-16 text-purple-600" />
+                            </div>
+                            <h2 className="text-4xl font-bold text-gray-900 mb-2">Viral Score: {insights.viralScore}/100</h2>
+                            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                              {insights.viralScore > 70 ? "🔥 Exceptional Performance!" :
+                                insights.viralScore > 50 ? "⚡ Strong Potential" :
+                                  insights.viralScore > 30 ? "📊 Room for Growth" :
+                                    "🎯 Optimization Needed"}
+                            </p>
+                            <div className="mt-6 bg-gray-200 rounded-full h-4 overflow-hidden">
                               <div
-                                key={itemIndex}
-                                className={`p-5 rounded-lg border-2 ${item.type === 'success' ? 'bg-green-50 border-green-300' :
-                                    item.type === 'warning' ? 'bg-yellow-50 border-yellow-300' :
-                                      'bg-blue-50 border-blue-300'
+                                className={`h-full rounded-full transition-all ${insights.viralScore > 70 ? 'bg-gradient-to-r from-green-500 to-emerald-600' :
+                                  insights.viralScore > 50 ? 'bg-gradient-to-r from-blue-500 to-cyan-600' :
+                                    insights.viralScore > 30 ? 'bg-gradient-to-r from-yellow-500 to-orange-600' :
+                                      'bg-gradient-to-r from-red-500 to-pink-600'
                                   }`}
-                              >
-                                <div className="flex items-start gap-3 mb-3">
-                                  {item.type === 'success' ? <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" /> :
-                                    item.type === 'warning' ? <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" /> :
-                                      <Zap className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />}
-                                  <div className="flex-1">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <h4 className="font-bold text-gray-900 text-lg">{item.label}</h4>
-                                      <Badge
-                                        variant="secondary"
-                                        className={`text-sm font-semibold ${item.type === 'success' ? 'bg-green-200 text-green-900' :
-                                            item.type === 'warning' ? 'bg-yellow-200 text-yellow-900' :
-                                              'bg-blue-200 text-blue-900'
-                                          }`}
-                                      >
-                                        {item.value}
-                                      </Badge>
+                                style={{ width: `${insights.viralScore}%` }}
+                              />
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* All Sections */}
+                        {insights.sections.map((section, sectionIndex) => (
+                          <Card key={sectionIndex} className="border-2 border-blue-100 shadow-xl">
+                            <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50">
+                              <CardTitle className="text-xl font-bold">{section.title}</CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-6">
+                              <div className="space-y-4">
+                                {section.items.map((item, itemIndex) => (
+                                  <div
+                                    key={itemIndex}
+                                    className={`p-5 rounded-lg border-2 ${item.type === 'success' ? 'bg-green-50 border-green-300' :
+                                      item.type === 'warning' ? 'bg-yellow-50 border-yellow-300' :
+                                        'bg-blue-50 border-blue-300'
+                                      }`}
+                                  >
+                                    <div className="flex items-start gap-3 mb-3">
+                                      {item.type === 'success' ? <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" /> :
+                                        item.type === 'warning' ? <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" /> :
+                                          <Zap className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />}
+                                      <div className="flex-1">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <h4 className="font-bold text-gray-900 text-lg">{item.label}</h4>
+                                          <Badge
+                                            variant="secondary"
+                                            className={`text-sm font-semibold ${item.type === 'success' ? 'bg-green-200 text-green-900' :
+                                              item.type === 'warning' ? 'bg-yellow-200 text-yellow-900' :
+                                                'bg-blue-200 text-blue-900'
+                                              }`}
+                                          >
+                                            {item.value}
+                                          </Badge>
+                                        </div>
+                                        <p className="text-gray-800 leading-relaxed whitespace-pre-line">{item.description}</p>
+                                      </div>
                                     </div>
-                                    <p className="text-gray-800 leading-relaxed whitespace-pre-line">{item.description}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </>
+                    )
+                  })()}
+                </TabsContent>
+              </Tabs>
+            )}
+
+            {/* Channel Data Display */}
+            {channelData && (
+              <Tabs defaultValue="overview" className="space-y-6">
+                <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-1 sm:gap-2 bg-white p-1 rounded-lg shadow-md">
+                  <TabsTrigger value="overview" className="text-xs sm:text-sm">
+                    <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Overview</span>
+                    <span className="sm:hidden">Info</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="analytics" className="text-xs sm:text-sm">
+                    <PieChart className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Analytics</span>
+                    <span className="sm:hidden">Stats</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="schedule" className="text-xs sm:text-sm">
+                    <Clock className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Best Times</span>
+                    <span className="sm:hidden">Times</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="videos" className="text-xs sm:text-sm">
+                    <PlayCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Top Videos</span>
+                    <span className="sm:hidden">Videos</span>
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="overview" className="space-y-6">
+                  {/* Channel Header Card - Enhanced */}
+                  <Card className="border-2 border-blue-100 shadow-2xl overflow-hidden bg-gradient-to-br from-white via-blue-50/30 to-purple-50/30">
+                    <CardContent className="p-0">
+                      <div className="flex flex-col">
+                        {/* Hero Section */}
+                        <div className="bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-700 p-4 sm:p-6 text-white relative overflow-hidden">
+                          <div className="absolute inset-0 bg-black/10"></div>
+                          <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
+                            {/* Channel Avatar with Border */}
+                            <div className="flex-shrink-0 relative">
+                              <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-full bg-white p-1 shadow-2xl">
+                                <img
+                                  src={channelData.thumbnail}
+                                  alt={channelData.title}
+                                  className="w-full h-full rounded-full object-cover"
+                                />
+                              </div>
+                              <div className="absolute -bottom-1 -right-1 bg-green-500 rounded-full w-8 h-8 flex items-center justify-center shadow-lg">
+                                <CheckCircle className="w-5 h-5 text-white" />
+                              </div>
+                            </div>
+                            
+                            {/* Channel Info */}
+                            <div className="flex-1 text-center sm:text-left min-w-0">
+                              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                                <div>
+                                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white break-words mb-2">
+                                    {channelData.title}
+                                  </h2>
+                                  <div className="flex items-center justify-center sm:justify-start gap-2 text-white/80">
+                                    <Calendar className="w-4 h-4" />
+                                    <span className="text-sm">Joined {new Date(channelData.publishedAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
                                   </div>
                                 </div>
+                                <div className="flex flex-col gap-2">
+                                  <a 
+                                    href={`https://www.youtube.com/channel/${channelData.id}`} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                  >
+                                    <Button size="sm" className="bg-white text-blue-600 hover:bg-blue-50 gap-2 w-full font-semibold">
+                                      <ExternalLink className="w-4 h-4" />
+                                      Visit Channel
+                                    </Button>
+                                  </a>
+                                  {channelData.customUrl && (
+                                    <div className="text-xs text-white/70 text-center">
+                                      {channelData.customUrl}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            ))}
+
+                              {/* Key Stats in Hero */}
+                              <div className="grid grid-cols-3 gap-3 sm:gap-4">
+                                <div className="text-center">
+                                  <div className="text-xl sm:text-2xl font-bold">{formatNumber(channelData.subscriberCount)}</div>
+                                  <div className="text-xs sm:text-sm text-white/80">Subscribers</div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-xl sm:text-2xl font-bold">{formatNumber(channelData.viewCount)}</div>
+                                  <div className="text-xs sm:text-sm text-white/80">Total Views</div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-xl sm:text-2xl font-bold">{formatNumber(channelData.videoCount)}</div>
+                                  <div className="text-xs sm:text-sm text-white/80">Videos</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Channel Details Section */}
+                        <div className="p-4 sm:p-6 bg-gradient-to-br from-gray-50 to-blue-50/30">
+                          {/* Additional Channel Info */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                            {channelData.country && (
+                              <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                                <div className="flex items-center gap-2">
+                                  <MapPin className="w-4 h-4 text-blue-600" />
+                                  <span className="text-sm font-medium text-gray-700">Country</span>
+                                </div>
+                                <div className="mt-1 font-semibold text-gray-900">{channelData.country}</div>
+                              </div>
+                            )}
+                            {channelData.defaultLanguage && (
+                              <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                                <div className="flex items-center gap-2">
+                                  <Globe className="w-4 h-4 text-green-600" />
+                                  <span className="text-sm font-medium text-gray-700">Language</span>
+                                </div>
+                                <div className="mt-1 font-semibold text-gray-900">{channelData.defaultLanguage.toUpperCase()}</div>
+                              </div>
+                            )}
+                            <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-purple-600" />
+                                <span className="text-sm font-medium text-gray-700">Channel Age</span>
+                              </div>
+                              <div className="mt-1 font-semibold text-gray-900">{channelData.channelAge} years</div>
+                            </div>
+                            <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                              <div className="flex items-center gap-2">
+                                <Upload className="w-4 h-4 text-orange-600" />
+                                <span className="text-sm font-medium text-gray-700">Upload Rate</span>
+                              </div>
+                              <div className="mt-1 font-semibold text-gray-900">
+                                {Math.round(parseInt(channelData.videoCount) / channelData.channelAge)}/year
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Description */}
+                          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                            <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-blue-600" />
+                              About This Channel
+                            </h3>
+                            <div className="max-h-32 overflow-y-auto">
+                              <p className="text-gray-700 text-sm leading-relaxed">
+                                {channelData.description || "No channel description available. This creator hasn't added a description to their channel yet."}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Enhanced Channel Overview - Comprehensive Analytics */}
+                  <div className="space-y-6">
+                    {/* Main Stats Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <Card className="border-2 border-blue-100 bg-gradient-to-br from-blue-50 to-blue-100 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                        <CardContent className="p-6">
+                          <div className="flex items-center gap-3">
+                            <div className="p-3 bg-blue-600 rounded-lg">
+                              <Users className="w-6 h-6 text-white" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600 font-medium">Subscribers</p>
+                              <p className="text-2xl font-bold text-blue-900">{formatNumber(channelData.subscriberCount)}</p>
+                              <p className="text-xs text-blue-700 mt-1">
+                                {parseInt(channelData.subscriberCount) >= 1000000 ? 'Million+ Club!' : 
+                                 parseInt(channelData.subscriberCount) >= 100000 ? 'Growing Fast' : 'Building Audience'}
+                              </p>
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
-                    ))}
-                  </>
-                )
-              })()}
-            </TabsContent>
-          </Tabs>
-        )}
 
-        {!videoData && !loading && (
-          <Card className="border-2 border-blue-100 shadow-xl">
-            <CardContent className="p-12 text-center">
-              <Video className="w-20 h-20 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-2xl font-semibold text-gray-900 mb-2">Ready to Analyze</h3>
-              <p className="text-gray-600 max-w-md mx-auto">
-                Enter a YouTube video URL or Shorts link above to see performance insights.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+                      <Card className="border-2 border-green-100 bg-gradient-to-br from-green-50 to-green-100 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                        <CardContent className="p-6">
+                          <div className="flex items-center gap-3">
+                            <div className="p-3 bg-green-600 rounded-lg">
+                              <Eye className="w-6 h-6 text-white" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600 font-medium">Total Views</p>
+                              <p className="text-2xl font-bold text-green-900">{formatNumber(channelData.viewCount)}</p>
+                              <p className="text-xs text-green-700 mt-1">
+                                {parseInt(channelData.viewCount) >= 10000000 ? 'Viral Content' : 
+                                 parseInt(channelData.viewCount) >= 1000000 ? 'Strong Reach' : 'Growing Views'}
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="border-2 border-purple-100 bg-gradient-to-br from-purple-50 to-purple-100 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                        <CardContent className="p-6">
+                          <div className="flex items-center gap-3">
+                            <div className="p-3 bg-purple-600 rounded-lg">
+                              <PlayCircle className="w-6 h-6 text-white" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600 font-medium">Total Videos</p>
+                              <p className="text-2xl font-bold text-purple-900">{formatNumber(channelData.videoCount)}</p>
+                              <p className="text-xs text-purple-700 mt-1">
+                                {parseInt(channelData.videoCount) >= 1000 ? 'Content King' : 
+                                 parseInt(channelData.videoCount) >= 100 ? 'Active Creator' : 'Starting Journey'}
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="border-2 border-orange-100 bg-gradient-to-br from-orange-50 to-orange-100 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                        <CardContent className="p-6">
+                          <div className="flex items-center gap-3">
+                            <div className="p-3 bg-orange-600 rounded-lg">
+                              <BarChart3 className="w-6 h-6 text-white" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600 font-medium">Avg Views</p>
+                              <p className="text-2xl font-bold text-orange-900">
+                                {channelData.averageViews ? formatNumber(channelData.averageViews) : 'N/A'}
+                              </p>
+                              <p className="text-xs text-orange-700 mt-1">
+                                {(channelData.averageViews || 0) >= 100000 ? 'High Engagement' : 
+                                 (channelData.averageViews || 0) >= 10000 ? 'Good Performance' : 'Room to Grow'}
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Enhanced Performance Analytics */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {/* Channel Health Score Card */}
+                      {(() => {
+                        const healthScore = calculateChannelHealthScore(channelData)
+                        const scoreColor = getHealthScoreColor(healthScore)
+                        const scoreLabel = getHealthScoreLabel(healthScore)
+                        return (
+                          <Card className="border-2 border-indigo-100 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-lg hover:shadow-xl transition-all duration-300">
+                            <CardContent className="p-6">
+                              <div className="flex items-center gap-3 mb-4">
+                                <div className="p-3 bg-indigo-600 rounded-lg">
+                                  <TrendingUp className="w-6 h-6 text-white" />
+                                </div>
+                                <div>
+                                  <p className="text-sm text-gray-600 font-medium">Health Score</p>
+                                  <p className="text-2xl font-bold text-indigo-900">{healthScore}/100</p>
+                                </div>
+                              </div>
+                              <div className="mb-3">
+                                <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                                  <div 
+                                    className={`h-full bg-gradient-to-r ${scoreColor} rounded-full transition-all duration-1000 ease-out`}
+                                    style={{ width: `${healthScore}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <p className="text-xs text-indigo-700">{scoreLabel}</p>
+                            </CardContent>
+                          </Card>
+                        )
+                      })()}
+
+                      {/* Engagement Rate Card */}
+                      <Card className="border-2 border-pink-100 bg-gradient-to-br from-pink-50 to-rose-50 shadow-lg hover:shadow-xl transition-all duration-300">
+                        <CardContent className="p-6">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="p-3 bg-pink-600 rounded-lg">
+                              <Heart className="w-6 h-6 text-white" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600 font-medium">Engagement Rate</p>
+                              <p className="text-2xl font-bold text-pink-900">
+                                {channelData.engagementRate ? `${channelData.engagementRate.toFixed(2)}%` : 'Calculating...'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${
+                              (channelData.engagementRate || 0) >= 3 ? 'bg-green-500' :
+                              (channelData.engagementRate || 0) >= 1.5 ? 'bg-yellow-500' : 'bg-red-500'
+                            }`} />
+                            <p className="text-xs text-pink-700">
+                              {(channelData.engagementRate || 0) >= 3 ? 'Excellent audience connection' :
+                               (channelData.engagementRate || 0) >= 1.5 ? 'Good community engagement' : 'Focus on audience interaction'}
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Upload Consistency Card */}
+                      <Card className="border-2 border-teal-100 bg-gradient-to-br from-teal-50 to-cyan-50 shadow-lg hover:shadow-xl transition-all duration-300">
+                        <CardContent className="p-6">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="p-3 bg-teal-600 rounded-lg">
+                              <Clock className="w-6 h-6 text-white" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600 font-medium">Upload Rate</p>
+                              <p className="text-2xl font-bold text-teal-900">
+                                {channelData.videoCount ? 
+                                  `${Math.round(parseInt(channelData.videoCount) / Math.max(1, Math.floor((Date.now() - new Date(channelData.publishedAt).getTime()) / (1000 * 60 * 60 * 24 * 30))))}` :
+                                  '0'
+                                }/mo
+                              </p>
+                            </div>
+                          </div>
+                          <p className="text-xs text-teal-700">
+                            {channelData.videoCount ? 
+                              (parseInt(channelData.videoCount) / Math.max(1, Math.floor((Date.now() - new Date(channelData.publishedAt).getTime()) / (1000 * 60 * 60 * 24 * 30)))) >= 4 ?
+                                'Very consistent creator' : 'Room for more consistency'
+                              : 'Analyzing upload pattern...'
+                            }
+                          </p>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Channel Insights Row */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Channel Age & Growth */}
+                      <Card className="border-2 border-amber-100 bg-gradient-to-br from-amber-50 to-yellow-50 shadow-lg hover:shadow-xl transition-all duration-300">
+                        <CardHeader className="bg-gradient-to-r from-amber-100 to-yellow-100 pb-3">
+                          <CardTitle className="flex items-center gap-2 text-amber-900">
+                            <Calendar className="w-5 h-5" />
+                            Channel Journey
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="text-center">
+                              <p className="text-2xl font-bold text-amber-900">
+                                {channelData.publishedAt ? 
+                                  Math.floor((Date.now() - new Date(channelData.publishedAt).getTime()) / (1000 * 60 * 60 * 24 * 365)) : '0'
+                                } years
+                              </p>
+                              <p className="text-sm text-amber-700">Channel Age</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-2xl font-bold text-amber-900">
+                                {channelData.growthRate ? `+${channelData.growthRate.toFixed(1)}%` : 'N/A'}
+                              </p>
+                              <p className="text-sm text-amber-700">Growth Rate</p>
+                            </div>
+                          </div>
+                          <div className="mt-4 p-3 bg-amber-100 rounded-lg">
+                            <p className="text-xs text-amber-800">
+                              {channelData.publishedAt ? 
+                                `Started ${new Date(channelData.publishedAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}` :
+                                'Channel creation date not available'
+                              }
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Quick Performance Summary */}
+                      <Card className="border-2 border-emerald-100 bg-gradient-to-br from-emerald-50 to-green-50 shadow-lg hover:shadow-xl transition-all duration-300">
+                        <CardHeader className="bg-gradient-to-r from-emerald-100 to-green-100 pb-3">
+                          <CardTitle className="flex items-center gap-2 text-emerald-900">
+                            <Award className="w-5 h-5" />
+                            Performance Summary
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-4">
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center p-2 bg-emerald-100 rounded-lg">
+                              <span className="text-sm text-emerald-800">Subscriber Rate</span>
+                              <span className="font-bold text-emerald-900">
+                                {channelData.videoCount ? 
+                                  Math.round(parseInt(channelData.subscriberCount) / parseInt(channelData.videoCount)) : '0'
+                                } per video
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center p-2 bg-emerald-100 rounded-lg">
+                              <span className="text-sm text-emerald-800">View-to-Sub Ratio</span>
+                              <span className="font-bold text-emerald-900">
+                                {channelData.subscriberCount && channelData.viewCount ? 
+                                  Math.round(parseInt(channelData.viewCount) / parseInt(channelData.subscriberCount)) : '0'
+                                }:1
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center p-2 bg-emerald-100 rounded-lg">
+                              <span className="text-sm text-emerald-800">Content Quality</span>
+                              <span className="font-bold text-emerald-900">
+                                {(channelData.averageViews || 0) >= 50000 ? 'Premium' :
+                                 (channelData.averageViews || 0) >= 10000 ? 'Good' : 'Growing'}
+                              </span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="analytics" className="space-y-6">
+                  {/* Enhanced Analytics Layout */}
+                  <div className="space-y-8">
+                    {/* Top Row - Channel Health Score (Full Width) */}
+                    <Card className="border-2 border-gradient-to-r from-indigo-200 to-purple-200 bg-gradient-to-br from-indigo-50 to-purple-50 shadow-2xl">
+                      <CardHeader className="bg-gradient-to-r from-indigo-100 via-purple-50 to-indigo-100">
+                        <CardTitle className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg">
+                              <Growth className="w-6 h-6 text-white" />
+                            </div>
+                            <span className="text-xl font-bold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent">
+                              Channel Health Analytics
+                            </span>
+                          </div>
+                          {(() => {
+                            const healthScore = calculateChannelHealthScore(channelData)
+                            return (
+                              <div className="flex items-center gap-2">
+                                <span className="text-3xl font-black text-indigo-900">{healthScore}</span>
+                                <span className="text-lg text-indigo-600 font-semibold">/100</span>
+                              </div>
+                            )
+                          })()}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-6">
+                        {(() => {
+                          const healthScore = calculateChannelHealthScore(channelData)
+                          const scoreColor = getHealthScoreColor(healthScore)
+                          const scoreLabel = getHealthScoreLabel(healthScore)
+                          return (
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                              {/* Health Score Visual */}
+                              <div className="lg:col-span-2">
+                                <div className="p-6 bg-white border-2 border-indigo-100 rounded-2xl shadow-lg">
+                                  <div className="mb-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-lg font-semibold text-indigo-900">{scoreLabel}</span>
+                                      <span className="text-sm font-bold text-indigo-700">{healthScore}%</span>
+                                    </div>
+                                    <div className="relative">
+                                      <div className="w-full bg-gray-200 rounded-full h-6 overflow-hidden shadow-inner">
+                                        <div 
+                                          className={`h-full bg-gradient-to-r ${scoreColor} rounded-full transition-all duration-2000 ease-out shadow-sm`}
+                                          style={{ width: `${healthScore}%` }}
+                                        />
+                                      </div>
+                                      <div className="absolute inset-0 flex items-center justify-center">
+                                        <span className="text-xs font-bold text-white drop-shadow">{healthScore}%</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl border border-blue-200">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium text-blue-800">Subscriber Level</span>
+                                        <span className="text-lg font-bold text-blue-900">
+                                          {parseInt(channelData.subscriberCount) >= 1000000 ? '★★★' :
+                                           parseInt(channelData.subscriberCount) >= 10000 ? '★★☆' : '★☆☆'}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-blue-600 mt-1">
+                                        {parseInt(channelData.subscriberCount) >= 1000000 ? 'Elite Creator' :
+                                         parseInt(channelData.subscriberCount) >= 10000 ? 'Established' : 'Growing'}
+                                      </p>
+                                    </div>
+                                    
+                                    <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-xl border border-green-200">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium text-green-800">Engagement</span>
+                                        <span className="text-lg font-bold text-green-900">
+                                          {(channelData.engagementRate || 0) >= 3 ? '★★★' :
+                                           (channelData.engagementRate || 0) >= 1.5 ? '★★☆' : '★☆☆'}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-green-600 mt-1">
+                                        {(channelData.engagementRate || 0) >= 3 ? 'Excellent' :
+                                         (channelData.engagementRate || 0) >= 1.5 ? 'Good' : 'Needs Work'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Key Metrics */}
+                              <div className="space-y-4">
+                                <div className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-xl">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Heart className="w-5 h-5 text-emerald-600" />
+                                    <h4 className="font-bold text-emerald-900">Engagement Rate</h4>
+                                  </div>
+                                  <p className="text-2xl font-bold text-emerald-900">
+                                    {channelData.engagementRate ? `${channelData.engagementRate.toFixed(2)}%` : 'Calculating...'}
+                                  </p>
+                                  <p className="text-xs text-emerald-700 mt-1">
+                                    {(channelData.engagementRate || 0) > 3 ? 'Outstanding audience connection' : 
+                                     (channelData.engagementRate || 0) > 1.5 ? 'Solid community engagement' : 'Focus on audience interaction'}
+                                  </p>
+                                </div>
+
+                                <div className="p-4 bg-gradient-to-br from-violet-50 to-purple-50 border-2 border-violet-200 rounded-xl">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <TrendingUp className="w-5 h-5 text-violet-600" />
+                                    <h4 className="font-bold text-violet-900">Growth Rate</h4>
+                                  </div>
+                                  <p className="text-2xl font-bold text-violet-900">
+                                    {channelData.growthRate ? `+${channelData.growthRate.toFixed(1)}%` : 'Analyzing...'}
+                                  </p>
+                                  <p className="text-xs text-violet-700 mt-1">
+                                    Monthly subscriber growth trend
+                                  </p>
+                                </div>
+
+                                <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Clock className="w-5 h-5 text-amber-600" />
+                                    <h4 className="font-bold text-amber-900">Consistency</h4>
+                                  </div>
+                                  <p className="text-lg font-bold text-amber-900">
+                                    {parseInt(channelData.videoCount) / (channelData.channelAge || 1) >= 12 ? '★★★' :
+                                     parseInt(channelData.videoCount) / (channelData.channelAge || 1) >= 6 ? '★★☆' : '★☆☆'}
+                                  </p>
+                                  <p className="text-xs text-amber-700 mt-1">
+                                    {parseInt(channelData.videoCount) / (channelData.channelAge || 1) >= 12 ? 'Highly consistent' :
+                                     parseInt(channelData.videoCount) / (channelData.channelAge || 1) >= 6 ? 'Moderately regular' : 'Irregular uploads'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })()}
+                      </CardContent>
+                    </Card>
+
+                    {/* Second Row - Keywords & Categories */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Channel Keywords */}
+                      <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-cyan-50 shadow-xl">
+                        <CardHeader className="bg-gradient-to-r from-blue-100 to-cyan-100">
+                          <CardTitle className="flex items-center gap-3">
+                            <div className="p-2 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg">
+                              <Hash className="w-5 h-5 text-white" />
+                            </div>
+                            <span className="text-lg font-bold text-blue-900">Channel Keywords</span>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-6">
+                          {channelData.keywords ? (
+                            <div className="space-y-4">
+                              <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-sm">
+                                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                                  {channelData.keywords.split(',').slice(0, 15).map((keyword, index) => (
+                                    <Badge
+                                      key={index}
+                                      variant="secondary"
+                                      className="px-3 py-1.5 text-sm bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-900 border border-blue-200 hover:from-blue-200 hover:to-cyan-200 transition-colors"
+                                    >
+                                      {keyword.trim()}
+                                    </Badge>
+                                  ))}
+                                </div>
+                                {channelData.keywords.split(',').length > 15 && (
+                                  <p className="text-xs text-blue-600 mt-2 text-center">
+                                    +{channelData.keywords.split(',').length - 15} more keywords
+                                  </p>
+                                )}
+                              </div>
+                              <div className="bg-gradient-to-r from-blue-100 to-cyan-100 p-3 rounded-lg">
+                                <p className="text-xs text-blue-800">
+                                  <strong>Total Keywords:</strong> {channelData.keywords.split(',').length}
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-center py-8">
+                              <Hash className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                              <p className="text-gray-500">No keywords found for this channel</p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Categories & Language */}
+                      <Card className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50 shadow-xl">
+                        <CardHeader className="bg-gradient-to-r from-purple-100 to-pink-100">
+                          <CardTitle className="flex items-center gap-3">
+                            <div className="p-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg">
+                              <Award className="w-5 h-5 text-white" />
+                            </div>
+                            <span className="text-lg font-bold text-purple-900">Categories & Info</span>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-6 space-y-6">
+                          {channelData.bestPerformingCategories && channelData.bestPerformingCategories.length > 0 ? (
+                            <div>
+                              <h4 className="font-semibold text-purple-900 mb-3">Top Performing Categories</h4>
+                              <div className="space-y-2">
+                                {channelData.bestPerformingCategories.slice(0, 5).map((category, index) => (
+                                  <div key={index} className="flex items-center justify-between p-3 bg-white rounded-xl border border-purple-100 hover:bg-purple-50 transition-colors">
+                                    <span className="font-medium text-purple-900">{getCategoryName(category)}</span>
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-300">
+                                        #{index + 1}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-center py-4">
+                              <Award className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                              <p className="text-gray-500 text-sm">Category data not available</p>
+                            </div>
+                          )}
+
+                          {channelData.defaultLanguage && (
+                            <div className="p-4 bg-gradient-to-r from-purple-100 to-pink-100 rounded-xl border border-purple-200">
+                              <div className="flex items-center gap-3">
+                                <Globe className="w-5 h-5 text-purple-600" />
+                                <div>
+                                  <p className="font-semibold text-purple-900">Primary Language</p>
+                                  <p className="text-sm text-purple-700">{channelData.defaultLanguage}</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="p-4 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-xl border border-indigo-200">
+                            <div className="grid grid-cols-2 gap-4 text-center">
+                              <div>
+                                <p className="text-lg font-bold text-indigo-900">
+                                  {channelData.videoCount ? Math.round(parseInt(channelData.videoCount) / Math.max(1, Math.floor((Date.now() - new Date(channelData.publishedAt).getTime()) / (1000 * 60 * 60 * 24 * 30)))) : '0'}
+                                </p>
+                                <p className="text-xs text-indigo-700">Videos/Month</p>
+                              </div>
+                              <div>
+                                <p className="text-lg font-bold text-indigo-900">
+                                  {channelData.publishedAt ? Math.floor((Date.now() - new Date(channelData.publishedAt).getTime()) / (1000 * 60 * 60 * 24 * 365)) : '0'}
+                                </p>
+                                <p className="text-xs text-indigo-700">Years Active</p>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="schedule" className="space-y-6">
+                  {(() => {
+                    const uploadAnalysis = getBestUploadTimes(channelData)
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Best Upload Times */}
+                        <Card className="border-2 border-blue-100 shadow-xl">
+                          <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50">
+                            <CardTitle className="flex items-center gap-2">
+                              <Clock className="w-5 h-5 text-blue-600" />
+                              Optimal Upload Times
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="pt-6">
+                            <div className="space-y-6">
+                              {/* Best Hour */}
+                              <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg">
+                                <div className="flex items-center gap-3 mb-3">
+                                  <Sun className="w-6 h-6 text-green-600" />
+                                  <h4 className="font-bold text-green-900">Prime Time</h4>
+                                </div>
+                                <p className="text-2xl font-bold text-green-900 mb-2">
+                                  {uploadAnalysis.topHour ? formatUploadTime(uploadAnalysis.topHour.hour) : '6:00 PM'}
+                                </p>
+                                <p className="text-sm text-green-700">
+                                  {uploadAnalysis.topHour 
+                                    ? `${uploadAnalysis.topHour.count} videos uploaded at this time`
+                                    : 'Recommended based on YouTube trends'
+                                  }
+                                </p>
+                              </div>
+
+                              {/* Best Hours List */}
+                              <div>
+                                <h4 className="font-semibold text-gray-900 mb-3">Top 5 Upload Hours</h4>
+                                <div className="space-y-2">
+                                  {uploadAnalysis.bestHours.slice(0, 5).map((hour, index) => (
+                                    <div key={hour} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                                      <span className="font-medium text-blue-900">{formatUploadTime(hour)}</span>
+                                      <Badge variant="secondary" className="bg-blue-200 text-blue-900">
+                                        #{index + 1}
+                                      </Badge>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="p-3 bg-gray-50 rounded-lg">
+                                <p className="text-xs text-gray-600">{uploadAnalysis.timeAnalysis}</p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Best Upload Days */}
+                        <Card className="border-2 border-blue-100 shadow-xl">
+                          <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50">
+                            <CardTitle className="flex items-center gap-2">
+                              <Calendar className="w-5 h-5 text-blue-600" />
+                              Best Upload Days
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="pt-6">
+                            <div className="space-y-6">
+                              {/* Best Day */}
+                              <div className="p-4 bg-gradient-to-r from-purple-50 to-violet-50 border-2 border-purple-200 rounded-lg">
+                                <div className="flex items-center gap-3 mb-3">
+                                  <Star className="w-6 h-6 text-purple-600" />
+                                  <h4 className="font-bold text-purple-900">Best Day</h4>
+                                </div>
+                                <p className="text-2xl font-bold text-purple-900 mb-2">
+                                  {uploadAnalysis.topDay ? formatDayName(uploadAnalysis.topDay.day) : 'Friday'}
+                                </p>
+                                <p className="text-sm text-purple-700">
+                                  {uploadAnalysis.topDay 
+                                    ? `${uploadAnalysis.topDay.count} videos uploaded on this day`
+                                    : 'Recommended based on audience engagement'
+                                  }
+                                </p>
+                              </div>
+
+                              {/* Best Days List */}
+                              <div>
+                                <h4 className="font-semibold text-gray-900 mb-3">Weekly Upload Pattern</h4>
+                                <div className="space-y-2">
+                                  {uploadAnalysis.bestDays.slice(0, 4).map((day, index) => (
+                                    <div key={day} className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                                      <span className="font-medium text-purple-900">{formatDayName(day)}</span>
+                                      <Badge variant="secondary" className="bg-purple-200 text-purple-900">
+                                        #{index + 1}
+                                      </Badge>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Upload Frequency */}
+                              <div className="p-4 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-lg">
+                                <h4 className="font-bold text-orange-900 mb-2">Upload Frequency</h4>
+                                <p className="text-lg font-semibold text-orange-900">
+                                  {channelData.videoCount ? 
+                                    `${Math.round(parseInt(channelData.videoCount) / Math.max(1, Math.floor((Date.now() - new Date(channelData.publishedAt).getTime()) / (1000 * 60 * 60 * 24 * 30))))} videos/month` :
+                                    'Calculating...'
+                                  }
+                                </p>
+                                <p className="text-sm text-orange-700 mt-1">
+                                  Average based on channel history
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )
+                  })()}
+                </TabsContent>
+
+                <TabsContent value="videos" className="space-y-6">
+                  {channelData.topVideos && channelData.topVideos.length > 0 ? (
+                    <div className="space-y-4">
+                      {/* Summary Stats */}
+                      <Card className="border-2 border-blue-100 shadow-lg">
+                        <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50">
+                          <CardTitle className="flex items-center gap-2">
+                            <Award className="w-5 h-5 text-blue-600" />
+                            Video Performance Overview
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-4">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="bg-green-50 p-4 rounded-xl text-center">
+                              <h4 className="text-2xl font-bold text-green-900">
+                                {channelData.topVideos.filter(v => getVideoPerformance(v as DetailedVideoData, channelData.averageViews || 0) === 'excellent').length}
+                              </h4>
+                              <p className="text-sm text-green-700 font-medium">Viral Videos</p>
+                            </div>
+                            <div className="bg-blue-50 p-4 rounded-xl text-center">
+                              <h4 className="text-2xl font-bold text-blue-900">
+                                {Math.round(channelData.topVideos.reduce((acc, v) => acc + parseInt(v.viewCount), 0) / channelData.topVideos.length / 1000)}K
+                              </h4>
+                              <p className="text-sm text-blue-700 font-medium">Avg Views</p>
+                            </div>
+                            <div className="bg-purple-50 p-4 rounded-xl text-center">
+                              <h4 className="text-2xl font-bold text-purple-900">
+                                {Math.round(channelData.topVideos.reduce((acc, v) => {
+                                  const engagement = (parseInt(v.likeCount) + parseInt(v.commentCount)) / parseInt(v.viewCount) * 100
+                                  return acc + engagement
+                                }, 0) / channelData.topVideos.length * 10) / 10}%
+                              </h4>
+                              <p className="text-sm text-purple-700 font-medium">Avg Engagement</p>
+                            </div>
+                            <div className="bg-orange-50 p-4 rounded-xl text-center">
+                              <h4 className="text-2xl font-bold text-orange-900">
+                                {Math.round((channelData.topVideos.reduce((acc, v) => acc + parseInt(v.likeCount), 0) / 
+                                  channelData.topVideos.reduce((acc, v) => acc + parseInt(v.viewCount), 0)) * 100 * 10) / 10}%
+                              </h4>
+                              <p className="text-sm text-orange-700 font-medium">Like Rate</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Top Videos with Expandable Details */}
+                      <Card className="border-2 border-blue-100 shadow-xl">
+                        <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50">
+                          <CardTitle className="flex items-center gap-2">
+                            <PlayCircle className="w-5 h-5 text-blue-600" />
+                            Top Performing Videos (Click for Details)
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-6">
+                          <div className="space-y-3">
+                            {channelData.topVideos.slice(0, 10).map((video, index) => {
+                              const videoDetails = formatVideoDetails(video as DetailedVideoData)
+                              const performance = getVideoPerformance(video as DetailedVideoData, channelData.averageViews || 0)
+                              const isExpanded = expandedVideo === video.id
+                              
+                              return (
+                                <div key={video.id} className="bg-gradient-to-r from-white via-blue-50 to-purple-50 border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all">
+                                  {/* Main Video Row */}
+                                  <div 
+                                    className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 cursor-pointer hover:bg-blue-50/50 transition-colors"
+                                    onClick={() => toggleVideoDetails(video.id)}
+                                  >
+                                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                                      <div className="flex-shrink-0">
+                                        <Badge 
+                                          variant="secondary" 
+                                          className={`font-bold text-white ${
+                                            performance === 'excellent' ? 'bg-green-600' :
+                                            performance === 'good' ? 'bg-blue-600' :
+                                            performance === 'average' ? 'bg-orange-500' : 'bg-gray-500'
+                                          }`}
+                                        >
+                                          #{index + 1}
+                                        </Badge>
+                                      </div>
+                                      <img 
+                                        src={video.thumbnail} 
+                                        alt={video.title}
+                                        className="w-20 sm:w-24 h-12 sm:h-16 object-cover rounded-lg shadow-sm"
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <h4 className="font-semibold text-gray-900 line-clamp-2 text-sm sm:text-base">
+                                          {video.title}
+                                        </h4>
+                                        <div className="flex flex-wrap items-center gap-3 mt-2 text-xs sm:text-sm text-gray-600">
+                                          <div className="flex items-center gap-1">
+                                            <Eye className="w-3 h-3" />
+                                            <span className="font-medium">{formatNumber(video.viewCount)}</span>
+                                          </div>
+                                          <div className="flex items-center gap-1">
+                                            <ThumbsUp className="w-3 h-3" />
+                                            <span>{formatNumber(video.likeCount)}</span>
+                                          </div>
+                                          <div className="flex items-center gap-1">
+                                            <MessageSquare className="w-3 h-3" />
+                                            <span>{formatNumber(video.commentCount)}</span>
+                                          </div>
+                                          <Badge 
+                                            variant="outline" 
+                                            className={`text-xs ${
+                                              performance === 'excellent' ? 'border-green-500 text-green-700 bg-green-50' :
+                                              performance === 'good' ? 'border-blue-500 text-blue-700 bg-blue-50' :
+                                              performance === 'average' ? 'border-orange-500 text-orange-700 bg-orange-50' :
+                                              'border-gray-500 text-gray-700 bg-gray-50'
+                                            }`}
+                                          >
+                                            {performance === 'excellent' ? '🔥 Viral' :
+                                             performance === 'good' ? '⚡ Strong' :
+                                             performance === 'average' ? '📈 Average' : '🎯 Slow'}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                      <a 
+                                        href={`https://www.youtube.com/watch?v=${video.id}`} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                      >
+                                        <ExternalLink className="w-3 h-3" />
+                                      </a>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="text-xs"
+                                      >
+                                        {isExpanded ? 'Hide' : 'Details'}
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  {/* Expanded Details */}
+                                  {isExpanded && (
+                                    <div className="border-t border-gray-200 bg-gradient-to-r from-gray-50 to-blue-50/30 p-4 space-y-4">
+                                      {/* Performance Metrics */}
+                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                        <div className="bg-white p-3 rounded-lg text-center">
+                                          <p className="text-xs text-gray-500 mb-1">Views/Day</p>
+                                          <p className="font-bold text-blue-900">{formatNumber(videoDetails.viewsPerDay)}</p>
+                                        </div>
+                                        <div className="bg-white p-3 rounded-lg text-center">
+                                          <p className="text-xs text-gray-500 mb-1">Engagement</p>
+                                          <p className="font-bold text-green-900">{videoDetails.engagementRate}%</p>
+                                        </div>
+                                        <div className="bg-white p-3 rounded-lg text-center">
+                                          <p className="text-xs text-gray-500 mb-1">Upload Time</p>
+                                          <p className="font-bold text-purple-900">{formatUploadTime(videoDetails.uploadHour)}</p>
+                                        </div>
+                                        <div className="bg-white p-3 rounded-lg text-center">
+                                          <p className="text-xs text-gray-500 mb-1">Upload Day</p>
+                                          <p className="font-bold text-orange-900">{videoDetails.uploadDay}</p>
+                                        </div>
+                                      </div>
+
+                                      {/* Additional Details */}
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="bg-white p-4 rounded-lg">
+                                          <h5 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                                            <Calendar className="w-4 h-4" />
+                                            Timeline
+                                          </h5>
+                                          <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between">
+                                              <span className="text-gray-600">Published:</span>
+                                              <span className="font-medium">{new Date(video.publishedAt).toLocaleDateString()}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-gray-600">Days Old:</span>
+                                              <span className="font-medium">{videoDetails.daysOld} days</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-gray-600">Category:</span>
+                                              <span className="font-medium">{getCategoryName(video.categoryId)}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div className="bg-white p-4 rounded-lg">
+                                          <h5 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                                            <BarChart3 className="w-4 h-4" />
+                                            Performance
+                                          </h5>
+                                          <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between">
+                                              <span className="text-gray-600">Like Ratio:</span>
+                                              <span className="font-medium">
+                                                {((parseInt(video.likeCount) / parseInt(video.viewCount)) * 100).toFixed(2)}%
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-gray-600">Comments/Views:</span>
+                                              <span className="font-medium">
+                                                {((parseInt(video.commentCount) / parseInt(video.viewCount)) * 100).toFixed(3)}%
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                              <span className="text-gray-600">vs Avg Views:</span>
+                                              <span className={`font-medium ${
+                                                parseInt(video.viewCount) > (channelData.averageViews || 0) ? 'text-green-600' : 'text-orange-600'
+                                              }`}>
+                                                {channelData.averageViews ? 
+                                                  `${((parseInt(video.viewCount) / channelData.averageViews) * 100).toFixed(0)}%` : 
+                                                  'N/A'
+                                                }
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Tags */}
+                                      {video.tags && video.tags.length > 0 && (
+                                        <div className="bg-white p-4 rounded-lg">
+                                          <h5 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                            <Hash className="w-4 h-4" />
+                                            Tags ({video.tags.length})
+                                          </h5>
+                                          <div className="flex flex-wrap gap-2">
+                                            {video.tags.slice(0, 10).map((tag, idx) => (
+                                              <Badge key={idx} variant="outline" className="text-xs bg-gray-50">
+                                                {tag}
+                                              </Badge>
+                                            ))}
+                                            {video.tags.length > 10 && (
+                                              <Badge variant="outline" className="text-xs bg-gray-100">
+                                                +{video.tags.length - 10} more
+                                              </Badge>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  ) : (
+                    <Card className="border-2 border-blue-100 shadow-xl">
+                      <CardContent className="p-12 text-center">
+                        <PlayCircle className="w-20 h-20 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-xl font-semibold text-gray-900 mb-2">No Video Data Available</h3>
+                        <p className="text-gray-600">Top videos will be displayed when data is available.</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </TabsContent>
+              </Tabs>
+            )}
+
+            {!videoData && !channelData && !loading && (
+              <Card className="border-2 border-blue-100 shadow-xl">
+                <CardContent className="p-12 text-center">
+                  {analysisType === 'video' ? (
+                    <Video className="w-20 h-20 text-gray-400 mx-auto mb-4" />
+                  ) : (
+                    <Users className="w-20 h-20 text-gray-400 mx-auto mb-4" />
+                  )}
+                  <h3 className="text-2xl font-semibold text-gray-900 mb-2">
+                    Ready to Analyze {analysisType === 'video' ? 'Video' : 'Channel'}
+                  </h3>
+                  <p className="text-gray-600 max-w-md mx-auto">
+                    {analysisType === 'video' 
+                      ? 'Enter a YouTube video URL or Shorts link above to see performance insights.'
+                      : 'Enter a YouTube channel URL above to see comprehensive channel analytics, best upload times, top videos, and growth insights.'
+                    }
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </main>
       </div>
