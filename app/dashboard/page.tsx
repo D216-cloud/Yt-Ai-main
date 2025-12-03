@@ -74,9 +74,9 @@ export default function DashboardPage() {
     return n.toString()
   }
 
-  // Reusable base class for analytics cards and small cards
-  const cardBase = 'group relative bg-white rounded-2xl border border-gray-200 p-4 md:p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-2 overflow-hidden'
-  const smallCardBase = 'bg-white/50 hover:bg-white rounded-xl p-3 transition-all hover:shadow-md border border-transparent hover:border-gray-200 flex flex-col gap-2'
+  // Enhanced reusable base classes for cards with better mobile responsiveness
+  const cardBase = 'group relative bg-white rounded-2xl border border-gray-200/60 p-4 sm:p-5 md:p-6 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 hover:-translate-y-1 overflow-hidden backdrop-blur-sm'
+  const smallCardBase = 'bg-white/70 hover:bg-white rounded-xl p-4 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 border border-gray-100 hover:border-gray-200 flex flex-col gap-3'
 
   // Mock analytics data
   const analyticsData = {
@@ -400,114 +400,126 @@ export default function DashboardPage() {
             {/* Analytics Overview - Enhanced Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
               {/* Total Views */}
-              <div className={`${cardBase} hover:border-blue-300`}>
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 rounded-full blur-2xl"></div>
+              <div className={`${cardBase} hover:border-blue-300/50 hover:shadow-blue-500/20`}>
+                <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-blue-500/15 to-cyan-500/15 rounded-full blur-2xl"></div>
                 <div className="relative">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                      <Eye className="w-5 h-5 text-white" />
+                  <div className="flex items-center justify-between mb-3 sm:mb-4">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                      <Eye className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                     </div>
-                    <div className="flex items-center gap-1 text-sm font-bold text-green-600">
-                      <ArrowUpRight className="w-4 h-4" />
+                    <div className="flex items-center gap-1 text-xs sm:text-sm font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                      <ArrowUpRight className="w-3 h-3 sm:w-4 sm:h-4" />
                       <span>{analyticsData.growth.views}%</span>
                     </div>
                   </div>
-                  <p className="text-sm font-semibold text-gray-600 mb-3">Total Views</p>
-                  <div className="flex items-center justify-center">
-                    <button
-                      onClick={() => router.push('/ai-tools')}
-                      aria-label="Find keywords for your channel"
-                      title="Find keywords for your channel"
-                      className="w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-md transition"
-                    >
-                      <Search className="w-4 h-4" />
-                      <span>Find Keywords</span>
-                    </button>
+                  <div className="mb-3 sm:mb-4">
+                    <p className="text-xs sm:text-sm font-semibold text-gray-600 mb-1">Total Views</p>
+                    <p className="text-lg sm:text-xl md:text-2xl font-black text-gray-900">{formatNumber(analyticsData.views)}</p>
                   </div>
+                  <Button
+                    onClick={() => router.push('/ai-tools')}
+                    aria-label="Find keywords for your channel"
+                    title="Find keywords for your channel"
+                    variant="dashboard-blue"
+                    size="dashboard"
+                    className="w-full"
+                  >
+                    <Search className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                    <span className="truncate">Find Keywords</span>
+                  </Button>
                 </div>
               </div>
 
               {/* Subscribers */}
-              <div className={`${cardBase} hover:border-purple-300`}>
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-full blur-2xl"></div>
+              <div className={`${cardBase} hover:border-purple-300/50 hover:shadow-purple-500/20`}>
+                <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-purple-500/15 to-pink-500/15 rounded-full blur-2xl"></div>
                 <div className="relative">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                      <Users className="w-5 h-5 text-white" />
+                  <div className="flex items-center justify-between mb-3 sm:mb-4">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                      <Users className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                     </div>
-                    <div className="flex items-center gap-1 text-sm font-bold text-green-600">
-                      <ArrowUpRight className="w-4 h-4" />
+                    <div className="flex items-center gap-1 text-xs sm:text-sm font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                      <ArrowUpRight className="w-3 h-3 sm:w-4 sm:h-4" />
                       <span>{analyticsData.growth.subscribers}%</span>
                     </div>
                   </div>
-                  <p className="text-sm font-semibold text-gray-600 mb-3">Subscribers</p>
-                  <div className="flex items-center justify-center">
-                    <button
-                      onClick={() => router.push('/bulk-upload')}
-                      aria-label="Smart Bulk Upload"
-                      title="Smart Bulk Upload"
-                      className="w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 px-4 bg-purple-600 hover:bg-purple-700 text-white font-semibold shadow-md transition"
-                    >
-                      <Upload className="w-4 h-4" />
-                      <span>Smart Bulk Upload</span>
-                    </button>
+                  <div className="mb-3 sm:mb-4">
+                    <p className="text-xs sm:text-sm font-semibold text-gray-600 mb-1">Subscribers</p>
+                    <p className="text-lg sm:text-xl md:text-2xl font-black text-gray-900">{formatNumber(analyticsData.subscribers)}</p>
                   </div>
+                  <Button
+                    onClick={() => router.push('/bulk-upload')}
+                    aria-label="Smart Bulk Upload"
+                    title="Smart Bulk Upload"
+                    variant="dashboard-purple"
+                    size="dashboard"
+                    className="w-full"
+                  >
+                    <Upload className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                    <span className="truncate">Smart Upload</span>
+                  </Button>
                 </div>
               </div>
 
               {/* Watch Time */}
-              <div className={`${cardBase} hover:border-green-300`}>
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-full blur-2xl"></div>
+              <div className={`${cardBase} hover:border-green-300/50 hover:shadow-green-500/20`}>
+                <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-green-500/15 to-emerald-500/15 rounded-full blur-2xl"></div>
                 <div className="relative">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                      <Clock className="w-5 h-5 text-white" />
+                  <div className="flex items-center justify-between mb-3 sm:mb-4">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                      <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                     </div>
-                    <div className="flex items-center gap-1 text-sm font-bold text-green-600">
-                      <ArrowUpRight className="w-4 h-4" />
+                    <div className="flex items-center gap-1 text-xs sm:text-sm font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                      <ArrowUpRight className="w-3 h-3 sm:w-4 sm:h-4" />
                       <span>{analyticsData.growth.watchTime}%</span>
                     </div>
                   </div>
-                  <p className="text-sm font-semibold text-gray-600 mb-3">Watch Time</p>
-                  <div className="flex items-center justify-center">
-                    <button
-                      onClick={() => router.push('/ai-tools?tool=idea')}
-                      aria-label="Find Best Idea"
-                      title="Find Best Idea"
-                      className="w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-semibold shadow-md transition"
-                    >
-                      <Lightbulb className="w-4 h-4" />
-                      <span>Find Best Idea</span>
-                    </button>
+                  <div className="mb-3 sm:mb-4">
+                    <p className="text-xs sm:text-sm font-semibold text-gray-600 mb-1">Watch Time</p>
+                    <p className="text-lg sm:text-xl md:text-2xl font-black text-gray-900">{formatNumber(analyticsData.watchTime)}h</p>
                   </div>
+                  <Button
+                    onClick={() => router.push('/ai-tools?tool=idea')}
+                    aria-label="Find Best Idea"
+                    title="Find Best Idea"
+                    variant="dashboard-green"
+                    size="dashboard"
+                    className="w-full"
+                  >
+                    <Lightbulb className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                    <span className="truncate">Best Ideas</span>
+                  </Button>
                 </div>
               </div>
 
               {/* Engagement */}
-              <div className={`${cardBase} hover:border-orange-300`}>
-                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-500/10 to-red-500/10 rounded-full blur-2xl"></div>
+              <div className={`${cardBase} hover:border-orange-300/50 hover:shadow-orange-500/20`}>
+                <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-orange-500/15 to-red-500/15 rounded-full blur-2xl"></div>
                 <div className="relative">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                      <TrendingUp className="w-5 h-5 text-white" />
+                  <div className="flex items-center justify-between mb-3 sm:mb-4">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                      <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                     </div>
-                    <div className="flex items-center gap-1 text-sm font-bold text-green-600">
-                      <ArrowUpRight className="w-4 h-4" />
+                    <div className="flex items-center gap-1 text-xs sm:text-sm font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                      <ArrowUpRight className="w-3 h-3 sm:w-4 sm:h-4" />
                       <span>{analyticsData.growth.engagement}%</span>
                     </div>
                   </div>
-                  <p className="text-sm font-semibold text-gray-600 mb-3">Engagement</p>
-                  <div className="flex items-center justify-center">
-                    <button
-                      onClick={() => router.push('/ai-tools?tool=thumbnail')}
-                      aria-label="Generate Thumbnail"
-                      title="Generate Thumbnail"
-                      className="w-full inline-flex items-center justify-center gap-2 rounded-lg py-3 px-4 bg-orange-600 hover:bg-orange-700 text-white font-semibold shadow-md transition"
-                    >
-                      <ImageIcon className="w-4 h-4" />
-                      <span>Generate Thumbnail</span>
-                    </button>
+                  <div className="mb-3 sm:mb-4">
+                    <p className="text-xs sm:text-sm font-semibold text-gray-600 mb-1">Engagement</p>
+                    <p className="text-lg sm:text-xl md:text-2xl font-black text-gray-900">{analyticsData.engagement}%</p>
                   </div>
+                  <Button
+                    onClick={() => router.push('/ai-tools?tool=thumbnail')}
+                    aria-label="Generate Thumbnail"
+                    title="Generate Thumbnail"
+                    variant="dashboard-orange"
+                    size="dashboard"
+                    className="w-full"
+                  >
+                    <ImageIcon className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                    <span className="truncate">Thumbnail</span>
+                  </Button>
                 </div>
               </div>
 
@@ -574,49 +586,59 @@ export default function DashboardPage() {
                       </Button>
                     </Link>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {recentVideos.map((video) => (
-                      <div key={video.id} className={`${smallCardBase} hover:shadow-lg hover:-translate-y-1 transition-transform`}>
-                        <div className="flex items-start gap-3">
-                          <div className="w-16 h-12 sm:w-20 sm:h-14 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center shrink-0">
-                            <div className="w-full h-full flex items-center justify-center text-2xl">{video.thumbnail}</div>
+                      <div key={video.id} className={`${smallCardBase} hover:shadow-xl hover:-translate-y-1 transition-all duration-200 border border-gray-200/60 hover:border-gray-300`}>
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className="w-16 h-12 sm:w-20 sm:h-14 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden flex items-center justify-center shrink-0 shadow-sm">
+                            <div className="w-full h-full flex items-center justify-center text-xl sm:text-2xl">{video.thumbnail}</div>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-gray-900 truncate mb-1">{video.title}</h4>
+                            <h4 className="font-bold text-gray-900 text-sm sm:text-base line-clamp-2 mb-2 leading-tight">{video.title}</h4>
                             <div className="flex items-center gap-3 text-xs text-gray-600">
                               <div className="flex items-center gap-1">
-                                <Eye className="w-4 h-4" />
-                                <span>{video.views}</span>
+                                <Eye className="w-3 h-3" />
+                                <span className="font-medium">{video.views}</span>
                               </div>
                               <div className="flex items-center gap-1">
-                                <Heart className="w-4 h-4" />
-                                <span>{video.likes}</span>
+                                <Heart className="w-3 h-3" />
+                                <span className="font-medium">{video.likes}</span>
                               </div>
-                              <div className="flex items-center gap-1">
-                                <MessageSquare className="w-4 h-4" />
-                                <span>{video.comments}</span>
+                              <div className="hidden sm:flex items-center gap-1">
+                                <MessageSquare className="w-3 h-3" />
+                                <span className="font-medium">{video.comments}</span>
                               </div>
                             </div>
                           </div>
-                          <div className="items-start hidden sm:flex">
-                            <div className="flex flex-col items-end gap-2">
-                              <button className="p-1 rounded-md hover:bg-gray-100 transition-colors" title="More">
-                                <MoreHorizontal className="w-4 h-4 text-gray-600" />
-                              </button>
-                              <button className="p-1 rounded-md hover:bg-gray-100 transition-colors" title="Share">
-                                <Share2 className="w-4 h-4 text-gray-600" />
-                              </button>
-                            </div>
+                          <div className="flex flex-col gap-1">
+                            <button className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors" title="More options">
+                              <MoreHorizontal className="w-4 h-4 text-gray-500" />
+                            </button>
                           </div>
                         </div>
-                        <div className="mt-3 flex items-center justify-between">
-                          <div className={`flex items-center gap-2 px-3 py-1 rounded-lg border ${video.status === 'published' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
-                            <div className={`w-2 h-2 rounded-full ${video.status === 'published' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                            <span className={`text-xs font-bold capitalize ${video.status === 'published' ? 'text-green-700' : 'text-yellow-700'}`}>{video.status}</span>
+                        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                          <div className={`flex items-center gap-2 px-2.5 py-1 rounded-lg ${video.status === 'published' 
+                            ? 'bg-green-50 border border-green-200 text-green-700' 
+                            : 'bg-yellow-50 border border-yellow-200 text-yellow-700'
+                          }`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${video.status === 'published' ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                            <span className="text-xs font-bold capitalize">{video.status}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <button className="text-xs px-3 py-1 rounded-md border hover:bg-gray-100">Edit</button>
-                            <button className="text-xs px-3 py-1 rounded-md bg-gray-100 hover:bg-gray-200">Details</button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="text-xs h-7 px-2 hover:bg-gray-100"
+                            >
+                              Edit
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="text-xs h-7 px-2 bg-gray-50 hover:bg-gray-100"
+                            >
+                              View
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -629,31 +651,47 @@ export default function DashboardPage() {
               <div className="space-y-6">
                 {/* Quick Actions */}
                 <div className={`${cardBase} shadow-sm`}>
-                  <h3 className="text-lg font-black text-gray-900 mb-4">Quick Actions</h3>
-                  <div className="grid grid-cols-2 gap-3 md:block">
-                    <Link href="/upload">
-                      <button className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-xl transition-all hover:-translate-y-0.5">
-                        <Upload className="w-5 h-5" />
-                        <span className="font-semibold">Upload Video</span>
-                      </button>
+                  <h3 className="text-lg font-black text-gray-900 mb-6">Quick Actions</h3>
+                  <div className="space-y-3">
+                    <Link href="/upload" className="block">
+                      <Button 
+                        variant="dashboard-blue" 
+                        size="dashboard"
+                        className="w-full justify-start"
+                      >
+                        <Upload className="w-4 h-4 shrink-0" />
+                        <span>Upload Video</span>
+                      </Button>
                     </Link>
-                    <Link href="/content">
-                      <button className="w-full flex items-center gap-3 p-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all hover:-translate-y-0.5">
-                        <Video className="w-5 h-5 text-gray-700" />
-                        <span className="font-semibold text-gray-900">Manage Content</span>
-                      </button>
+                    <Link href="/content" className="block">
+                      <Button 
+                        variant="outline" 
+                        size="dashboard"
+                        className="w-full justify-start hover:bg-gray-50 border-gray-200"
+                      >
+                        <Video className="w-4 h-4 shrink-0 text-gray-600" />
+                        <span className="text-gray-900">Manage Content</span>
+                      </Button>
                     </Link>
-                    <Link href="/analytics">
-                      <button className="w-full flex items-center gap-3 p-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all hover:-translate-y-0.5">
-                        <BarChart3 className="w-5 h-5 text-gray-700" />
-                        <span className="font-semibold text-gray-900">View Analytics</span>
-                      </button>
+                    <Link href="/analytics" className="block">
+                      <Button 
+                        variant="outline" 
+                        size="dashboard"
+                        className="w-full justify-start hover:bg-gray-50 border-gray-200"
+                      >
+                        <BarChart3 className="w-4 h-4 shrink-0 text-gray-600" />
+                        <span className="text-gray-900">View Analytics</span>
+                      </Button>
                     </Link>
-                    <Link href="/upload/shorts">
-                      <button className="w-full flex items-center gap-3 p-3 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded-lg hover:shadow-xl transition-all hover:-translate-y-0.5">
-                        <Video className="w-5 h-5" />
-                        <span className="font-semibold">Create Short</span>
-                      </button>
+                    <Link href="/upload/shorts" className="block">
+                      <Button 
+                        variant="dashboard-green" 
+                        size="dashboard"
+                        className="w-full justify-start"
+                      >
+                        <Video className="w-4 h-4 shrink-0" />
+                        <span>Create Short</span>
+                      </Button>
                     </Link>
                   </div>
                 </div>
