@@ -4,7 +4,7 @@ import Link from "next/link"
 import DashboardHeader from "@/components/dashboard-header"
 import SharedSidebar from "@/components/shared-sidebar"
 import { Button } from '@/components/ui/button'
-import { Video, Upload, Eye, Heart, MessageSquare, Filter, Copy, Check, ExternalLink, Calendar, Youtube, RefreshCw, Loader2, AlertCircle, Play, ChevronDown } from "lucide-react"
+import { Video, Upload, Eye, Heart, MessageSquare, Filter, Copy, Check, ExternalLink, Calendar, Youtube, RefreshCw, Loader2, AlertCircle, Play, ChevronDown, CheckCircle, XCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { useState, useEffect } from "react"
@@ -33,83 +33,188 @@ export default function ContentPage() {
     const [searchQuery, setSearchQuery] = useState('')
     const [copiedField, setCopiedField] = useState<string | null>(null)
     const [youtubeChannel, setYoutubeChannel] = useState<any>(null)
+    const [additionalChannels, setAdditionalChannels] = useState<any[]>([])
+    const [activeChannelId, setActiveChannelId] = useState<string | null>(null)
     const [videos, setVideos] = useState<Video[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [isLoadingMore, setIsLoadingMore] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [nextPageToken, setNextPageToken] = useState<string | null>(null)
     const [totalResults, setTotalResults] = useState<number>(0)
+    const [editingVideo, setEditingVideo] = useState<Video | null>(null)
+    const [showEditModal, setShowEditModal] = useState(false)
+    const [isSaving, setIsSaving] = useState(false)
+    const [editForm, setEditForm] = useState({
+        title: '',
+        description: '',
+        privacyStatus: 'public' as 'public' | 'unlisted' | 'private'
+    })
+    const [syncStatus, setSyncStatus] = useState<string | null>(null)
 
-    // Load YouTube channel data
+    // Load YouTube channel data with real-time sync
     useEffect(() => {
-        try {
-            const stored = localStorage.getItem('youtube_channel')
-            if (stored) {
-                setYoutubeChannel(JSON.parse(stored))
+        const loadAllChannels = () => {
+            try {
+                // Load primary channel
+                const stored = localStorage.getItem('youtube_channel')
+                if (stored) {
+                    setYoutubeChannel(JSON.parse(stored))
+                }
+                
+                // Load additional channels
+                const additionalStored = localStorage.getItem('additional_youtube_channels')
+                if (additionalStored) {
+                    setAdditionalChannels(JSON.parse(additionalStored))
+                }
+                
+                // Load active channel
+                const activeId = localStorage.getItem('active_youtube_channel_id')
+                if (activeId) {
+                    setActiveChannelId(activeId)
+                } else if (stored) {
+                    const channel = JSON.parse(stored)
+                    setActiveChannelId(channel.id)
+                    localStorage.setItem('active_youtube_channel_id', channel.id)
+                }
+            } catch (error) {
+                console.error('Failed to load channel data:', error)
             }
-        } catch (error) {
-            console.error('Failed to load channel data:', error)
+        }
+        
+        loadAllChannels()
+        
+        // Listen for storage changes (real-time sync)
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === 'youtube_channel' || e.key === 'additional_youtube_channels' || e.key === 'active_youtube_channel_id') {
+                console.log('Storage change detected:', e.key)
+                loadAllChannels()
+            }
+        }
+        
+        // Listen for custom channel switch events
+        const handleChannelSwitch = () => {
+            console.log('Channel switch event detected')
+            loadAllChannels()
+        }
+        
+        window.addEventListener('storage', handleStorageChange)
+        window.addEventListener('channelSwitched', handleChannelSwitch)
+        
+        return () => {
+            window.removeEventListener('storage', handleStorageChange)
+            window.removeEventListener('channelSwitched', handleChannelSwitch)
         }
     }, [])
 
-    // Fetch videos when channel is loaded
+    // Fetch videos when active channel changes
     useEffect(() => {
-        if (youtubeChannel) {
+        if (activeChannelId && (youtubeChannel || additionalChannels.length > 0)) {
+            console.log('Active channel changed, fetching videos for:', activeChannelId)
             fetchVideos(true)
         }
-    }, [youtubeChannel])
+    }, [activeChannelId, youtubeChannel, additionalChannels])
+
+    // Auto-refresh videos periodically to sync with YouTube
+    useEffect(() => {
+        if (activeChannelId && videos.length > 0) {
+            const interval = setInterval(() => {
+                console.log('Auto-refreshing videos to sync with YouTube for active channel:', activeChannelId)
+                fetchVideos(true)
+            }, 30000) // Refresh every 30 seconds
+
+            return () => clearInterval(interval)
+        }
+    }, [activeChannelId, videos.length])
+
+    // Helper functions for active channel
+    const getCurrentActiveChannel = () => {
+        if (activeChannelId === youtubeChannel?.id) {
+            return youtubeChannel
+        }
+        return additionalChannels.find(ch => ch.id === activeChannelId) || youtubeChannel
+    }
+
+    const getCurrentActiveToken = () => {
+        if (activeChannelId === youtubeChannel?.id) {
+            return localStorage.getItem('youtube_access_token')
+        }
+        return localStorage.getItem(`youtube_token_${activeChannelId}`) || localStorage.getItem('youtube_access_token')
+    }
 
     const fetchVideos = async (resetVideos = false, pageToken?: string) => {
         if (resetVideos) {
             setIsLoading(true)
             setVideos([])
+            setSyncStatus('Syncing with YouTube...')
         } else {
             setIsLoadingMore(true)
         }
         setError(null)
 
         try {
-            const accessToken = localStorage.getItem('youtube_access_token')
+            const accessToken = getCurrentActiveToken()
+            const activeChannel = getCurrentActiveChannel()
+            console.log('Access token available:', !!accessToken)
+            console.log('Active channel:', activeChannel?.title || 'None')
+            console.log('Active channel ID:', activeChannelId)
+            
             if (!accessToken) {
-                setError('Please connect your YouTube channel first')
+                setError('Please connect your YouTube channel first. Go to Settings > Connect YouTube to authorize access.')
                 setIsLoading(false)
                 setIsLoadingMore(false)
                 return
             }
 
             // Fetch ALL videos with increased page cap (up to 5000 videos)
-            let url = `/api/youtube/videos?mine=true&fetchAll=true&pageCap=100&access_token=${accessToken}`
+            let url = `/api/youtube/videos?mine=true&fetchAll=true&pageCap=100&maxResults=50&access_token=${accessToken}`
             if (pageToken) {
                 url += `&pageToken=${pageToken}`
             }
 
+            console.log('Fetching videos from:', url)
             const response = await fetch(url)
 
             if (!response.ok) {
-                throw new Error('Failed to fetch videos')
+                const errorText = await response.text()
+                console.error('API Error Response:', response.status, errorText)
+                throw new Error(`Failed to fetch videos: ${response.status} - ${errorText}`)
             }
 
             const data = await response.json()
+            console.log('API Response Data:', data)
 
             if (data.success && data.videos) {
                 if (resetVideos) {
                     setVideos(data.videos)
+                    setSyncStatus('Sync complete!')
                 } else {
                     setVideos(prev => [...prev, ...data.videos])
                 }
                 setNextPageToken(data.nextPageToken || null)
                 setTotalResults(data.totalResults || data.videos.length)
 
-                console.log(`Loaded ${data.videos.length} videos. Total: ${data.totalResults || data.videos.length}`)
+                console.log(`✅ Successfully loaded ${data.videos.length} videos. Total available: ${data.totalResults || data.videos.length}`)
+                
+                if (data.videos.length === 0) {
+                    console.warn('⚠️ API returned success but 0 videos - check channel has public videos')
+                    if (resetVideos) setSyncStatus('No videos found')
+                }
             } else {
-                throw new Error('Invalid response from server')
+                console.error('❌ Invalid API response:', data)
+                if (resetVideos) setSyncStatus('Sync failed')
+                throw new Error(data.error || 'Invalid response from server')
             }
         } catch (err) {
             console.error('Error fetching videos:', err)
             setError(err instanceof Error ? err.message : 'Failed to load videos')
+            if (resetVideos) setSyncStatus('Sync failed')
         } finally {
             setIsLoading(false)
             setIsLoadingMore(false)
+            // Clear sync status after 3 seconds
+            if (resetVideos) {
+                setTimeout(() => setSyncStatus(null), 3000)
+            }
         }
     }
 
@@ -169,6 +274,128 @@ export default function ContentPage() {
         }
     }
 
+    const openEditModal = (video: Video) => {
+        setEditingVideo(video)
+        // Create a fresh copy of the video data to avoid reference issues
+        setEditForm({
+            title: video.title || '',
+            description: video.description || '',
+            privacyStatus: (video.privacyStatus as 'public' | 'unlisted' | 'private') || 'public'
+        })
+        setShowEditModal(true)
+    }
+
+    const closeEditModal = () => {
+        setShowEditModal(false)
+        setEditingVideo(null)
+        // Reset form completely
+        setEditForm({ 
+            title: '', 
+            description: '', 
+            privacyStatus: 'public' 
+        })
+        setIsSaving(false)
+    }
+
+    const saveVideoChanges = async () => {
+        if (!editingVideo || !editForm.title.trim()) {
+            alert('Video title is required')
+            return
+        }
+
+        setIsSaving(true)
+        console.log('Saving video changes for:', editingVideo.id)
+        console.log('Form data:', editForm)
+
+        try {
+            const accessToken = getCurrentActiveToken()
+            if (!accessToken) {
+                throw new Error('YouTube access token not found for active channel. Please reconnect.')
+            }
+
+            const updateData = {
+                id: editingVideo.id,
+                snippet: {
+                    title: editForm.title.trim(),
+                    description: editForm.description.trim(),
+                    categoryId: "22" // People & Blogs category
+                },
+                status: {
+                    privacyStatus: editForm.privacyStatus
+                }
+            }
+
+            console.log('Sending update request:', updateData)
+
+            const response = await fetch(`/api/youtube/update-video`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    videoData: updateData,
+                    accessToken: accessToken
+                })
+            })
+
+            const result = await response.json()
+            console.log('API Response:', result)
+
+            if (!response.ok) {
+                throw new Error(result.error || `API Error: ${response.status}`)
+            }
+
+            if (result.success) {
+                // Update the video in local state with exact form values
+                setVideos(prevVideos => {
+                    const updatedVideos = prevVideos.map(video => {
+                        if (video.id === editingVideo.id) {
+                            return { 
+                                ...video, 
+                                title: editForm.title.trim(),
+                                description: editForm.description.trim(),
+                                privacyStatus: editForm.privacyStatus
+                            }
+                        }
+                        return video
+                    })
+                    console.log('Updated videos state')
+                    return updatedVideos
+                })
+                
+                closeEditModal()
+                
+                // Refresh videos from YouTube to ensure sync
+                setTimeout(() => {
+                    fetchVideos(true)
+                }, 1000)
+                
+                // Show success message
+                const message = `Video "${editForm.title}" updated successfully and synced with YouTube!`
+                alert(message)
+                console.log(message)
+            } else {
+                throw new Error(result.error || 'Update failed - no success flag')
+            }
+        } catch (error) {
+            console.error('Error updating video:', error)
+            let errorMessage = error instanceof Error ? error.message : 'Failed to update video'
+            
+            // Provide more user-friendly messages for common privacy status errors
+            if (errorMessage.includes('privacy') || errorMessage.includes('Privacy')) {
+                errorMessage += '\n\nTip: Some videos cannot change privacy status due to:\n• Content ID claims\n• Monetization settings\n• Community guidelines restrictions\n• Age restrictions\n\nTry changing the privacy status directly in YouTube Studio.'
+            } else if (errorMessage.includes('Permission denied') || errorMessage.includes('403')) {
+                errorMessage += '\n\nPlease make sure:\n• You own this video\n• Your YouTube channel is properly connected\n• You have the necessary permissions'
+            } else if (errorMessage.includes('Invalid or expired')) {
+                errorMessage += '\n\nPlease go to Settings and reconnect your YouTube channel.'
+            }
+            
+            alert(errorMessage)
+        } finally {
+            setIsSaving(false)
+        }
+    }
+
     const publicCount = videos.filter(v => v.privacyStatus === 'public').length
     const unlistedCount = videos.filter(v => v.privacyStatus === 'unlisted').length
     const privateCount = videos.filter(v => v.privacyStatus === 'private').length
@@ -208,7 +435,7 @@ export default function ContentPage() {
                                         ) : (
                                             <RefreshCw className="w-4 h-4 mr-2" />
                                         )}
-                                        Refresh
+                                        Sync from YouTube
                                     </Button>
                                     <Link href="/upload">
                                         <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg">
@@ -217,6 +444,24 @@ export default function ContentPage() {
                                         </Button>
                                     </Link>
                                 </div>
+                                
+                                {/* Sync Status Notification */}
+                                {syncStatus && (
+                                    <div className={`mt-3 px-4 py-2 rounded-lg text-sm font-medium ${
+                                        syncStatus.includes('complete') || syncStatus.includes('Sync complete')
+                                            ? 'bg-green-100 text-green-800 border border-green-200'
+                                            : syncStatus.includes('failed') || syncStatus.includes('Sync failed')
+                                            ? 'bg-red-100 text-red-800 border border-red-200'
+                                            : 'bg-blue-100 text-blue-800 border border-blue-200'
+                                    }`}>
+                                        <div className="flex items-center gap-2">
+                                            {syncStatus.includes('Syncing') && <Loader2 className="w-4 h-4 animate-spin" />}
+                                            {syncStatus.includes('complete') && <CheckCircle className="w-4 h-4" />}
+                                            {syncStatus.includes('failed') && <XCircle className="w-4 h-4" />}
+                                            {syncStatus}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Channel Connection Alert */}
@@ -235,6 +480,42 @@ export default function ContentPage() {
                                                     Connect YouTube Channel
                                                 </Button>
                                             </Link>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Debug Info for Connected Channel with No Videos */}
+                            {youtubeChannel && videos.length === 0 && !isLoading && !error && (
+                                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                            <AlertCircle className="w-6 h-6 text-blue-600" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <h3 className="text-lg font-bold text-gray-900 mb-2">No Videos Found</h3>
+                                            <p className="text-gray-700 mb-3">Channel is connected but no videos are showing. This could be because:</p>
+                                            <ul className="list-disc list-inside text-gray-700 space-y-1 mb-4">
+                                                <li>Your channel doesn't have any uploaded videos yet</li>
+                                                <li>All videos are set to private/unlisted (this app shows all privacy levels)</li>
+                                                <li>The access token may have expired and needs refreshing</li>
+                                                <li>YouTube API permissions may need to be re-authorized</li>
+                                            </ul>
+                                            <div className="flex gap-2">
+                                                <Button 
+                                                    onClick={() => fetchVideos(true)}
+                                                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+                                                >
+                                                    <RefreshCw className="w-4 h-4 mr-2" />
+                                                    Retry Loading
+                                                </Button>
+                                                <Link href="/connect">
+                                                    <Button variant="outline">
+                                                        <Youtube className="w-4 h-4 mr-2" />
+                                                        Reconnect Channel
+                                                    </Button>
+                                                </Link>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -461,13 +742,23 @@ export default function ContentPage() {
                                                         className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold"
                                                     >
                                                         <Eye className="w-4 h-4" />
-                                                        View Details
+                                                        View
+                                                    </button>
+                                                    <button
+                                                        onClick={() => openEditModal(video)}
+                                                        className="p-2 rounded-lg bg-green-100 hover:bg-green-200 transition-colors"
+                                                        title="Edit Video"
+                                                    >
+                                                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
                                                     </button>
                                                     <a
                                                         href={`https://www.youtube.com/watch?v=${video.id}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="p-2 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
+                                                        title="Open on YouTube"
                                                     >
                                                         <ExternalLink className="w-4 h-4 text-gray-600" />
                                                     </a>
@@ -507,6 +798,167 @@ export default function ContentPage() {
                     </div>
                 </main>
             </div>
+
+            {/* Edit Video Modal */}
+            {showEditModal && editingVideo && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                    onClick={() => closeEditModal()}
+                >
+                    <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Edit Modal Header */}
+                        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between z-10">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-xl overflow-hidden">
+                                    <img src={editingVideo.thumbnail} alt={editingVideo.title} className="w-full h-full object-cover" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-black text-gray-900">Edit Video</h2>
+                                    <p className="text-sm text-gray-600">Modify video details and privacy settings</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => closeEditModal()}
+                                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                            >
+                                <span className="text-2xl text-gray-600">×</span>
+                            </button>
+                        </div>
+
+                        {/* Edit Form */}
+                        <div className="p-6 space-y-6">
+                            {/* Title */}
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">
+                                    Video Title
+                                </label>
+                                <input
+                                    type="text"
+                                    value={editForm.title}
+                                    onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))}
+                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                    placeholder="Enter video title..."
+                                    maxLength={100}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">{editForm.title.length}/100 characters</p>
+                            </div>
+
+                            {/* Description */}
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">
+                                    Description
+                                </label>
+                                <textarea
+                                    value={editForm.description}
+                                    onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
+                                    placeholder="Enter video description..."
+                                    rows={6}
+                                    maxLength={5000}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">{editForm.description.length}/5000 characters</p>
+                            </div>
+
+                            {/* Privacy Status */}
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-3">
+                                    Privacy Setting
+                                </label>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <button
+                                        onClick={() => setEditForm(prev => ({ ...prev, privacyStatus: 'public' }))}
+                                        className={`p-4 rounded-xl border-2 transition-all ${
+                                            editForm.privacyStatus === 'public'
+                                                ? 'border-green-500 bg-green-50 text-green-700'
+                                                : 'border-gray-200 hover:border-gray-300'
+                                        }`}
+                                    >
+                                        <div className="flex flex-col items-center gap-2">
+                                            <span className="text-2xl">🌍</span>
+                                            <span className="font-semibold text-sm">Public</span>
+                                            <span className="text-xs text-gray-500 text-center">Anyone can search and view</span>
+                                        </div>
+                                    </button>
+                                    <button
+                                        onClick={() => setEditForm(prev => ({ ...prev, privacyStatus: 'unlisted' }))}
+                                        className={`p-4 rounded-xl border-2 transition-all ${
+                                            editForm.privacyStatus === 'unlisted'
+                                                ? 'border-yellow-500 bg-yellow-50 text-yellow-700'
+                                                : 'border-gray-200 hover:border-gray-300'
+                                        }`}
+                                    >
+                                        <div className="flex flex-col items-center gap-2">
+                                            <span className="text-2xl">🔗</span>
+                                            <span className="font-semibold text-sm">Unlisted</span>
+                                            <span className="text-xs text-gray-500 text-center">Only people with link can view</span>
+                                        </div>
+                                    </button>
+                                    <button
+                                        onClick={() => setEditForm(prev => ({ ...prev, privacyStatus: 'private' }))}
+                                        className={`p-4 rounded-xl border-2 transition-all ${
+                                            editForm.privacyStatus === 'private'
+                                                ? 'border-red-500 bg-red-50 text-red-700'
+                                                : 'border-gray-200 hover:border-gray-300'
+                                        }`}
+                                    >
+                                        <div className="flex flex-col items-center gap-2">
+                                            <span className="text-2xl">🔒</span>
+                                            <span className="font-semibold text-sm">Private</span>
+                                            <span className="text-xs text-gray-500 text-center">Only you can view</span>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
+                                <Button
+                                    onClick={saveVideoChanges}
+                                    disabled={isSaving || !editForm.title.trim()}
+                                    className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
+                                >
+                                    {isSaving ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Saving...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle className="w-4 h-4 mr-2" />
+                                            Save Changes
+                                        </>
+                                    )}
+                                </Button>
+                                <Button
+                                    onClick={() => {
+                                        if (editingVideo) {
+                                            setEditForm({
+                                                title: editingVideo.title || '',
+                                                description: editingVideo.description || '',
+                                                privacyStatus: (editingVideo.privacyStatus as 'public' | 'unlisted' | 'private') || 'public'
+                                            })
+                                        }
+                                    }}
+                                    variant="outline"
+                                    disabled={isSaving}
+                                    className="px-4"
+                                >
+                                    Reset
+                                </Button>
+                                <Button
+                                    onClick={closeEditModal}
+                                    variant="outline"
+                                    disabled={isSaving}
+                                    className="px-6"
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Video Details Modal */}
             {showVideoModal && selectedVideo && (

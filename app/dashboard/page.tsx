@@ -34,6 +34,10 @@ export default function DashboardPage() {
   const [additionalChannels, setAdditionalChannels] = useState<YouTubeChannel[]>([])
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showChannelDropdown, setShowChannelDropdown] = useState(false)
+  const [showConnectModal, setShowConnectModal] = useState(false)
+  const [isConnecting, setIsConnecting] = useState(false)
+  const [activeChannelId, setActiveChannelId] = useState<string | null>(null)
 
   // Load YouTube channel data
   useEffect(() => {
@@ -47,10 +51,112 @@ export default function DashboardPage() {
       if (additionalStored) {
         setAdditionalChannels(JSON.parse(additionalStored))
       }
+      
+      // Auto-close modal if it was open and channels are loaded
+      if (showConnectModal && (stored || additionalStored)) {
+        setShowConnectModal(false)
+      }
     } catch (error) {
       console.error('Failed to load channel data:', error)
     }
   }, [])
+
+  const disconnectChannel = () => {
+    localStorage.removeItem('youtube_channel')
+    localStorage.removeItem('youtube_access_token')
+    localStorage.removeItem('youtube_refresh_token')
+    setYoutubeChannel(null)
+    setShowChannelDropdown(false)
+    // Redirect to connect page or show success message
+    window.location.href = '/connect'
+  }
+
+  const connectMoreChannels = () => {
+    setShowChannelDropdown(false)
+    if (youtubeChannel) {
+      // Open modal for additional channel connection
+      setShowConnectModal(true)
+    } else {
+      // First channel connection - go to connect page
+      window.location.href = '/connect'
+    }
+  }
+
+  const startYouTubeAuth = () => {
+    setIsConnecting(true)
+    // Set return page to indicate this is for additional channels
+    localStorage.setItem('oauth_return_page', 'dashboard')
+    // Create a popup window for YouTube authentication
+    const popup = window.open(
+      '/api/youtube/auth?popup=true',
+      'youtube-auth',
+      'width=500,height=600,scrollbars=yes,resizable=yes'
+    )
+
+    // Listen for messages from the popup
+    const messageListener = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      
+      if (event.data.type === 'YOUTUBE_AUTH_SUCCESS') {
+        const { channel, token } = event.data
+        
+        // Check if this channel is already connected (primary or additional)
+        const existingChannels = JSON.parse(localStorage.getItem('additional_youtube_channels') || '[]')
+        const isPrimaryChannel = youtubeChannel && youtubeChannel.id === channel.id
+        const isAlreadyAdditional = existingChannels.some((ch: any) => ch.id === channel.id)
+        
+        if (isPrimaryChannel || isAlreadyAdditional) {
+          alert(`Channel "${channel.title}" is already connected!`)
+          setIsConnecting(false)
+          popup?.close()
+          return
+        }
+        
+        // Save additional channel (don't replace primary)
+        const updatedChannels = [...existingChannels, channel]
+        localStorage.setItem('additional_youtube_channels', JSON.stringify(updatedChannels))
+        localStorage.setItem(`youtube_token_${channel.id}`, token)
+        
+        // Clear the oauth return page to prevent connect page processing
+        localStorage.removeItem('oauth_return_page')
+        
+        // Update state
+        setAdditionalChannels(updatedChannels)
+        setIsConnecting(false)
+        setShowConnectModal(false)
+        popup?.close()
+        
+        // Show success message
+        alert(`Successfully connected ${channel.title} as additional channel!`)
+        console.log('Additional channels updated:', updatedChannels)
+      } else if (event.data.type === 'YOUTUBE_AUTH_ERROR') {
+        setIsConnecting(false)
+        alert('Failed to connect channel. Please try again.')
+        popup?.close()
+      }
+    }
+
+    window.addEventListener('message', messageListener)
+    
+    // Check if popup is closed manually
+    const checkClosed = setInterval(() => {
+      if (popup?.closed) {
+        clearInterval(checkClosed)
+        setIsConnecting(false)
+        window.removeEventListener('message', messageListener)
+      }
+    }, 1000)
+
+    // Cleanup after 5 minutes
+    setTimeout(() => {
+      clearInterval(checkClosed)
+      setIsConnecting(false)
+      window.removeEventListener('message', messageListener)
+      if (popup && !popup.closed) {
+        popup.close()
+      }
+    }, 300000)
+  }
 
   const navLinks = [
     { icon: Home, label: 'Dashboard', href: '/dashboard', id: 'dashboard', badge: null },
@@ -279,6 +385,14 @@ export default function DashboardPage() {
             onClick={() => setSidebarOpen(false)}
           ></div>
         )}
+        
+        {/* Dropdown Overlay */}
+        {showChannelDropdown && (
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setShowChannelDropdown(false)}
+          ></div>
+        )}
 
         {/* Enhanced Sidebar */}
         <aside
@@ -286,9 +400,12 @@ export default function DashboardPage() {
             } md:translate-x-0`}
         >
           {/* Channel Selector */}
-          {youtubeChannel && (
-            <div className="p-4 border-b border-gray-200">
-              <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
+          <div className="p-4 border-b border-gray-200 relative">
+            {youtubeChannel ? (
+              <div 
+                className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200 cursor-pointer hover:from-blue-100 hover:to-purple-100 transition-colors"
+                onClick={() => setShowChannelDropdown(!showChannelDropdown)}
+              >
                 <div className="relative shrink-0">
                   <img
                     src={youtubeChannel.thumbnail}
@@ -301,10 +418,89 @@ export default function DashboardPage() {
                   <p className="font-bold text-gray-900 text-sm truncate">{youtubeChannel.title}</p>
                   <p className="text-xs text-gray-600">{formatNumber(youtubeChannel.subscriberCount)} subscribers</p>
                 </div>
-                <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+                <ChevronDown className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${showChannelDropdown ? 'rotate-180' : ''}`} />
               </div>
-            </div>
-          )}
+            ) : (
+              <div 
+                className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 cursor-pointer hover:from-gray-100 hover:to-gray-200 transition-colors"
+                onClick={() => setShowChannelDropdown(!showChannelDropdown)}
+              >
+                <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M23.498 6.186a2.999 2.999 0 0 0-2.109-2.109C19.647 3.5 12 3.5 12 3.5s-7.647 0-9.389.577A2.999 2.999 0 0 0 .502 6.186C.002 7.929.002 12.002.002 12.002s0 4.073.5 5.816a2.999 2.999 0 0 0 2.109 2.109C4.353 20.5 12 20.5 12 20.5s7.647 0 9.389-.573a2.999 2.999 0 0 0 2.109-2.109c.5-1.743.5-5.816.5-5.816s0-4.073-.5-5.816z"/>
+                    <path fill="white" d="M9.748 15.348L15.5 12l-5.752-3.348v6.696z"/>
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-gray-900 text-sm">Connect Channel</p>
+                  <p className="text-xs text-gray-600">No channel connected</p>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${showChannelDropdown ? 'rotate-180' : ''}`} />
+              </div>
+            )}
+            
+            {/* Dropdown Menu */}
+            {showChannelDropdown && (
+              <div className="absolute top-full left-4 right-4 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50">
+                <div className="py-2">
+                  {youtubeChannel ? (
+                    <>
+                      <button
+                        onClick={connectMoreChannels}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 text-sm font-medium text-gray-700"
+                      >
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-blue-600 font-bold text-lg">+</span>
+                        </div>
+                        <div>
+                          <p className="font-medium">Connect More Channels</p>
+                          <p className="text-xs text-gray-500">{additionalChannels.length} additional channels</p>
+                        </div>
+                      </button>
+                      <div className="border-t border-gray-100 my-1"></div>
+                      <button
+                        onClick={disconnectChannel}
+                        className="w-full px-4 py-3 text-left hover:bg-red-50 flex items-center gap-3 text-sm font-medium text-red-600"
+                      >
+                        <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                          <span className="text-red-600 font-bold text-sm">×</span>
+                        </div>
+                        Disconnect Channel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={connectMoreChannels}
+                        className="w-full px-4 py-3 text-left hover:bg-blue-50 flex items-center gap-3 text-sm font-medium text-blue-700"
+                      >
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M23.498 6.186a2.999 2.999 0 0 0-2.109-2.109C19.647 3.5 12 3.5 12 3.5s-7.647 0-9.389.577A2.999 2.999 0 0 0 .502 6.186C.002 7.929.002 12.002.002 12.002s0 4.073.5 5.816a2.999 2.999 0 0 0 2.109 2.109C4.353 20.5 12 20.5 12 20.5s7.647 0 9.389-.573a2.999 2.999 0 0 0 2.109-2.109c.5-1.743.5-5.816.5-5.816s0-4.073-.5-5.816z"/>
+                            <path fill="white" d="M9.748 15.348L15.5 12l-5.752-3.348v6.696z"/>
+                          </svg>
+                        </div>
+                        Connect YouTube Channel
+                      </button>
+                      <div className="border-t border-gray-100 my-1"></div>
+                      <button
+                        onClick={() => { setShowChannelDropdown(false); window.location.href = '/settings'; }}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 text-sm font-medium text-gray-700"
+                      >
+                        <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </div>
+                        Settings
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Navigation Links */}
           <nav className="p-4 space-y-1">
@@ -696,7 +892,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* AI Insights */}
+                {/* AI Insights - Only show when channel is connected */}
                 <div className="bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl p-6 text-white shadow-xl">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
@@ -704,60 +900,377 @@ export default function DashboardPage() {
                     </div>
                     <h3 className="text-lg font-black">AI Insights</h3>
                   </div>
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
-                      <Zap className="w-5 h-5 shrink-0 mt-0.5" />
-                      <p className="text-sm">Your engagement is <strong>15% higher</strong> than similar channels</p>
+                  {youtubeChannel ? (
+                    <div className="space-y-4">
+                      {(() => {
+                        const subscribers = parseInt(youtubeChannel.subscriberCount)
+                        const views = parseInt(youtubeChannel.viewCount)
+                        const videos = parseInt(youtubeChannel.videoCount)
+                        const avgViewsPerVideo = videos > 0 ? Math.round(views / videos) : 0
+                        const engagementRate = subscribers > 0 ? ((avgViewsPerVideo / subscribers) * 100) : 0
+                        
+                        const insights = []
+                        
+                        // Real engagement analysis
+                        if (engagementRate > 5) {
+                          insights.push({
+                            icon: Zap,
+                            text: `Strong engagement rate: <strong>${engagementRate.toFixed(1)}%</strong> of subscribers watch your videos`
+                          })
+                        } else if (engagementRate > 2) {
+                          insights.push({
+                            icon: Zap,
+                            text: `Good engagement: <strong>${engagementRate.toFixed(1)}%</strong> rate - Focus on more engaging content`
+                          })
+                        } else if (subscribers > 0) {
+                          insights.push({
+                            icon: Target,
+                            text: `Low engagement: <strong>${engagementRate.toFixed(1)}%</strong> - Try more interactive content`
+                          })
+                        }
+                        
+                        // Content frequency analysis
+                        if (videos > 0) {
+                          insights.push({
+                            icon: Award,
+                            text: `You've published <strong>${videos} videos</strong> with an average of <strong>${formatNumber(avgViewsPerVideo)}</strong> views each`
+                          })
+                        }
+                        
+                        // Growth potential
+                        if (subscribers < 1000) {
+                          insights.push({
+                            icon: Target,
+                            text: `<strong>${1000 - subscribers} subscribers</strong> away from YouTube monetization!`
+                          })
+                        } else if (subscribers < 10000) {
+                          insights.push({
+                            icon: Award,
+                            text: `Great progress! <strong>${formatNumber(subscribers)}</strong> subscribers - Keep growing!`
+                          })
+                        }
+                        
+                        return insights.slice(0, 3).map((insight, index) => {
+                          const IconComponent = insight.icon
+                          return (
+                            <div key={index} className="flex items-start gap-3 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
+                              <IconComponent className="w-5 h-5 shrink-0 mt-0.5" />
+                              <p className="text-sm" dangerouslySetInnerHTML={{ __html: insight.text }} />
+                            </div>
+                          )
+                        })
+                      })()}
                     </div>
-                    <div className="flex items-start gap-3 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
-                      <Target className="w-5 h-5 shrink-0 mt-0.5" />
-                      <p className="text-sm">Best posting time: <strong>Tuesday, 2-4 PM</strong></p>
+                  ) : (
+                    <div className="text-center py-4">
+                      <Target className="w-12 h-12 mx-auto mb-3 text-white/60" />
+                      <p className="text-sm text-white/80 mb-3">Connect your YouTube channel to see personalized AI insights</p>
+                      <Link href="/connect">
+                        <Button className="bg-white/20 hover:bg-white/30 text-white border border-white/30">
+                          Connect Channel
+                        </Button>
+                      </Link>
                     </div>
-                    <div className="flex items-start gap-3 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
-                      <Award className="w-5 h-5 shrink-0 mt-0.5" />
-                      <p className="text-sm">On track for <strong>50K subscribers</strong> this month!</p>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
-                {/* Top Performing */}
+                {/* Top Performing - Only show when real data available */}
                 <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-                  <h3 className="text-lg font-black text-gray-900 mb-4">Top Performing</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-white font-black text-lg shadow-lg">
-                        🏆
+                  <h3 className="text-lg font-black text-gray-900 mb-4">Performance Summary</h3>
+                  {youtubeChannel ? (
+                    <div className="space-y-4">
+                      {/* Channel Overview */}
+                      <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border border-blue-100">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                            <Youtube className="w-4 h-4 text-white" />
+                          </div>
+                          <div>
+                            <p className="font-bold text-gray-900 text-sm truncate">{youtubeChannel.title}</p>
+                            <p className="text-xs text-gray-600">{formatNumber(youtubeChannel.subscriberCount)} subscribers</p>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-900 text-sm">YouTube Algorithm</p>
-                        <p className="text-xs text-gray-600">15.7K views • 1.5K likes</p>
+                      
+                      {/* Key Metrics */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-green-50 p-3 rounded-lg text-center">
+                          <p className="text-lg font-black text-green-900">{formatNumber(youtubeChannel.viewCount)}</p>
+                          <p className="text-xs text-green-700">Total Views</p>
+                        </div>
+                        <div className="bg-blue-50 p-3 rounded-lg text-center">
+                          <p className="text-lg font-black text-blue-900">{youtubeChannel.videoCount}</p>
+                          <p className="text-xs text-blue-700">Videos</p>
+                        </div>
                       </div>
+                      
+                      {/* Quick Action */}
+                      <Link href="/vid-info" className="block">
+                        <Button variant="outline" size="sm" className="w-full">
+                          <BarChart3 className="w-4 h-4 mr-2" />
+                          View Detailed Analytics
+                        </Button>
+                      </Link>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center text-white font-black text-lg shadow-lg">
-                        🥈
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                        <TrendingUp className="w-8 h-8 text-gray-400" />
                       </div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-900 text-sm">Grow Your Channel</p>
-                        <p className="text-xs text-gray-600">12.5K views • 1.2K likes</p>
-                      </div>
+                      <p className="text-sm text-gray-600 mb-4">Connect your channel to see performance insights</p>
+                      <Link href="/connect">
+                        <Button variant="outline" size="sm">
+                          Get Started
+                        </Button>
+                      </Link>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-orange-300 to-orange-400 flex items-center justify-center text-white font-black text-lg shadow-lg">
-                        🥉
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-900 text-sm">AI Tools for Creators</p>
-                        <p className="text-xs text-gray-600">8.3K views • 890 likes</p>
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         </main>
       </div>
+      
+      {/* Connect Additional Channel Modal */}
+      {showConnectModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Connect Additional Channel</h2>
+                  <p className="text-sm text-gray-600 mt-1">Add another YouTube channel to your account</p>
+                </div>
+                <button
+                  onClick={() => setShowConnectModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  disabled={isConnecting}
+                >
+                  <span className="text-gray-500 text-xl">&times;</span>
+                </button>
+              </div>
+
+              {/* Channel Switching Status */}
+              <div className="mb-4 p-3 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <p className="text-sm font-medium text-gray-700">
+                    Currently using: <span className="text-green-600 font-semibold">
+                      {activeChannelId === youtubeChannel?.id 
+                        ? youtubeChannel?.title 
+                        : additionalChannels.find(ch => ch.id === activeChannelId)?.title || youtubeChannel?.title
+                      }
+                    </span>
+                  </p>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">
+                  All actions will be performed on the active channel
+                </p>
+              </div>
+
+              {/* Current Channels */}
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Connected Channels ({(youtubeChannel ? 1 : 0) + additionalChannels.length})</h3>
+                <div className="space-y-2">
+                  {/* Primary Channel */}
+                  <div className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 ${
+                    activeChannelId === youtubeChannel?.id 
+                      ? 'bg-green-50 border-green-200' 
+                      : 'bg-blue-50 border-blue-200 hover:bg-blue-100'
+                  }`}>
+                    <img
+                      src={youtubeChannel?.thumbnail}
+                      alt={youtubeChannel?.title}
+                      className="w-8 h-8 rounded-full"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-gray-900 truncate">{youtubeChannel?.title}</p>
+                      <p className={`text-xs ${
+                        activeChannelId === youtubeChannel?.id ? 'text-green-600 font-medium' : 'text-blue-600'
+                      }`}>
+                        {activeChannelId === youtubeChannel?.id ? 'Active Primary Channel' : 'Primary Channel'}
+                      </p>
+                    </div>
+                    {activeChannelId !== youtubeChannel?.id && (
+                      <button
+                        onClick={() => {
+                          if (youtubeChannel) {
+                            setActiveChannelId(youtubeChannel.id)
+                            localStorage.setItem('active_youtube_channel_id', youtubeChannel.id)
+                            // Dispatch real-time event
+                            window.dispatchEvent(new CustomEvent('channelSwitched', {
+                              detail: { channelId: youtubeChannel.id, timestamp: Date.now() }
+                            }))
+                          }
+                        }}
+                        className="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-600 text-xs rounded font-medium transition-colors"
+                        title="Switch to primary channel"
+                      >
+                        Switch
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Additional Channels */}
+                  {additionalChannels.map((channel, index) => (
+                    <div key={channel.id} className={`flex items-center gap-3 p-3 rounded-lg transition-all duration-200 ${
+                      activeChannelId === channel.id ? 'bg-green-50 border border-green-200' : 'bg-gray-50 hover:bg-gray-100'
+                    }`}>
+                      <img
+                        src={channel.thumbnail}
+                        alt={channel.title}
+                        className="w-8 h-8 rounded-full"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-gray-900 truncate">{channel.title}</p>
+                        <p className={`text-xs ${
+                          activeChannelId === channel.id ? 'text-green-600 font-medium' : 'text-gray-600'
+                        }`}>
+                          {activeChannelId === channel.id ? 'Active Channel' : 'Additional Channel'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {activeChannelId !== channel.id && (
+                          <button
+                            onClick={() => {
+                              setActiveChannelId(channel.id)
+                              localStorage.setItem('active_youtube_channel_id', channel.id)
+                              // Dispatch real-time event
+                                window.dispatchEvent(new CustomEvent('channelSwitched', {
+                                detail: { channelId: channel.id, timestamp: Date.now() }
+                                }))
+                              }}
+                              className="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-600 text-xs rounded font-medium transition-colors"
+                              title="Switch to this channel"
+                              >
+                              Switch
+                              </button>
+                            )}
+                        <button
+                          onClick={() => {
+                            const updated = additionalChannels.filter(ch => ch.id !== channel.id)
+                            setAdditionalChannels(updated)
+                            localStorage.setItem('additional_youtube_channels', JSON.stringify(updated))
+                            localStorage.removeItem(`youtube_token_${channel.id}`)
+                            // If removing active channel, switch to primary
+                            if (activeChannelId === channel.id && youtubeChannel) {
+                              setActiveChannelId(youtubeChannel.id)
+                              localStorage.setItem('active_youtube_channel_id', youtubeChannel.id)
+                            }
+                          }}
+                          className="p-1 hover:bg-red-100 rounded text-red-500 text-xs transition-colors"
+                          title="Remove channel"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quick Stats */}
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-3 rounded-lg">
+                  <p className="text-xs text-blue-600 font-medium">Total Channels</p>
+                  <p className="text-lg font-bold text-blue-700">{(youtubeChannel ? 1 : 0) + additionalChannels.length}</p>
+                </div>
+                <div className="bg-gradient-to-r from-green-50 to-green-100 p-3 rounded-lg">
+                  <p className="text-xs text-green-600 font-medium">Active Channel</p>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <p className="text-sm font-bold text-green-700 truncate">
+                      {activeChannelId === youtubeChannel?.id 
+                        ? 'Primary'
+                        : additionalChannels.find(ch => ch.id === activeChannelId)?.title?.split(' ')[0] || 'None'
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Stats */}
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-3 rounded-lg">
+                  <p className="text-xs text-blue-600 font-medium">Total Channels</p>
+                  <p className="text-lg font-bold text-blue-700">{(youtubeChannel ? 1 : 0) + additionalChannels.length}</p>
+                </div>
+                <div className="bg-gradient-to-r from-green-50 to-green-100 p-3 rounded-lg">
+                  <p className="text-xs text-green-600 font-medium">Active Channel</p>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <p className="text-sm font-bold text-green-700 truncate">
+                      {activeChannelId === youtubeChannel?.id 
+                        ? 'Primary'
+                        : additionalChannels.find(ch => ch.id === activeChannelId)?.title?.split(' ')[0] || 'None'
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Connect Button */}
+              <div className="space-y-4">
+                <button
+                  onClick={startYouTubeAuth}
+                  disabled={isConnecting}
+                  className={`w-full font-bold py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 ${
+                    isConnecting 
+                      ? 'bg-gray-400 cursor-not-allowed' 
+                      : 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 hover:shadow-lg transform hover:scale-[1.02]'
+                  } text-white`}
+                >
+                  {isConnecting ? (
+                    <>
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 bg-white rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      </div>
+                      <span>Connecting to YouTube...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M23.498 6.186a2.999 2.999 0 0 0-2.109-2.109C19.647 3.5 12 3.5 12 3.5s-7.647 0-9.389.577A2.999 2.999 0 0 0 .502 6.186C.002 7.929.002 12.002.002 12.002s0 4.073.5 5.816a2.999 2.999 0 0 0 2.109 2.109C4.353 20.5 12 20.5 12 20.5s7.647 0 9.389-.573a2.999 2.999 0 0 0 2.109-2.109c.5-1.743.5-5.816.5-5.816s0-4.073-.5-5.816z"/>
+                        <path fill="white" d="M9.748 15.348L15.5 12l-5.752-3.348v6.696z"/>
+                      </svg>
+                      <span>Connect Another YouTube Channel</span>
+                    </>
+                  )}
+                </button>
+                
+                <button
+                  onClick={() => setShowConnectModal(false)}
+                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors"
+                  disabled={isConnecting}
+                >
+                  Cancel
+                </button>
+              </div>
+
+              {/* Info */}
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                <div className="flex gap-2">
+                  <svg className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-xs text-blue-800">
+                    <p className="font-medium mb-1">Multiple Channel Benefits:</p>
+                    <ul className="space-y-1 text-blue-700">
+                      <li>• Manage multiple channels from one dashboard</li>
+                      <li>• Switch between channels easily</li>
+                      <li>• Centralized analytics and insights</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

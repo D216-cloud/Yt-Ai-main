@@ -70,13 +70,94 @@ export async function GET(req: NextRequest) {
     if (!tokenResponse.ok) {
       console.error("Token exchange error:", tokenData)
       const errorMessage = tokenData.error || "token_failed"
+      
+      // Check if this is a popup request
+      const { searchParams: urlSearchParams } = new URL(req.url)
+      const isPopup = urlSearchParams.get('popup') === 'true'
+      
+      if (isPopup) {
+        // Return HTML that sends error message to parent window
+        return new Response(`
+          <html>
+            <body>
+              <script>
+                window.opener?.postMessage({
+                  type: 'YOUTUBE_AUTH_ERROR',
+                  error: '${errorMessage}'
+                }, '${process.env.NEXTAUTH_URL || process.env.CLIENT_URL || "http://localhost:3000"}');
+                window.close();
+              </script>
+            </body>
+          </html>
+        `, {
+          headers: { 'Content-Type': 'text/html' }
+        })
+      }
+      
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL || process.env.CLIENT_URL || "http://localhost:3000"}/connect?error=${encodeURIComponent(errorMessage)}`)
     }
 
-    // Redirect back to connect page with access token
+    // Fetch channel information
+    let channelData = null
+    try {
+      const channelResponse = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true`, {
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`
+        }
+      })
+
+      if (channelResponse.ok) {
+        const channelResult = await channelResponse.json()
+        if (channelResult.items && channelResult.items.length > 0) {
+          const channel = channelResult.items[0]
+          channelData = {
+            id: channel.id,
+            title: channel.snippet.title,
+            description: channel.snippet.description,
+            thumbnail: channel.snippet.thumbnails?.default?.url || channel.snippet.thumbnails?.medium?.url,
+            subscriberCount: channel.statistics?.subscriberCount || '0',
+            videoCount: channel.statistics?.videoCount || '0',
+            viewCount: channel.statistics?.viewCount || '0',
+            publishedAt: channel.snippet.publishedAt
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch channel data:', error)
+    }
+
+    // Check if this is a popup request
+    const { searchParams: urlSearchParams } = new URL(req.url)
+    const isPopup = urlSearchParams.get('popup') === 'true'
+    
+    if (isPopup && channelData) {
+      // Return HTML that sends success message to parent window
+      return new Response(`
+        <html>
+          <body>
+            <script>
+              window.opener?.postMessage({
+                type: 'YOUTUBE_AUTH_SUCCESS',
+                channel: ${JSON.stringify(channelData)},
+                token: '${tokenData.access_token}',
+                refreshToken: '${tokenData.refresh_token || ''}'
+              }, '${process.env.NEXTAUTH_URL || process.env.CLIENT_URL || "http://localhost:3000"}');
+              window.close();
+            </script>
+          </body>
+        </html>
+      `, {
+        headers: { 'Content-Type': 'text/html' }
+      })
+    }
+
+    // Regular redirect for non-popup requests
     const redirectUrl = new URL(`${process.env.NEXTAUTH_URL || process.env.CLIENT_URL || "http://localhost:3000"}/connect`)
     redirectUrl.searchParams.set("youtube_token", tokenData.access_token)
     redirectUrl.searchParams.set("refresh_token", tokenData.refresh_token || "")
+    if (channelData) {
+      redirectUrl.searchParams.set("channel_data", JSON.stringify(channelData))
+    }
     
     console.log("Redirecting to connect page with tokens")
     

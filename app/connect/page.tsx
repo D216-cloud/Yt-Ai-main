@@ -253,8 +253,8 @@ export default function ConnectPage() {
         // Check where the OAuth was initiated from
         const returnPage = localStorage.getItem("oauth_return_page")
 
-        if (returnPage === "content") {
-          // Content page - add to additional channels array (don't replace main)
+        if (returnPage === "content" || returnPage === "sidebar" || returnPage === "dashboard") {
+          // Content/sidebar/dashboard page - add to additional channels array (don't replace main)
           const existingMainChannel = localStorage.getItem("youtube_channel")
 
           if (existingMainChannel) {

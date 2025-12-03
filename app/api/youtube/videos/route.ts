@@ -35,21 +35,36 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "YouTube API key not configured and no access token provided" }, { status: 500 })
     }
 
-    // If caller requested authenticated user's videos (mine=true), use videos.list with mine=true
+    // If caller requested authenticated user's videos (mine=true), get user's channel first, then fetch from uploads playlist
     if (mineParam) {
       if (!useAuth) {
         return NextResponse.json({ error: 'Access token required for mine=true' }, { status: 401 })
       }
 
-      // Request the authenticated user's videos directly — this returns private/unlisted items
+      // First, get the authenticated user's channel to find their uploads playlist
+      const channelResponse = await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      })
+      
+      if (!channelResponse.ok) {
+        const err = await channelResponse.json().catch(() => ({}))
+        return NextResponse.json({ error: 'Failed to fetch user channel', details: err }, { status: channelResponse.status })
+      }
+      
+      const channelData = await channelResponse.json()
+      const uploadsPlaylistId = channelData?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads
+      
+      if (!uploadsPlaylistId) {
+        return NextResponse.json({ error: 'Could not find uploads playlist for user channel' }, { status: 404 })
+      }
+
+      // Now fetch videos from the uploads playlist
       const pageParam = pageToken ? `&pageToken=${pageToken}` : ''
-      const parts = 'statistics,contentDetails,snippet,status'
-      // Use the same pagination/fetchAll behavior as other branches
-      const initialUrl = `https://www.googleapis.com/youtube/v3/videos?part=${parts}&mine=true&maxResults=${initialMax}${pageParam}`
+      const initialUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=${initialMax}${pageParam}`
       let videosResponse = await fetch(initialUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
       if (!videosResponse.ok) {
         const err = await videosResponse.json().catch(() => ({}))
-        return NextResponse.json({ error: 'Failed to fetch videos (mine=true)', details: err }, { status: videosResponse.status })
+        return NextResponse.json({ error: 'Failed to fetch videos from uploads playlist', details: err }, { status: videosResponse.status })
       }
       let videosData = await videosResponse.json()
 
@@ -59,7 +74,7 @@ export async function GET(req: NextRequest) {
         let nextPageToken = videosData.nextPageToken
         let pagesFetched = 0
         while (nextPageToken && pagesFetched < pageCap) {
-          const pagedUrl = `https://www.googleapis.com/youtube/v3/videos?part=${parts}&mine=true&maxResults=50&pageToken=${nextPageToken}`
+          const pagedUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=50&pageToken=${nextPageToken}`
           const pagedRes = await fetch(pagedUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
           if (!pagedRes.ok) break
           const pagedData = await pagedRes.json()
@@ -70,27 +85,51 @@ export async function GET(req: NextRequest) {
         videosData = { items, nextPageToken: null, pageInfo: { totalResults: videosData.pageInfo?.totalResults || items.length } }
       }
 
-      // Map items directly — videos.list already contains the fields we need
-      const videosWithStats = (videosData.items || []).map((item: any) => {
-        const snippet = item.snippet || {}
-        return {
-          id: item.id,
-          title: snippet.title || '',
-          thumbnail: snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url || '',
-          viewCount: item.statistics?.viewCount || 0,
-          likeCount: item.statistics?.likeCount || 0,
-          commentCount: item.statistics?.commentCount || 0,
-          publishedAt: snippet.publishedAt || '',
-          tags: item.snippet?.tags || [],
-          duration: item.contentDetails?.duration || null,
-          localizations: item.snippet?.localizations || null,
-          description: item.snippet?.description || '',
-          privacyStatus: item.status?.privacyStatus || null,
+      // Now we need to fetch detailed video information since playlistItems only gives us basic snippet data
+      const itemsWithId = (videosData.items || []).filter((item: any) => item.snippet?.resourceId?.videoId)
+      const videoIds = itemsWithId.map((item: any) => item.snippet.resourceId.videoId)
+      const uniqueIds = Array.from(new Set(videoIds))
+      
+      if (uniqueIds.length > 0) {
+        // Fetch detailed video statistics and content details in batches of 50
+        const statsResponses: any[] = []
+        for (let i = 0; i < uniqueIds.length; i += 50) {
+          const batch = uniqueIds.slice(i, i + 50).join(',')
+          const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails,snippet,status&id=${batch}`
+          const statsResponse = await fetch(statsUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+          if (statsResponse.ok) {
+            const statsData = await statsResponse.json()
+            statsResponses.push(...(statsData.items || []))
+          }
         }
-      })
+        
+        // Map playlist items with their detailed statistics
+        const videosWithStats = itemsWithId.map((playlistItem: any) => {
+          const videoId = playlistItem.snippet.resourceId.videoId
+          const videoDetails = statsResponses.find((stat: any) => stat.id === videoId)
+          const snippet = videoDetails?.snippet || playlistItem.snippet || {}
+          
+          return {
+            id: videoId,
+            title: snippet.title || '',
+            thumbnail: snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url || '',
+            viewCount: parseInt(videoDetails?.statistics?.viewCount || '0'),
+            likeCount: parseInt(videoDetails?.statistics?.likeCount || '0'),
+            commentCount: parseInt(videoDetails?.statistics?.commentCount || '0'),
+            publishedAt: snippet.publishedAt || '',
+            tags: videoDetails?.snippet?.tags || [],
+            duration: videoDetails?.contentDetails?.duration || null,
+            localizations: videoDetails?.snippet?.localizations || null,
+            description: videoDetails?.snippet?.description || '',
+            privacyStatus: videoDetails?.status?.privacyStatus || null,
+          }
+        })
 
-      const totalResults = videosData.pageInfo?.totalResults || videosWithStats.length
-      return NextResponse.json({ success: true, videos: videosWithStats, totalResults, nextPageToken: videosData.nextPageToken || null, maxResults, fetchAll })
+        const totalResults = videosData.pageInfo?.totalResults || videosWithStats.length
+        return NextResponse.json({ success: true, videos: videosWithStats, totalResults, nextPageToken: videosData.nextPageToken || null, maxResults, fetchAll })
+      } else {
+        return NextResponse.json({ success: true, videos: [], totalResults: 0, nextPageToken: null, maxResults, fetchAll })
+      }
     }
 
     // Determine uploads playlist for the given channel and fetch up to maxResults

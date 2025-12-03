@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
     // Get channel's videos
     const searchResponse = await youtube.search.list({
-      part: 'snippet',
+      part: ['snippet'],
       channelId: channelId,
       order: 'viewCount', // Order by view count
       type: 'video',
