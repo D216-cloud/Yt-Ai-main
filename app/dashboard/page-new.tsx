@@ -1,14 +1,16 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
+import SidebarButton from '@/components/ui/sidebar-button'
 import { Button } from '@/components/ui/button'
-import { GitCompare, Upload, Eye, Clock, BarChart3, ArrowUpRight, Users, TrendingUp, Lightbulb, Youtube, Lock } from "lucide-react"
-import { useRouter } from "next/navigation"
-import { useSession } from "next-auth/react"
+import { Home, User, GitCompare, Video, Upload, Play, LogOut, Menu, X, TrendingUp, Users, Eye, Clock, BarChart3, Sparkles, Calendar, CheckCircle, AlertCircle, Zap, Target, Award, ArrowUpRight, Bell, Search, Settings, ChevronDown, Youtube, Activity, FileText, Layers, TrendingDown, DollarSign, Heart, MessageSquare, Share2, MoreHorizontal, Lightbulb, Image as ImageIcon } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useSession, signOut } from "next-auth/react"
 import { useState, useEffect } from "react"
+import ChannelSummary from '@/components/channel-summary'
 import SharedSidebar from "@/components/shared-sidebar"
 import DashboardHeader from "@/components/dashboard-header"
-import Image from "next/image"
 
 interface YouTubeChannel {
   id: string
@@ -22,24 +24,22 @@ interface YouTubeChannel {
   publishedAt: string
 }
 
-interface LatestVideo {
-  id: string
-  title: string
-  thumbnail: string
-  publishedAt: string
-  viewCount: number
-  titleScore?: number
-}
-
 export default function DashboardPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { data: session } = useSession()
+  const [isLoading, setIsLoading] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [chartSeries, setChartSeries] = useState<'views' | 'subs'>('views')
+  const [activePage, setActivePage] = useState('dashboard')
   const [youtubeChannel, setYoutubeChannel] = useState<YouTubeChannel | null>(null)
+  const [additionalChannels, setAdditionalChannels] = useState<YouTubeChannel[]>([])
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [showChannelDropdown, setShowChannelDropdown] = useState(false)
   const [showConnectModal, setShowConnectModal] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
-  const [latestVideo, setLatestVideo] = useState<LatestVideo | null>(null)
-  const [loadingVideo, setLoadingVideo] = useState(false)
+  const [activeChannelId, setActiveChannelId] = useState<string | null>(null)
 
   // Load YouTube channel data
   useEffect(() => {
@@ -48,63 +48,42 @@ export default function DashboardPage() {
       if (stored) {
         setYoutubeChannel(JSON.parse(stored))
       }
+
+      const additionalStored = localStorage.getItem('additional_youtube_channels')
+      if (additionalStored) {
+        setAdditionalChannels(JSON.parse(additionalStored))
+      }
+
+      const activeId = localStorage.getItem('active_youtube_channel_id')
+      if (activeId) {
+        setActiveChannelId(activeId)
+      } else if (stored) {
+        const channel = JSON.parse(stored)
+        setActiveChannelId(channel.id)
+        localStorage.setItem('active_youtube_channel_id', channel.id)
+      }
     } catch (error) {
       console.error('Failed to load channel data:', error)
     }
   }, [])
 
-  // Fetch latest video when channel is loaded
-  useEffect(() => {
-    const fetchLatestVideo = async () => {
-      if (!youtubeChannel) return
-      
-      setLoadingVideo(true)
-      try {
-        const accessToken = localStorage.getItem('youtube_access_token')
-        if (!accessToken) {
-          console.log('No access token found')
-          setLoadingVideo(false)
-          return
-        }
+  const disconnectChannel = () => {
+    localStorage.removeItem('youtube_channel')
+    localStorage.removeItem('youtube_access_token')
+    localStorage.removeItem('youtube_refresh_token')
+    setYoutubeChannel(null)
+    setShowChannelDropdown(false)
+    window.location.href = '/connect'
+  }
 
-        const response = await fetch(`/api/youtube/best-videos?channelId=${youtubeChannel.id}&accessToken=${accessToken}`)
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch videos')
-        }
-        
-        const data = await response.json()
-        
-        console.log('Fetched videos data:', data)
-        
-        // Check if we have videos in the response
-        if (data.videos && Array.isArray(data.videos) && data.videos.length > 0) {
-          const video = data.videos[0] // Get the first (latest) video
-          console.log('Latest video:', video)
-          
-          setLatestVideo({
-            id: video.id || '',
-            title: video.title || 'Untitled Video',
-            thumbnail: video.thumbnail || '',
-            publishedAt: video.publishedAt || new Date().toISOString(),
-            viewCount: video.viewCount || 0,
-            titleScore: 67 // Default score, can be calculated
-          })
-        } else {
-          console.log('No videos found for this channel')
-          setLatestVideo(null)
-        }
-      } catch (error) {
-        console.error('Error fetching latest video:', error)
-        // Set null instead of keeping loading state
-        setLatestVideo(null)
-      } finally {
-        setLoadingVideo(false)
-      }
+  const connectMoreChannels = () => {
+    setShowChannelDropdown(false)
+    if (youtubeChannel) {
+      setShowConnectModal(true)
+    } else {
+      window.location.href = '/connect'
     }
-
-    fetchLatestVideo()
-  }, [youtubeChannel])
+  }
 
   const startYouTubeAuth = () => {
     setIsConnecting(true)
@@ -119,6 +98,8 @@ export default function DashboardPage() {
         setShowConnectModal(false)
         window.removeEventListener('message', messageListener)
         if (popup) popup.close()
+        
+        // Reload the page to fetch new channel data
         window.location.reload()
       } else if (event.data.type === 'YOUTUBE_AUTH_ERROR') {
         setIsConnecting(false)
@@ -148,6 +129,21 @@ export default function DashboardPage() {
     }, 300000)
   }
 
+  const navLinks = [
+    { icon: Home, label: 'Dashboard', href: '/dashboard', id: 'dashboard', badge: null },
+    { icon: FileText, label: 'Vid-Info', href: '/vid-info', id: 'vid-info', badge: null },
+    { icon: Video, label: 'Content', href: '/content', id: 'content', badge: '12' },
+    { icon: Upload, label: 'Bulk Upload', href: '/bulk-upload', id: 'bulk-upload', badge: null },
+    { icon: GitCompare, label: 'Compare', href: '/compare', id: 'compare', badge: null },
+    { icon: Layers, label: 'AI Tools', href: '/ai-tools', id: 'ai-tools', badge: 'New' },
+  ]
+
+  const handleSignOut = async () => {
+    setIsLoading(true)
+    await signOut({ redirect: false })
+    router.push('/')
+  }
+
   const formatNumber = (num: string | number): string => {
     const n = typeof num === "string" ? parseInt(num) : num
     if (n >= 1000000) return (n / 1000000).toFixed(1) + "M"
@@ -157,6 +153,7 @@ export default function DashboardPage() {
 
   // Enhanced reusable base classes for cards with better mobile responsiveness
   const cardBase = 'group relative bg-white rounded-2xl border border-gray-200/60 p-4 sm:p-5 md:p-6 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 hover:-translate-y-1 overflow-hidden backdrop-blur-sm'
+  const smallCardBase = 'bg-white/70 hover:bg-white rounded-xl p-4 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 border border-gray-100 hover:border-gray-200 flex flex-col gap-3'
 
   // Mock analytics data
   const analyticsData = {
@@ -173,6 +170,13 @@ export default function DashboardPage() {
       revenue: 28
     }
   }
+
+  // Mock notifications data 
+  const notifications = [
+    { id: 1, type: 'success', message: 'Video published successfully', time: '5m ago' },
+    { id: 2, type: 'info', message: 'New subscriber milestone: 45K', time: '1h ago' },
+    { id: 3, type: 'warning', message: 'Scheduled video in 2 hours', time: '2h ago' },
+  ]
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
@@ -207,7 +211,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Enhanced Stats Cards Grid - Mobile First Design */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
                 {/* Views */}
                 <div className={`${cardBase} hover:border-blue-300/50 hover:shadow-blue-500/20`}>
                   <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-blue-500/15 to-cyan-500/15 rounded-full blur-2xl"></div>
@@ -229,11 +233,11 @@ export default function DashboardPage() {
                       onClick={() => router.push('/vid-info')}
                       aria-label="Analyze Videos"
                       title="Analyze Videos"
-                      variant="default"
-                      size="sm"
+                      variant="dashboard-blue"
+                      size="dashboard"
                       className="w-full"
                     >
-                      <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                      <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
                       <span className="truncate">Analyze</span>
                     </Button>
                   </div>
@@ -260,11 +264,11 @@ export default function DashboardPage() {
                       onClick={() => router.push('/bulk-upload')}
                       aria-label="Smart Bulk Upload"
                       title="Smart Bulk Upload"
-                      variant="default"
-                      size="sm"
+                      variant="dashboard-purple"
+                      size="dashboard"
                       className="w-full"
                     >
-                      <Upload className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                      <Upload className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
                       <span className="truncate">Smart Upload</span>
                     </Button>
                   </div>
@@ -291,11 +295,11 @@ export default function DashboardPage() {
                       onClick={() => router.push('/ai-tools?tool=idea')}
                       aria-label="Find Best Idea"
                       title="Find Best Idea"
-                      variant="default"
-                      size="sm"
+                      variant="dashboard-green"
+                      size="dashboard"
                       className="w-full"
                     >
-                      <Lightbulb className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                      <Lightbulb className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
                       <span className="truncate">Best Ideas</span>
                     </Button>
                   </div>
@@ -322,11 +326,11 @@ export default function DashboardPage() {
                       onClick={() => router.push('/compare')}
                       aria-label="Compare Performance"
                       title="Compare Performance"
-                      variant="default"
-                      size="sm"
+                      variant="dashboard-orange"
+                      size="dashboard"
                       className="w-full"
                     >
-                      <GitCompare className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                      <GitCompare className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
                       <span className="truncate">Compare</span>
                     </Button>
                   </div>
@@ -334,110 +338,180 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Optimize Your Latest Video Section */}
-            {youtubeChannel && (
-              <div className="mb-8">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-black text-gray-900">Optimize Your Latest Video</h2>
-                  <Link href="/videos">
-                    <Button variant="link" className="text-blue-600 hover:text-blue-700">
-                      View All
-                    </Button>
-                  </Link>
+            {/* Charts Section */}
+            <div className="grid lg:grid-cols-3 gap-6 sm:gap-8 mb-8">
+              {/* Performance Chart */}
+              <div className="lg:col-span-2">
+                <div className={`${cardBase}`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div>
+                      <h3 className="text-lg font-black text-gray-900 mb-1">Performance Overview</h3>
+                      <p className="text-sm text-gray-600">Track your channel's growth over time</p>
+                    </div>
+                    <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+                      <button
+                        onClick={() => setChartSeries('views')}
+                        className={`px-3 py-1.5 text-sm font-semibold rounded transition-colors ${
+                          chartSeries === 'views' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        Views
+                      </button>
+                      <button
+                        onClick={() => setChartSeries('subs')}
+                        className={`px-3 py-1.5 text-sm font-semibold rounded transition-colors ${
+                          chartSeries === 'subs' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        Subscribers
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Simple Chart Visualization */}
+                  <div className="space-y-3">
+                    {[...Array(7)].map((_, i) => {
+                      const value = Math.floor(Math.random() * 80) + 20
+                      const day = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i]
+                      return (
+                        <div key={i} className="flex items-center gap-3">
+                          <span className="text-xs font-medium text-gray-600 w-8">{day}</span>
+                          <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 group-hover/bar:shadow-lg ${
+                                chartSeries === 'views' 
+                                  ? 'bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 group-hover/bar:from-blue-700 group-hover/bar:to-pink-700' 
+                                  : 'bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 group-hover/bar:from-purple-700 group-hover/bar:to-rose-700'
+                              }`}
+                              style={{ width: `${value}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-xs font-bold text-gray-900 w-8 text-right">{value}%</span>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
-                
-                {loadingVideo ? (
-                  <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 rounded-2xl p-6 shadow-xl">
-                    <div className="flex items-center justify-center py-12">
-                      <div className="text-white">Loading video...</div>
-                    </div>
-                  </div>
-                ) : latestVideo ? (
-                  <Link href="/videos" className="block">
-                    <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] cursor-pointer">
-                      <div className="flex flex-col md:flex-row gap-6 items-start">
-                        {/* Video Thumbnail */}
-                        <div className="relative w-full md:w-48 h-32 shrink-0 rounded-xl overflow-hidden bg-gray-700">
-                          {latestVideo.thumbnail ? (
-                            <Image
-                              src={latestVideo.thumbnail}
-                              alt={latestVideo.title}
-                              fill
-                              className="object-cover"
-                              unoptimized
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement
-                                target.style.display = 'none'
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-500">
-                              <Youtube className="w-12 h-12" />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Video Info */}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-white font-bold text-lg mb-2 line-clamp-2">
-                            {latestVideo.title}
-                          </h3>
-                          <div className="flex items-center gap-4 text-sm text-gray-400 mb-4">
-                            <span>{latestVideo.viewCount.toLocaleString()} views</span>
-                            <span>•</span>
-                            <span>{new Date(latestVideo.publishedAt).toLocaleDateString('en-US', { 
-                              month: 'short', 
-                              day: 'numeric' 
-                            })}</span>
-                          </div>
-
-                          {/* Title Score */}
-                          <div className="flex flex-wrap items-center gap-3 mb-4">
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-400 text-sm font-medium">Title</span>
-                              <div className="bg-gray-700 text-white px-3 py-1 rounded-lg font-bold text-sm">
-                                {latestVideo.titleScore || 67}
-                              </div>
-                            </div>
-                            <button 
-                              onClick={(e) => e.preventDefault()}
-                              className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
-                            >
-                              Generate scores
-                              <span className="text-lg">+</span>
-                            </button>
-                          </div>
-                        </div>
-
-                      {/* Optimize Button */}
-                      <div className="w-full md:w-auto flex items-center justify-center md:justify-end">
-                        <Link href={`/videos?videoId=${latestVideo.id}`}>
-                          <Button 
-                            className="bg-white hover:bg-gray-100 text-gray-900 font-semibold px-6 py-2 rounded-lg flex items-center gap-2"
-                          >
-                            <Lock className="w-4 h-4" />
-                            Optimize
-                          </Button>
-                        </Link>
-                      </div>
-                      </div>
-                    </div>
-                  </Link>
-                ) : (
-                  <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 rounded-2xl p-6 shadow-xl">
-                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                      <div className="text-white text-lg font-semibold mb-2">No Videos Found</div>
-                      <div className="text-gray-400 text-sm mb-6">Upload your first video to see it here</div>
-                      <Link href="/upload/normal">
-                        <Button className="bg-white hover:bg-gray-100 text-gray-900 font-semibold px-6 py-2 rounded-lg">
-                          Upload Video
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                )}
               </div>
-            )}
+
+              {/* Quick Actions */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-black text-gray-900">Quick Actions</h3>
+                
+                <div className={`${smallCardBase}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                      <Upload className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900 text-sm">Upload Video</p>
+                      <p className="text-xs text-gray-600">Create new content</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`${smallCardBase}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                      <BarChart3 className="w-4 h-4 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900 text-sm">Analytics</p>
+                      <p className="text-xs text-gray-600">View detailed stats</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`${smallCardBase}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
+                      <Lightbulb className="w-4 h-4 text-green-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900 text-sm">AI Ideas</p>
+                      <p className="text-xs text-gray-600">Get content suggestions</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`${smallCardBase}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center">
+                      <Target className="w-4 h-4 text-orange-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900 text-sm">Optimize</p>
+                      <p className="text-xs text-gray-600">Improve performance</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Activity & Tips */}
+            <div className="grid md:grid-cols-2 gap-6 sm:gap-8">
+              {/* Recent Activity */}
+              <div className={`${cardBase}`}>
+                <h3 className="text-lg font-black text-gray-900 mb-4">Recent Activity</h3>
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-2 h-2 rounded-full bg-green-500 mt-2 flex-shrink-0"></div>
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">Video uploaded successfully</p>
+                      <p className="text-xs text-gray-600">5 minutes ago</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0"></div>
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">New subscriber milestone reached</p>
+                      <p className="text-xs text-gray-600">1 hour ago</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-2 h-2 rounded-full bg-yellow-500 mt-2 flex-shrink-0"></div>
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">Engagement rate improved</p>
+                      <p className="text-xs text-gray-600">2 hours ago</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Growth Tips */}
+              <div className={`${cardBase}`}>
+                <h3 className="text-lg font-black text-gray-900 mb-4">Growth Tips</h3>
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <Lightbulb className="w-3 h-3 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">Optimize your thumbnails</p>
+                      <p className="text-xs text-gray-600">Use bright colors and clear text to increase CTR</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                      <Target className="w-3 h-3 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">Post consistently</p>
+                      <p className="text-xs text-gray-600">Regular uploads help maintain audience engagement</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                      <Users className="w-3 h-3 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900 text-sm">Engage with comments</p>
+                      <p className="text-xs text-gray-600">Respond to viewers to build community</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </main>
       </div>

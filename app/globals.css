@@ -1,8 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
-
 :root {
   /* Updated color tokens to match professional Twitter automation tool design */
   --background: oklch(1 0 0);

@@ -413,10 +413,12 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                                         <div>
                                             <p className="font-semibold text-gray-900 text-sm">
                                                 Currently Active: <span className="text-green-600">
-                                                    {(activeChannelId === youtubeChannel?.id ? youtubeChannel : additionalChannels.find(ch => ch.id === activeChannelId))?.title || 'None'}
+                                                    {(activeChannelId === youtubeChannel?.id ? youtubeChannel?.title : additionalChannels.find(ch => ch.id === activeChannelId)?.title) || 'None'}
                                                 </span>
                                             </p>
-                                            <p className="text-xs text-gray-600">All actions are performed on this channel</p>
+                                            <p className="text-xs text-gray-600">
+                                                {activeChannelId === youtubeChannel?.id ? 'Primary' : 'Additional'} • All actions are performed on this channel
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -450,14 +452,14 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                                                     />
                                                     <div className="flex-1 min-w-0">
                                                         <p className="font-medium text-gray-900 truncate">{youtubeChannel.title}</p>
-                                                        <p className={`text-xs ${
+                                                        <p className={`text-xs font-medium ${
                                                             activeChannelId === youtubeChannel.id
-                                                                ? 'text-green-600 font-medium'
+                                                                ? 'text-green-600'
                                                                 : selectedChannelId === youtubeChannel.id
-                                                                ? 'text-blue-600 font-medium'
+                                                                ? 'text-blue-600'
                                                                 : 'text-gray-600'
                                                         }`}>
-                                                            Primary Channel {activeChannelId === youtubeChannel.id ? '(Active)' : selectedChannelId === youtubeChannel.id ? '(Selected)' : ''}
+                                                            🔵 Primary Channel {activeChannelId === youtubeChannel.id ? '• Active' : selectedChannelId === youtubeChannel.id ? '• Selected' : ''}
                                                         </p>
                                                     </div>
                                                     {selectedChannelId === youtubeChannel.id && (
@@ -500,14 +502,14 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                                                     />
                                                     <div className="flex-1 min-w-0">
                                                         <p className="font-medium text-gray-900 truncate">{channel.title}</p>
-                                                        <p className={`text-xs ${
+                                                        <p className={`text-xs font-medium ${
                                                             activeChannelId === channel.id
-                                                                ? 'text-green-600 font-medium'
+                                                                ? 'text-green-600'
                                                                 : selectedChannelId === channel.id
-                                                                ? 'text-blue-600 font-medium'
+                                                                ? 'text-blue-600'
                                                                 : 'text-gray-600'
                                                         }`}>
-                                                            Additional Channel {activeChannelId === channel.id ? '(Active)' : selectedChannelId === channel.id ? '(Selected)' : ''}
+                                                            ⚪ Additional Channel {activeChannelId === channel.id ? '• Active' : selectedChannelId === channel.id ? '• Selected' : ''}
                                                         </p>
                                                     </div>
                                                     {selectedChannelId === channel.id && (
@@ -531,41 +533,66 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
 
                             {/* Save Button (shown only when switching channels) */}
                             {showSaveButton && selectedChannelId && (
-                                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <p className="font-medium text-blue-900 text-sm">Switch to selected channel?</p>
-                                            <p className="text-xs text-blue-700 mt-1">
-                                                This will change the active channel across all pages
+                                <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl shadow-sm">
+                                    <div className="text-center">
+                                        <div className="mb-3">
+                                            <p className="font-bold text-blue-900 text-sm mb-1">Ready to switch channels?</p>
+                                            <p className="text-xs text-blue-700">
+                                                Switch to: <span className="font-semibold">
+                                                    {selectedChannelId === youtubeChannel?.id 
+                                                        ? `${youtubeChannel?.title} (Primary)` 
+                                                        : `${additionalChannels.find(ch => ch.id === selectedChannelId)?.title} (Additional)`
+                                                    }
+                                                </span>
+                                            </p>
+                                            <p className="text-xs text-blue-600 mt-1">
+                                                ⚡ This will change the active channel across all pages instantly
                                             </p>
                                         </div>
-                                        <button
-                                            onClick={() => {
-                                                if (selectedChannelId) {
-                                                    setActiveChannelId(selectedChannelId)
-                                                    localStorage.setItem('active_youtube_channel_id', selectedChannelId)
-                                                    
-                                                    // Dispatch real-time event for other components
-                                                    window.dispatchEvent(new CustomEvent('channelSwitched', {
-                                                        detail: { channelId: selectedChannelId, timestamp: Date.now() }
-                                                    }))
-                                                    
-                                                    // Reset states
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => {
                                                     setSelectedChannelId(null)
                                                     setShowSaveButton(false)
-                                                    setShowConnectModal(false)
-                                                    
-                                                    // Show success message
-                                                    const channelName = selectedChannelId === youtubeChannel?.id 
-                                                        ? youtubeChannel.title 
-                                                        : additionalChannels.find(ch => ch.id === selectedChannelId)?.title
-                                                    alert(`Successfully switched to ${channelName}!`)
-                                                }
-                                            }}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm"
-                                        >
-                                            Save & Switch
-                                        </button>
+                                                }}
+                                                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 px-3 rounded-lg transition-colors text-sm"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    if (selectedChannelId) {
+                                                        // Update active channel (this maintains primary/additional structure)
+                                                        setActiveChannelId(selectedChannelId)
+                                                        localStorage.setItem('active_youtube_channel_id', selectedChannelId)
+                                                        
+                                                        // Dispatch real-time event for other components
+                                                        window.dispatchEvent(new CustomEvent('channelSwitched', {
+                                                            detail: { 
+                                                                channelId: selectedChannelId, 
+                                                                timestamp: Date.now(),
+                                                                isPrimary: selectedChannelId === youtubeChannel?.id
+                                                            }
+                                                        }))
+                                                        
+                                                        // Reset states
+                                                        setSelectedChannelId(null)
+                                                        setShowSaveButton(false)
+                                                        setShowConnectModal(false)
+                                                        
+                                                        // Show success message with clear indication
+                                                        const channelName = selectedChannelId === youtubeChannel?.id 
+                                                            ? youtubeChannel?.title 
+                                                            : additionalChannels.find(ch => ch.id === selectedChannelId)?.title
+                                                        const channelType = selectedChannelId === youtubeChannel?.id ? 'Primary' : 'Additional'
+                                                        alert(`✅ Successfully switched to ${channelName} (${channelType} Channel)!\n\nThis channel is now active across all pages.`)
+                                                    }
+                                                }}
+                                                className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-2 px-3 rounded-lg transition-all duration-200 text-sm transform hover:scale-105 shadow-lg"
+                                            >
+                                                ✨ Save & Switch
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             )}

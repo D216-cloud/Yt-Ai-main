@@ -28,16 +28,36 @@ export async function GET(req: NextRequest) {
       auth: oauth2Client,
     })
 
-    // Get channel's videos
-    const searchResponse = await youtube.search.list({
-      part: ['snippet'],
-      channelId: channelId,
-      order: 'viewCount', // Order by view count
-      type: 'video',
-      maxResults: 10
-    })
+    // Get ALL channel's videos using pagination
+    let allVideos: any[] = []
+    let nextPageToken: string | undefined = undefined
+    let pageCount = 0
+    const maxPages = 10 // Fetch up to 10 pages (500 videos max) to avoid timeout
 
-    if (!(searchResponse as any).data?.items) {
+    do {
+      const searchResponse = await youtube.search.list({
+        part: ['snippet'],
+        channelId: channelId,
+        order: 'date', // Order by upload date (most recent first)
+        type: ['video'],
+        maxResults: 50, // Maximum allowed by YouTube API
+        pageToken: nextPageToken
+      })
+
+      if (searchResponse.data?.items && searchResponse.data.items.length > 0) {
+        allVideos.push(...searchResponse.data.items)
+      }
+
+      nextPageToken = searchResponse.data?.nextPageToken as string | undefined
+      pageCount++
+
+      // Break if no more pages or reached max pages
+      if (!nextPageToken || pageCount >= maxPages) {
+        break
+      }
+    } while (nextPageToken)
+
+    if (allVideos.length === 0) {
       return NextResponse.json({ videos: [] })
     }
 
@@ -48,36 +68,52 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    const videoIds: string[] = (searchResponse as any).data.items
+    const videoIds: string[] = allVideos
       .map((item: SearchItem) => item.id?.videoId)
-      .filter(Boolean)
+      .filter((id): id is string => Boolean(id))
 
     if (videoIds.length === 0) {
       return NextResponse.json({ videos: [] })
     }
 
-    const videosResponse = await youtube.videos.list({
-      part: ['snippet', 'statistics'],
-      id: videoIds
-    })
+    // YouTube API allows max 50 IDs per request, so we need to batch
+    const batchSize = 50
+    let allVideoDetails: any[] = []
 
-    const videos = videosResponse.data.items?.map(video => ({
+    for (let i = 0; i < videoIds.length; i += batchSize) {
+      const batch = videoIds.slice(i, i + batchSize)
+      
+      const videosResponse = await youtube.videos.list({
+        part: ['snippet', 'statistics'],
+        id: batch
+      })
+
+      if (videosResponse.data.items) {
+        allVideoDetails.push(...videosResponse.data.items)
+      }
+    }
+
+    const videos = allVideoDetails.map(video => ({
       id: video.id,
       title: video.snippet?.title,
       description: video.snippet?.description,
       publishedAt: video.snippet?.publishedAt,
-      thumbnail: video.snippet?.thumbnails?.medium?.url,
+      thumbnail: video.snippet?.thumbnails?.medium?.url || video.snippet?.thumbnails?.default?.url || video.snippet?.thumbnails?.high?.url,
       viewCount: parseInt(video.statistics?.viewCount || '0'),
       likeCount: parseInt(video.statistics?.likeCount || '0'),
       commentCount: parseInt(video.statistics?.commentCount || '0'),
       tags: video.snippet?.tags || []
-    })) || []
+    }))
 
-    // Sort by view count descending
-    videos.sort((a, b) => b.viewCount - a.viewCount)
+    console.log(`Found ${videos.length} videos for channel ${channelId}`)
+    if (videos.length > 0) {
+      console.log('Latest video:', videos[0].title, videos[0].publishedAt)
+    }
+
+    // Already sorted by date (most recent first) from the search query
 
     return NextResponse.json({ 
-      videos: videos.slice(0, 5), // Return top 5
+      videos: videos, // Return all videos
       totalFound: videos.length
     })
 
