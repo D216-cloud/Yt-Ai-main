@@ -532,7 +532,7 @@ export default function ConnectPage() {
         <div className="md:hidden h-4 bg-white"></div>
 
         {/* Animations */}
-        <style jsx>{`
+        <style dangerouslySetInnerHTML={{__html: `
         @keyframes bounce-in {
           0% {
             transform: scale(0);
@@ -589,7 +589,7 @@ export default function ConnectPage() {
         .animate-fade-in {
           animation: fade-in 0.5s ease-out 1s both;
         }
-      `}</style>
+      `}} />
       </div>
     </div>
   )

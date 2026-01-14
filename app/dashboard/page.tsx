@@ -1,5 +1,6 @@
 "use client"
 
+import React from 'react'
 import Link from "next/link"
 import { Button } from '@/components/ui/button'
 import { GitCompare, Upload, BarChart3, ArrowUpRight, Lightbulb, Youtube, Lock, Sparkles, Users, MessageSquare, Eye, Play, DollarSign, Calendar, ThumbsUp, ChevronDown, Plus, X } from "lucide-react"
@@ -242,7 +243,7 @@ export default function DashboardPage() {
                     <button
                       aria-haspopup="menu"
                       aria-expanded={showChannelMenu}
-                      onClick={() => setShowChannelMenu((s) => !s)}
+                      onClick={() => setShowChannelMenu((s: boolean) => !s)}
                       className="ml-2 flex items-center justify-center w-7 h-7 rounded-full bg-black/30 hover:bg-white/10 transition"
                       title="Channel actions"
                     >
@@ -264,7 +265,7 @@ export default function DashboardPage() {
                       {/* List additional channels (if any) */}
                       {additionalChannelsList.length > 0 && (
                         <div className="divide-y divide-gray-100">
-                          {additionalChannelsList.map((ch) => (
+                          {additionalChannelsList.map((ch: YouTubeChannel) => (
                             <button
                               key={ch.id}
                               onClick={() => {
@@ -401,7 +402,7 @@ export default function DashboardPage() {
                         <div className="md:col-span-3">
                           <div className="relative w-full h-40 md:h-32 rounded-lg overflow-hidden bg-gray-700">
                             {latestVideo.thumbnail ? (
-                              <Image src={latestVideo.thumbnail} alt={latestVideo.title} fill className="object-cover" unoptimized onError={(e) => { const target = e.target as HTMLImageElement; target.style.display = 'none' }} />
+                              <Image src={latestVideo.thumbnail} alt={latestVideo.title} fill className="object-cover" unoptimized onError={(e: any) => { const target = e.target as HTMLImageElement; target.style.display = 'none' }} />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-gray-500">
                                 <Youtube className="w-12 h-12" />
