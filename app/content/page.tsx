@@ -427,8 +427,7 @@ export default function ContentPage() {
                                     <Button
                                         onClick={() => fetchVideos(true)}
                                         disabled={isLoading || !youtubeChannel}
-                                        variant="outline"
-                                        className="border-gray-300"
+                                        className="border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
                                     >
                                         {isLoading ? (
                                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -438,7 +437,7 @@ export default function ContentPage() {
                                         Sync from YouTube
                                     </Button>
                                     <Link href="/upload">
-                                        <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg">
+                                        <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500">
                                             <Upload className="w-4 h-4 mr-2" />
                                             Upload New Video
                                         </Button>
@@ -475,7 +474,7 @@ export default function ContentPage() {
                                             <h3 className="text-lg font-bold text-gray-900 mb-2">No Channel Connected</h3>
                                             <p className="text-gray-700 mb-4">Connect your YouTube channel to view and manage your videos in real-time.</p>
                                             <Link href="/connect">
-                                                <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+                                                <Button className="bg-blue-600 hover:bg-blue-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500">
                                                     <Youtube className="w-4 h-4 mr-2" />
                                                     Connect YouTube Channel
                                                 </Button>
@@ -523,10 +522,10 @@ export default function ContentPage() {
 
                             {/* Stats Cards */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                                <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-lg transition-all">
+                                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm transition-all">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center">
-                                            <Video className="w-5 h-5 text-white" />
+                                        <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                                            <Video className="w-5 h-5 text-blue-600" />
                                         </div>
                                         <div>
                                             <p className="text-2xl font-black text-gray-900">{videos.length}</p>
@@ -534,9 +533,9 @@ export default function ContentPage() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-lg transition-all">
+                                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm transition-all">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center">
+                                        <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
                                             <span className="text-lg">🌍</span>
                                         </div>
                                         <div>
@@ -545,9 +544,9 @@ export default function ContentPage() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-lg transition-all">
+                                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm transition-all">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-yellow-500 to-amber-500 flex items-center justify-center">
+                                        <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center">
                                             <span className="text-lg">🔗</span>
                                         </div>
                                         <div>
@@ -556,9 +555,9 @@ export default function ContentPage() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-lg transition-all">
+                                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm transition-all">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-red-500 to-pink-500 flex items-center justify-center">
+                                        <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
                                             <span className="text-lg">🔒</span>
                                         </div>
                                         <div>

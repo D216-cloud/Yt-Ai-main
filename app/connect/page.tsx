@@ -376,9 +376,72 @@ export default function ConnectPage() {
     setError(null)
     console.log("Initiating Google OAuth flow - showing start animation")
 
-    // Give a short moment for the animation to show, then redirect
+    // Use popup flow to avoid navigating away and opening a new tab
     setTimeout(() => {
-      window.location.href = "/api/youtube/auth"
+      setIsStartingAuth(false)
+      setIsAuthLoading(true)
+      // Mark return page so server knows this was from connect page
+      localStorage.setItem('oauth_return_page', 'dashboard')
+
+      const popup = window.open('/api/youtube/auth?popup=true', 'youtube-auth', 'width=500,height=600')
+
+      const messageListener = (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return
+
+        if (event.data.type === 'YOUTUBE_AUTH_SUCCESS') {
+          const { channel, token, refreshToken } = event.data as any
+
+          try {
+            // If main channel doesn't exist set it, otherwise add to additional channels
+            const existingMain = localStorage.getItem('youtube_channel')
+            if (!existingMain) {
+              localStorage.setItem('youtube_channel', JSON.stringify(channel))
+              if (token) localStorage.setItem('youtube_access_token', token)
+              if (refreshToken) localStorage.setItem('youtube_refresh_token', refreshToken)
+              addActivity('connect', channel.title, channel.id, 'Main channel connected')
+            } else {
+              // Additional channels
+              const existing = JSON.parse(localStorage.getItem('additional_youtube_channels') || '[]')
+              const already = existing.some((ch: any) => ch.id === channel.id)
+              if (!already) {
+                existing.push(channel)
+                localStorage.setItem('additional_youtube_channels', JSON.stringify(existing))
+                if (token) localStorage.setItem(`youtube_access_token_${channel.id}`, token)
+                if (refreshToken) localStorage.setItem(`youtube_refresh_token_${channel.id}`, refreshToken)
+                addActivity('connect', channel.title, channel.id, 'Additional channel connected via OAuth')
+              }
+            }
+
+            alert(`Successfully connected ${channel.title}`)
+
+            // Cleanup and navigate to dashboard
+            window.removeEventListener('message', messageListener)
+            if (popup && !popup.closed) popup.close()
+            router.push('/dashboard')
+          } catch (err) {
+            console.error('Failed to process connected channel:', err)
+            alert('Failed to save connected channel. Please try again.')
+            window.removeEventListener('message', messageListener)
+            if (popup && !popup.closed) popup.close()
+          }
+        } else if (event.data.type === 'YOUTUBE_AUTH_ERROR') {
+          alert('YouTube auth failed. Please try again.')
+          window.removeEventListener('message', messageListener)
+          if (popup && !popup.closed) popup.close()
+        }
+      }
+
+      window.addEventListener('message', messageListener)
+
+      // Fallback in case the popup is blocked or closed
+      const checkClosed = setInterval(() => {
+        if (!popup || popup.closed) {
+          clearInterval(checkClosed)
+          window.removeEventListener('message', messageListener)
+          setIsAuthLoading(false)
+          setIsStartingAuth(false)
+        }
+      }, 1000)
     }, 550)
   }
 

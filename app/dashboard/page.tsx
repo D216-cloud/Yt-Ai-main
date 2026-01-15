@@ -52,13 +52,49 @@ export default function DashboardPage() {
   // Additional channels (for switching)
   const [additionalChannelsList, setAdditionalChannelsList] = useState<YouTubeChannel[]>([])
 
+  // Derived values for UI
+  const visibleAdditionalChannels = additionalChannelsList.filter(ch => ch && ch.id && ch.id !== youtubeChannel?.id)
+  const uniqueChannelCount = React.useMemo(() => {
+    const map: Record<string, boolean> = {}
+    if (youtubeChannel?.id) map[youtubeChannel.id] = true
+    for (const ch of (additionalChannelsList || [])) {
+      if (ch && ch.id) { map[String(ch.id)] = true }
+    }
+    return Object.keys(map).length
+  }, [youtubeChannel, additionalChannelsList])
+
   useEffect(() => {
     try {
       const stored = localStorage.getItem('additional_youtube_channels')
-      if (stored) setAdditionalChannelsList(JSON.parse(stored))
+      if (stored) {
+        const parsed = JSON.parse(stored) || []
+        // Deduplicate by id defensively
+        const map = new Map<string, YouTubeChannel>()
+        parsed.forEach((ch: YouTubeChannel) => { if (ch && ch.id) map.set(ch.id, ch) })
+        setAdditionalChannelsList(Array.from(map.values()))
+      }
     } catch (e) {
       console.error('Failed to load additional channels:', e)
     }
+
+    // Listen for storage changes (other tabs) to update channel lists live
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'additional_youtube_channels') {
+        try {
+          const val = e.newValue ? JSON.parse(e.newValue) : []
+          setAdditionalChannelsList(val)
+        } catch (err) { console.error('Failed parsing additional channels from storage event', err) }
+      }
+      if (e.key === 'youtube_channel') {
+        try {
+          const val = e.newValue ? JSON.parse(e.newValue) : null
+          setYoutubeChannel(val)
+        } catch (err) { console.error('Failed parsing youtube_channel from storage event', err) }
+      }
+    }
+
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [])
 
   // Load YouTube channel data
@@ -155,28 +191,59 @@ export default function DashboardPage() {
 
   const startYouTubeAuth = () => {
     setIsConnecting(true)
-    
-    const popup = window.open('/api/auth/youtube', 'youtube-auth', 'width=500,height=600')
-    
+
+    // Indicate where to return so server logic can treat this as additional channel flow
+    localStorage.setItem('oauth_return_page', 'dashboard')
+
+    // Open the correct popup URL and request a popup response
+    const popup = window.open('/api/youtube/auth?popup=true', 'youtube-auth', 'width=500,height=600')
+
     const messageListener = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return
-      
+
       if (event.data.type === 'YOUTUBE_AUTH_SUCCESS') {
         setIsConnecting(false)
         setShowConnectModal(false)
         window.removeEventListener('message', messageListener)
         if (popup) popup.close()
-        window.location.reload()
+
+        const { channel, token, refreshToken } = event.data as any
+
+        try {
+          const existing = JSON.parse(localStorage.getItem('additional_youtube_channels') || '[]')
+          const already = existing.some((ch: any) => ch.id === channel.id)
+          if (!already) {
+            const updated = [...existing, channel]
+            localStorage.setItem('additional_youtube_channels', JSON.stringify(updated))
+            if (token) localStorage.setItem(`youtube_access_token_${channel.id}`, token)
+            if (refreshToken) localStorage.setItem(`youtube_refresh_token_${channel.id}`, refreshToken)
+            setAdditionalChannelsList((list) => {
+              // Dedupe defensively
+              const exists = list.some((l) => l.id === channel.id)
+              return exists ? list : [...list, channel]
+            })
+            // Inform user and redirect to dashboard
+            alert(`Successfully connected ${channel.title}`)
+            router.push('/dashboard')
+          } else {
+            alert(`${channel.title} is already connected`)
+            router.push('/dashboard')
+          }
+        } catch (err) {
+          console.error('Failed to save connected channel:', err)
+          router.push('/dashboard')
+        }
       } else if (event.data.type === 'YOUTUBE_AUTH_ERROR') {
         setIsConnecting(false)
         window.removeEventListener('message', messageListener)
         if (popup) popup.close()
         console.error('Authentication failed:', event.data.error)
+        alert('YouTube authentication failed. Please try again.')
       }
     }
 
     window.addEventListener('message', messageListener)
-    
+
     const checkClosed = setInterval(() => {
       if (popup?.closed) {
         clearInterval(checkClosed)
@@ -230,7 +297,7 @@ export default function DashboardPage() {
         <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="dashboard" />
 
         {/* Main Content */}
-        <main className="flex-1 pt-20 md:pt-20 md:ml-72 p-4 md:p-8 pb-20 md:pb-8">
+        <main className="flex-1 pt-14 md:pt-16 md:ml-72 p-4 md:p-8 pb-20 md:pb-8">
           <div className="max-w-7xl mx-auto">
             {/* Redesigned Welcome Section */}
             <div className="mb-8 mt-8 md:mt-10">
@@ -240,6 +307,13 @@ export default function DashboardPage() {
                   <div className="inline-flex items-center gap-2 bg-black/70 text-white px-3 py-1 rounded-full shadow-sm max-w-full truncate">
                     <img src={youtubeChannel.thumbnail} alt={youtubeChannel.title} className="w-6 h-6 rounded-full object-cover" />
                     <span className="text-sm font-medium truncate max-w-[160px]">{youtubeChannel.title}</span>
+
+                    {/* Connected channels count */}
+                    <span className="ml-2 inline-flex items-center text-xs bg-white/10 px-2 py-0.5 rounded-full">
+                      <span className="font-semibold mr-1">{uniqueChannelCount}</span>
+                      <span className="text-xs">{uniqueChannelCount === 1 ? 'channel' : 'channels'}</span>
+                    </span>
+
                     <button
                       aria-haspopup="menu"
                       aria-expanded={showChannelMenu}
@@ -253,73 +327,80 @@ export default function DashboardPage() {
 
                   {/* Menu */}
                   {showChannelMenu && (
-                    <div className="absolute top-full mt-2 right-1 bg-white rounded-xl shadow-xl w-72 text-sm text-gray-800 overflow-hidden z-40">
-                      <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-3">
-                        <img src={youtubeChannel?.thumbnail} alt={youtubeChannel?.title} className="w-8 h-8 rounded-full object-cover" />
-                        <div className="flex-1 text-left">
-                          <div className="text-sm font-semibold truncate">{youtubeChannel?.title}</div>
-                          <div className="text-xs text-gray-500">Connected</div>
+                    <div className="absolute top-full mt-2 right-1 bg-white rounded-xl shadow-xl w-80 text-sm text-gray-800 overflow-hidden z-40">
+                      {/* Header */}
+                      <div className="flex items-center gap-3 px-4 py-3 bg-white">
+                        <div className="flex items-center gap-3">
+                          <img src={youtubeChannel?.thumbnail} alt={youtubeChannel?.title} className="w-12 h-12 rounded-full object-cover shadow-sm" />
+                          <div className="flex flex-col">
+                            <div className="text-sm font-bold truncate" title={youtubeChannel?.title}>{youtubeChannel?.title}</div>
+                            <div className="text-xs text-gray-500">Connected • <span className="font-medium text-gray-700">{formatNumber(youtubeChannel?.videoCount || 0)} videos</span></div>
+                          </div>
+                        </div>
+                        <div className="ml-auto">
+                          <span className="inline-flex items-center text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">{uniqueChannelCount} {uniqueChannelCount === 1 ? 'channel' : 'channels'}</span>
                         </div>
                       </div>
 
-                      {/* List additional channels (if any) */}
-                      {additionalChannelsList.length > 0 && (
-                        <div className="divide-y divide-gray-100">
-                          {additionalChannelsList.map((ch: YouTubeChannel) => (
-                            <button
-                              key={ch.id}
-                              onClick={() => {
-                                // Switch channel: set as main and attempt to set token if stored
-                                localStorage.setItem('youtube_channel', JSON.stringify(ch))
-                                const token = localStorage.getItem(`youtube_access_token_${ch.id}`) || null
-                                if (token) localStorage.setItem('youtube_access_token', token)
-                                setYoutubeChannel(ch)
-                                setShowChannelMenu(false)
-                              }}
-                              className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
-                            >
-                              <img src={ch.thumbnail} alt={ch.title} className="w-6 h-6 rounded-full object-cover" />
-                              <div className="flex-1 text-left">
-                                <div className="text-sm truncate">{ch.title}</div>
-                                <div className="text-xs text-gray-500">{formatNumber(ch.videoCount)} videos</div>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Add another button */}
-                      <div className="p-4">
-                        <button
-                          onClick={() => {
-                            localStorage.setItem('oauth_return_page', 'sidebar')
-                            setShowChannelMenu(false)
-                            router.push('/connect')
-                          }}
-                          className="w-full bg-blue-600 text-white rounded-full py-2.5 flex items-center justify-center gap-2 shadow-sm"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Add another channel
-                        </button>
+                      {/* Channels List */}
+                      <div className="divide-y divide-gray-100">
+                        {visibleAdditionalChannels.length > 0 ? visibleAdditionalChannels.map((ch: YouTubeChannel) => (
+                          <button
+                            key={ch.id}
+                            onClick={() => {
+                              // Switch channel: set as main and attempt to set token if stored
+                              localStorage.setItem('youtube_channel', JSON.stringify(ch))
+                              const token = localStorage.getItem(`youtube_access_token_${ch.id}`) || null
+                              if (token) localStorage.setItem('youtube_access_token', token)
+                              setYoutubeChannel(ch)
+                              setShowChannelMenu(false)
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
+                          >
+                            <img src={ch.thumbnail} alt={ch.title} className="w-10 h-10 rounded-full object-cover" />
+                            <div className="flex-1 text-left">
+                              <div className="text-sm font-semibold truncate">{ch.title}</div>
+                              <div className="text-xs text-gray-500">{formatNumber(ch.videoCount)} videos</div>
+                            </div>
+                            <div className="text-xs text-gray-400">{formatNumber(ch.subscriberCount)} subs</div>
+                          </button>
+                        )) : (
+                          <div className="px-4 py-4 text-sm text-gray-600">No other channels connected</div>
+                        )}
                       </div>
 
-                      {/* Disconnect */}
-                      <div className="px-4 pb-3">
-                        <button
-                          onClick={() => {
-                            // Confirm disconnect
-                            if (!confirm('Disconnect channel?')) return
-                            localStorage.removeItem('youtube_channel')
-                            localStorage.removeItem('youtube_access_token')
-                            localStorage.removeItem('youtube_refresh_token')
-                            setYoutubeChannel(null)
-                            setShowChannelMenu(false)
-                          }}
-                          className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center gap-3 text-red-600 rounded-md"
-                        >
-                          <X className="w-4 h-4" />
-                          Disconnect
-                        </button>
+                      {/* Footer actions */}
+                      <div className="px-4 py-3 bg-white">
+                        <div className="space-y-2">
+                          <button
+                            onClick={() => {
+                              localStorage.setItem('oauth_return_page', 'sidebar')
+                              setShowChannelMenu(false)
+                              startYouTubeAuth()
+                            }}
+                            className="w-full bg-blue-600 text-white rounded-full py-2.5 flex items-center justify-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add another channel
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              if (!confirm('Disconnect channel?')) return
+                              localStorage.removeItem('youtube_channel')
+                              localStorage.removeItem('youtube_access_token')
+                              localStorage.removeItem('youtube_refresh_token')
+                              setYoutubeChannel(null)
+                              setShowChannelMenu(false)
+                            }}
+                            className="w-full border border-red-100 text-red-600 rounded-lg py-2 text-sm font-semibold hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-300"
+                          >
+                            <div className="flex items-center justify-center gap-2">
+                              <X className="w-4 h-4" />
+                              Disconnect
+                            </div>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}

@@ -117,7 +117,7 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
             if (event.origin !== window.location.origin) return
             
             if (event.data.type === 'YOUTUBE_AUTH_SUCCESS') {
-                const { channel, token } = event.data
+                const { channel, token, refreshToken } = event.data
                 
                 // Check if this channel is already connected (primary or additional)
                 const existingChannels = JSON.parse(localStorage.getItem('additional_youtube_channels') || '[]')
@@ -134,7 +134,8 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                 // Save additional channel (don't replace primary)
                 const updatedChannels = [...existingChannels, channel]
                 localStorage.setItem('additional_youtube_channels', JSON.stringify(updatedChannels))
-                localStorage.setItem(`youtube_token_${channel.id}`, token)
+                if (token) localStorage.setItem(`youtube_access_token_${channel.id}`, token)
+                if (refreshToken) localStorage.setItem(`youtube_refresh_token_${channel.id}`, refreshToken)
                 
                 // Clear the oauth return page to prevent connect page processing
                 localStorage.removeItem('oauth_return_page')
@@ -226,100 +227,11 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
 
             {/* Enhanced Sidebar */}
             <aside
-                className={`fixed left-0 top-16 bottom-0 w-64 md:w-64 lg:w-64 flex-shrink-0 bg-white border-r border-gray-200 transform transition-all duration-300 z-40 h-[calc(100vh-4rem)] overflow-y-auto no-scrollbar ${
+                className={`fixed left-0 top-16 bottom-0 w-64 md:w-64 lg:w-64 flex flex-col shrink-0 bg-white border-r border-gray-200 transform transition-all duration-300 z-40 h-[calc(100vh-4rem)] ${
                     sidebarOpen ? 'translate-x-0' : '-translate-x-full'
                 } md:translate-x-0`}
             >
-                {/* Channel Selector */}
-                <div className="p-4 border-b border-gray-200 relative">
-                    {youtubeChannel ? (
-                        <div 
-                            className="flex items-center gap-3 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200 cursor-pointer hover:from-blue-100 hover:to-purple-100 transition-colors"
-                            onClick={() => setShowChannelDropdown(!showChannelDropdown)}
-                        >
-                            <div className="relative flex-shrink-0">
-                                <img
-                                    src={youtubeChannel.thumbnail}
-                                    alt={youtubeChannel.title}
-                                    className="w-12 h-12 rounded-full border-2 border-white shadow-lg object-cover"
-                                />
-                                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="font-bold text-gray-900 text-sm truncate">{youtubeChannel.title}</p>
-                                <p className="text-xs text-gray-600">{formatNumber(analyticsData.subscribers)} subscribers</p>
-                            </div>
-                            <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${showChannelDropdown ? 'rotate-180' : ''}`} />
-                        </div>
-                    ) : (
-                        <div 
-                            className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200 cursor-pointer hover:from-gray-100 hover:to-gray-200 transition-colors"
-                            onClick={() => setShowChannelDropdown(!showChannelDropdown)}
-                        >
-                            <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                                <Youtube className="w-6 h-6 text-gray-500" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="font-bold text-gray-900 text-sm">Connect Channel</p>
-                                <p className="text-xs text-gray-600">No channel connected</p>
-                            </div>
-                            <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${showChannelDropdown ? 'rotate-180' : ''}`} />
-                        </div>
-                    )}
-                    
-                    {/* Basic dropdown menu for now */}
-                    {showChannelDropdown && (
-                        <div className="absolute top-full left-4 right-4 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50">
-                            <div className="py-2">
-                                {youtubeChannel ? (
-                                    <>
-                                        <button
-                                            onClick={connectMoreChannels}
-                                            className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 text-sm font-bold text-gray-700"
-                                        >
-                                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                                <Plus className="w-5 h-5 text-blue-600" />
-                                            </div>
-                                            Connect More Channels
-                                        </button>
-                                        <div className="border-t border-gray-100 my-1"></div>
-                                        <button
-                                            onClick={disconnectChannel}
-                                            className="w-full px-4 py-3 text-left hover:bg-red-50 flex items-center gap-3 text-sm font-bold text-red-600"
-                                        >
-                                            <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
-                                                <X className="w-4 h-4 text-red-600" />
-                                            </div>
-                                            Disconnect Channel
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <button
-                                            onClick={connectMoreChannels}
-                                            className="w-full px-4 py-3 text-left hover:bg-blue-50 flex items-center gap-3 text-sm font-bold text-blue-700"
-                                        >
-                                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                                <Youtube className="w-5 h-5 text-blue-600" />
-                                            </div>
-                                            Connect YouTube Channel
-                                        </button>
-                                        <div className="border-t border-gray-100 my-1"></div>
-                                        <button
-                                            onClick={() => { setShowChannelDropdown(false); window.location.href = '/settings'; }}
-                                            className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 text-sm font-bold text-gray-700"
-                                        >
-                                            <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                                                <Settings className="w-5 h-5 text-gray-600" />
-                                            </div>
-                                            Settings
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
+
 
                 {/* Navigation Links */}
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto no-scrollbar">
@@ -327,13 +239,13 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                         <Link
                             key={link.id}
                             href={link.href}
-                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all duration-200 ${
+                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 ${
                                 activePage === link.id
-                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/30'
+                                    ? 'bg-blue-600 text-white shadow-md'
                                     : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                             }`}
                         >
-                            <link.icon className="w-5 h-5" />
+                            <link.icon className={`w-5 h-5 ${activePage === link.id ? 'text-white' : 'text-gray-600'}`} />
                             <span className="flex-1">{link.label}</span>
                             {link.badge && (
                                 <span className={`px-2 py-1 text-xs font-bold rounded-full ${
@@ -347,8 +259,8 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                 </nav>
 
                 {/* Upgrade Box */}
-                <div className="p-4 border-t border-gray-200">
-                    <div className="bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl p-4 text-white">
+                <div className="p-4 border-t border-gray-200 mt-auto">
+                    <div className="bg-blue-600 rounded-xl p-4 text-white shadow-md">
                         <h3 className="font-bold text-sm mb-2">Upgrade to Vidiomex Pro</h3>
                         <p className="text-xs mb-4 text-white/90">Unlock advanced analytics, priority support, and unlimited uploads.</p>
                         <div className="flex items-center justify-between">
@@ -356,7 +268,7 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                                 <div className="text-sm font-bold">Pro</div>
                                 <div className="text-xs">From $9/mo</div>
                             </div>
-                            <a href="/pricing" className="inline-flex items-center px-3 py-2 bg-white text-cyan-600 rounded-lg font-semibold hover:bg-white/90">Upgrade</a>
+                            <a href="/pricing" className="inline-flex items-center px-3 py-2 bg-white text-blue-600 rounded-lg font-semibold hover:bg-white/90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-300">Upgrade</a>
                         </div>
                     </div>
                 </div>
@@ -388,7 +300,7 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                             </div>
 
                             {/* Active Channel Status */}
-                            <div className="mb-6 p-3 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
+                            <div className="mb-6 p-3 bg-green-50 rounded-lg border border-green-200">
                                 <div className="flex items-center gap-3">
                                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                                     <div className="flex items-center gap-3">
@@ -522,7 +434,7 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
 
                             {/* Save Button (shown only when switching channels) */}
                             {showSaveButton && selectedChannelId && (
-                                <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl shadow-sm">
+                                <div className="mb-6 p-4 bg-white/50 border-2 border-blue-300 rounded-xl shadow-sm">
                                     <div className="text-center">
                                         <div className="mb-3">
                                             <p className="font-bold text-blue-900 text-sm mb-1">Ready to switch channels?</p>
@@ -577,7 +489,7 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                                                         alert(`✅ Successfully switched to ${channelName} (${channelType} Channel)!\n\nThis channel is now active across all pages.`)
                                                     }
                                                 }}
-                                                className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-2 px-3 rounded-lg transition-all duration-200 text-sm transform hover:scale-105 shadow-lg"
+                                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg transition-colors duration-200 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
                                             >
                                                 ✨ Save & Switch
                                             </button>
@@ -593,7 +505,7 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                                 <button
                                     onClick={startYouTubeAuth}
                                     disabled={isConnecting}
-                                    className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-400"
                                 >
                                     {isConnecting ? (
                                         <>
