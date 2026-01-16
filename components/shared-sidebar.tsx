@@ -17,7 +17,8 @@ import {
     Play,
     Plus,
     Settings,
-    X
+    X,
+    Search
 } from "lucide-react"
 
 interface SharedSidebarProps {
@@ -37,9 +38,10 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
     const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null)
     const [showSaveButton, setShowSaveButton] = useState(false)
     const [analyticsData, setAnalyticsData] = useState({
-        views: 127500,
-        subscribers: 45200,
-        growth: 18
+        views: 0,
+        subscribers: 0,
+        watchTime: 0,
+        growth: 0
     })
 
     // Load YouTube channel data
@@ -49,11 +51,31 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
             if (stored) {
                 const channel = JSON.parse(stored)
                 setYoutubeChannel(channel)
+                // set basic counts immediately
                 setAnalyticsData({
-                    views: parseInt(channel.viewCount) || 127500,
-                    subscribers: parseInt(channel.subscriberCount) || 45200,
+                    views: parseInt(channel.viewCount) || 0,
+                    subscribers: parseInt(channel.subscriberCount) || 0,
+                    watchTime: 0,
                     growth: 18
                 })
+
+                // Fetch real analytics summary (watch time in minutes -> convert to hours)
+                ;(async () => {
+                    try {
+                        const token = localStorage.getItem(`youtube_access_token_${channel.id}`) || localStorage.getItem('youtube_access_token')
+                        if (!token) return
+                        const res = await fetch(`/api/youtube/analytics/summary?channelId=${channel.id}&access_token=${encodeURIComponent(token)}`)
+                        if (!res.ok) return
+                        const data = await res.json()
+                        const totalWatchMinutes = Number(data?.summary?.totalWatchMinutes || 0)
+                        setAnalyticsData((prev) => ({
+                            ...prev,
+                            watchTime: Math.round(totalWatchMinutes / 60)
+                        }))
+                    } catch (error) {
+                        console.error('Failed to fetch sidebar analytics summary:', error)
+                    }
+                })()
             }
             // Load additional channels
             const additionalStored = localStorage.getItem('additional_youtube_channels')
@@ -184,6 +206,7 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
         { icon: Video, label: 'Content', href: '/content', id: 'content', badge: '12' },
         { icon: Upload, label: 'Bulk Upload', href: '/bulk-upload', id: 'bulk-upload', badge: null },
         { icon: GitCompare, label: 'Compare', href: '/compare', id: 'compare', badge: null },
+        { icon: Search, label: 'Keyword Research', href: '/keyword-research', id: 'keyword-research', badge: null },
     ]
 
     const formatNumber = (num: number): string => {

@@ -272,21 +272,57 @@ export default function DashboardPage() {
   // Enhanced reusable base classes for cards with better mobile responsiveness
   const cardBase = 'group relative bg-white rounded-2xl border border-gray-200/60 p-4 sm:p-5 md:p-6 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 hover:-translate-y-1 overflow-hidden backdrop-blur-sm'
 
-  // Mock analytics data
-  const analyticsData = {
-    views: youtubeChannel ? parseInt(youtubeChannel.viewCount) : 127500,
-    subscribers: youtubeChannel ? parseInt(youtubeChannel.subscriberCount) : 45200,
-    watchTime: 8200,
-    engagement: 12.5,
-    revenue: 2450,
+  // Analytics data (fetched from server when channel is available)
+  const [analyticsData, setAnalyticsData] = useState({
+    views: youtubeChannel ? parseInt(youtubeChannel.viewCount) : 0,
+    subscribers: youtubeChannel ? parseInt(youtubeChannel.subscriberCount) : 0,
+    watchTime: 0, // in hours (computed from totalWatchMinutes)
+    engagement: 0,
+    revenue: 0,
     growth: {
-      views: 23,
-      subscribers: 18,
-      watchTime: 31,
-      engagement: 15,
-      revenue: 28
+      views: 0,
+      subscribers: 0,
+      watchTime: 0,
+      engagement: 0,
+      revenue: 0
     }
-  }
+  })
+
+  // Fetch analytics summary (total views & watch minutes) for the active channel
+  useEffect(() => {
+    const fetchAnalyticsSummary = async () => {
+      if (!youtubeChannel) return
+      try {
+        // Check for channel-scoped token first, then fallback to primary token
+        const token = localStorage.getItem(`youtube_access_token_${youtubeChannel.id}`) || localStorage.getItem('youtube_access_token')
+        if (!token) {
+          console.log('No access token for analytics')
+          return
+        }
+
+        const res = await fetch(`/api/youtube/analytics/summary?channelId=${youtubeChannel.id}&access_token=${encodeURIComponent(token)}`)
+        if (!res.ok) {
+          console.warn('Analytics summary fetch failed', res.status)
+          return
+        }
+
+        const data = await res.json()
+        const totalWatchMinutes = Number(data?.summary?.totalWatchMinutes || 0)
+        const totalViews = Number(data?.summary?.totalViews || youtubeChannel.viewCount || 0)
+
+        setAnalyticsData((prev) => ({
+          ...prev,
+          views: totalViews,
+          subscribers: parseInt(youtubeChannel.subscriberCount || '0') || 0,
+          watchTime: Math.round(totalWatchMinutes / 60) // convert minutes to hours
+        }))
+      } catch (err) {
+        console.error('Failed to fetch analytics summary:', err)
+      }
+    }
+
+    fetchAnalyticsSummary()
+  }, [youtubeChannel])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
@@ -423,35 +459,50 @@ export default function DashboardPage() {
                   <p className="text-gray-600 text-sm sm:text-lg flex items-center gap-2"><span className="text-base">📈</span> Quick snapshot — YouTube growth & earnings.</p>
                 </div>
               </div>
-              {/* Three main statistic cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
-                <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 flex items-center gap-4">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-violet-500 flex items-center justify-center text-white shadow-md">
-                    <Sparkles className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Total Automations</p>
-                    <p className="text-2xl font-extrabold text-gray-900">8</p>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 flex items-center gap-4">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-cyan-500 flex items-center justify-center text-white shadow-md">
-                    <Users className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Total Followers</p>
-                    <p className="text-2xl font-extrabold text-gray-900">{formatNumber(analyticsData.subscribers)}</p>
+              {/* Three main statistic cards (clean, spacious style) */}
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-sm">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-gray-500">Total Views</p>
+                      <p className="text-2xl sm:text-3xl font-extrabold text-gray-900 mt-2">{formatNumber(analyticsData.views)}</p>
+                      <p className="text-xs text-gray-500 mt-2">Across connected channels</p>
+                    </div>
+                    <div className="ml-4">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-violet-50 flex items-center justify-center text-violet-600 shadow-sm">
+                        <Sparkles className="w-5 h-5" />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 flex items-center gap-4 col-span-2 sm:col-span-1">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-orange-400 flex items-center justify-center text-white shadow-md">
-                    <MessageSquare className="w-6 h-6" />
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-sm">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-gray-500">Total Subscribers</p>
+                      <p className="text-2xl sm:text-3xl font-extrabold text-gray-900 mt-2">{formatNumber(analyticsData.subscribers)}</p>
+                      <p className="text-xs text-gray-500 mt-2">Across connected channels</p>
+                    </div>
+                    <div className="ml-4">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-cyan-50 flex items-center justify-center text-cyan-600 shadow-sm">
+                        <Users className="w-5 h-5" />
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500">AutoDM Sent</p>
-                    <p className="text-2xl font-extrabold text-gray-900">3,412</p>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-sm col-span-2 sm:col-span-1">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-gray-500">Watch Time</p>
+                      <p className="text-2xl sm:text-3xl font-extrabold text-gray-900 mt-2">{formatNumber(analyticsData.watchTime)}h</p>
+                      <p className="text-xs text-gray-500 mt-2">Hours watched</p>
+                    </div>
+                    <div className="ml-4">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600 shadow-sm">
+                        <MessageSquare className="w-5 h-5" />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

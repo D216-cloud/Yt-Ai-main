@@ -4,7 +4,7 @@ import Link from "next/link"
 import DashboardHeader from "@/components/dashboard-header"
 import SharedSidebar from "@/components/shared-sidebar"
 import { Button } from '@/components/ui/button'
-import { Video, Upload, Eye, Heart, MessageSquare, Filter, Copy, Check, ExternalLink, Calendar, Youtube, RefreshCw, Loader2, AlertCircle, Play, ChevronDown, CheckCircle, XCircle } from "lucide-react"
+import { Video, Upload, Eye, Heart, MessageSquare, Filter, Copy, Check, ExternalLink, Calendar, Youtube, RefreshCw, Loader2, AlertCircle, Play, ChevronDown, CheckCircle, XCircle, Sparkles } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { useState, useEffect } from "react"
@@ -23,13 +23,21 @@ interface Video {
     duration: string | null
 }
 
+type FilterKey = 'all' | 'public' | 'unlisted' | 'private'
+interface FilterOption {
+    key: FilterKey
+    label: string
+    icon: JSX.Element | string
+    count: number
+}
+
 export default function ContentPage() {
     const router = useRouter()
     const { data: session } = useSession()
     const [sidebarOpen, setSidebarOpen] = useState(false)
     const [selectedVideo, setSelectedVideo] = useState<Video | null>(null)
     const [showVideoModal, setShowVideoModal] = useState(false)
-    const [filterStatus, setFilterStatus] = useState<'all' | 'public' | 'unlisted' | 'private'>('all')
+    const [filterStatus, setFilterStatus] = useState<FilterKey>('all')
     const [searchQuery, setSearchQuery] = useState('')
     const [copiedField, setCopiedField] = useState<string | null>(null)
     const [youtubeChannel, setYoutubeChannel] = useState<any>(null)
@@ -114,17 +122,7 @@ export default function ContentPage() {
         }
     }, [activeChannelId, youtubeChannel, additionalChannels])
 
-    // Auto-refresh videos periodically to sync with YouTube
-    useEffect(() => {
-        if (activeChannelId && videos.length > 0) {
-            const interval = setInterval(() => {
-                console.log('Auto-refreshing videos to sync with YouTube for active channel:', activeChannelId)
-                fetchVideos(true)
-            }, 30000) // Refresh every 30 seconds
 
-            return () => clearInterval(interval)
-        }
-    }, [activeChannelId, videos.length])
 
     // Helper functions for active channel
     const getCurrentActiveChannel = () => {
@@ -241,6 +239,10 @@ export default function ContentPage() {
         return `${m}:${s.toString().padStart(2, '0')}`
     }
 
+    // Card base style (match Dashboard)
+    const cardBase = 'group relative bg-white rounded-2xl border border-gray-200/60 p-4 sm:p-5 md:p-6 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 hover:-translate-y-1 overflow-hidden backdrop-blur-sm'
+
+    // filterOptions will be computed after counts are available (see below)
     // Filter videos based on status and search
     const filteredVideos = videos.filter(video => {
         const matchesStatus = filterStatus === 'all' || video.privacyStatus === filterStatus
@@ -400,8 +402,15 @@ export default function ContentPage() {
     const unlistedCount = videos.filter(v => v.privacyStatus === 'unlisted').length
     const privateCount = videos.filter(v => v.privacyStatus === 'private').length
 
+    const filterOptions: FilterOption[] = [
+        { key: 'all', label: 'All', icon: <Filter className="w-3 h-3" />, count: videos.length },
+        { key: 'public', label: 'Public', icon: '🌍', count: publicCount },
+        { key: 'unlisted', label: 'Unlisted', icon: '🔗', count: unlistedCount },
+        { key: 'private', label: 'Private', icon: '🔒', count: privateCount }
+    ]
+
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
+        <div className="min-h-screen bg-linear-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
             <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
             <div className="flex">
@@ -414,37 +423,21 @@ export default function ContentPage() {
                         <div className="mb-8">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                                 <div>
-                                    <h1 className="text-3xl md:text-4xl font-black text-gray-900 mb-2">
-                                        Content Library 📹
-                                    </h1>
-                                    <p className="text-gray-600 text-lg">
-                                        {youtubeChannel ? (
-                                            <>Managing {youtubeChannel.title}&apos;s videos - <span className="font-bold text-blue-600">{videos.length}</span> of <span className="font-bold text-blue-600">{totalResults}</span> loaded</>
-                                        ) : 'Manage all your videos'}
-                                    </p>
+                                    {/* Centered Free plan banner (match Dashboard appearance) */}
+                                    <div className="flex justify-center mb-6 px-3">
+                                        <div className="inline-flex items-center gap-2 rounded-full bg-yellow-50 border border-yellow-100 px-3 py-1 text-xs sm:px-4 sm:py-2 sm:text-sm text-yellow-800 shadow-sm max-w-full overflow-hidden">
+                                            <Sparkles className="w-4 h-4 text-yellow-600" />
+                                            <span className="font-medium truncate">You're on Free Plan</span>
+                                            <span className="text-gray-700 hidden md:inline">Upgrade for unlimited analytics & faster insights.</span>
+                                            <a href="/pricing" className="text-blue-600 font-semibold underline ml-2">Upgrade</a>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <Button
-                                        onClick={() => fetchVideos(true)}
-                                        disabled={isLoading || !youtubeChannel}
-                                        className="border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
-                                    >
-                                        {isLoading ? (
-                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                        ) : (
-                                            <RefreshCw className="w-4 h-4 mr-2" />
-                                        )}
-                                        Sync from YouTube
-                                    </Button>
-                                    <Link href="/upload">
-                                        <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500">
-                                            <Upload className="w-4 h-4 mr-2" />
-                                            Upload New Video
-                                        </Button>
-                                    </Link>
+                                    {/* Upload and Sync removed as requested */}
                                 </div>
-                                
-                                {/* Sync Status Notification */}
+
+                                {/* Sync Status Notification (kept in case sync runs) */}
                                 {syncStatus && (
                                     <div className={`mt-3 px-4 py-2 rounded-lg text-sm font-medium ${
                                         syncStatus.includes('complete') || syncStatus.includes('Sync complete')
@@ -467,7 +460,7 @@ export default function ContentPage() {
                             {!youtubeChannel && (
                                 <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-6 mb-6">
                                     <div className="flex items-start gap-4">
-                                        <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                                        <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center shrink-0">
                                             <AlertCircle className="w-6 h-6 text-orange-600" />
                                         </div>
                                         <div className="flex-1">
@@ -486,130 +479,95 @@ export default function ContentPage() {
 
                             {/* Debug Info for Connected Channel with No Videos */}
                             {youtubeChannel && videos.length === 0 && !isLoading && !error && (
-                                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
-                                    <div className="flex items-start gap-4">
-                                        <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                                            <AlertCircle className="w-6 h-6 text-blue-600" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <h3 className="text-lg font-bold text-gray-900 mb-2">No Videos Found</h3>
-                                            <p className="text-gray-700 mb-3">Channel is connected but no videos are showing. This could be because:</p>
-                                            <ul className="list-disc list-inside text-gray-700 space-y-1 mb-4">
-                                                <li>Your channel doesn't have any uploaded videos yet</li>
-                                                <li>All videos are set to private/unlisted (this app shows all privacy levels)</li>
-                                                <li>The access token may have expired and needs refreshing</li>
-                                                <li>YouTube API permissions may need to be re-authorized</li>
-                                            </ul>
-                                            <div className="flex gap-2">
-                                                <Button 
-                                                    onClick={() => fetchVideos(true)}
-                                                    className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
-                                                >
-                                                    <RefreshCw className="w-4 h-4 mr-2" />
-                                                    Retry Loading
-                                                </Button>
-                                                <Link href="/connect">
-                                                    <Button variant="outline">
-                                                        <Youtube className="w-4 h-4 mr-2" />
-                                                        Reconnect Channel
-                                                    </Button>
-                                                </Link>
-                                            </div>
-                                        </div>
+                                <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-gray-900">No videos found</h3>
+                                        <p className="text-sm text-gray-600">Looks like this channel has no visible videos yet.</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Button onClick={() => fetchVideos(true)} className="bg-white border border-gray-300 text-gray-700">Retry</Button>
+                                        <Link href="/connect"><Button variant="outline">Reconnect</Button></Link>
                                     </div>
                                 </div>
                             )}
 
-                            {/* Stats Cards */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm transition-all">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                                            <Video className="w-5 h-5 text-blue-600" />
+                            {/* Stats Cards (Dashboard style) */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <div className={`${cardBase}`}>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center justify-center rounded-lg w-12 h-12 bg-blue-50">
+                                            <Video className="w-6 h-6 text-blue-600" />
                                         </div>
                                         <div>
-                                            <p className="text-2xl font-black text-gray-900">{videos.length}</p>
-                                            <p className="text-xs text-gray-600">Loaded</p>
+                                            <p className="text-2xl md:text-3xl font-extrabold text-gray-900">{videos.length}</p>
+                                            <p className="text-sm text-gray-500">Loaded</p>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm transition-all">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+
+                                <div className={`${cardBase}`}>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center justify-center rounded-lg w-12 h-12 bg-green-50">
                                             <span className="text-lg">🌍</span>
                                         </div>
                                         <div>
-                                            <p className="text-2xl font-black text-gray-900">{publicCount}</p>
-                                            <p className="text-xs text-gray-600">Public</p>
+                                            <p className="text-2xl md:text-3xl font-extrabold text-gray-900">{publicCount}</p>
+                                            <p className="text-sm text-gray-500">Public</p>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm transition-all">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center">
+
+                                <div className={`${cardBase}`}>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center justify-center rounded-lg w-12 h-12 bg-yellow-50">
                                             <span className="text-lg">🔗</span>
                                         </div>
                                         <div>
-                                            <p className="text-2xl font-black text-gray-900">{unlistedCount}</p>
-                                            <p className="text-xs text-gray-600">Unlisted</p>
+                                            <p className="text-2xl md:text-3xl font-extrabold text-gray-900">{unlistedCount}</p>
+                                            <p className="text-sm text-gray-500">Unlisted</p>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm transition-all">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
+
+                                <div className={`${cardBase}`}>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center justify-center rounded-lg w-12 h-12 bg-red-50">
                                             <span className="text-lg">🔒</span>
                                         </div>
                                         <div>
-                                            <p className="text-2xl font-black text-gray-900">{privateCount}</p>
-                                            <p className="text-xs text-gray-600">Private</p>
+                                            <p className="text-2xl md:text-3xl font-extrabold text-gray-900">{privateCount}</p>
+                                            <p className="text-sm text-gray-500">Private</p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Filters */}
-                            <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center gap-3">
-                                <div className="flex items-center gap-2">
-                                    <Filter className="w-4 h-4 text-gray-600" />
-                                    <span className="text-sm font-semibold text-gray-700">Filter:</span>
+                            <div className="bg-white rounded-2xl border border-gray-200 p-4 flex flex-wrap items-center gap-3 shadow-sm">
+                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-500">
+                                    <Filter className="w-4 h-4" />
+                                    Filter:
                                 </div>
-                                <button
-                                    onClick={() => setFilterStatus('all')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${filterStatus === 'all'
-                                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                        }`}
-                                >
-                                    All ({videos.length})
-                                </button>
-                                <button
-                                    onClick={() => setFilterStatus('public')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${filterStatus === 'public'
-                                        ? 'bg-green-600 text-white shadow-lg'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                        }`}
-                                >
-                                    🌍 Public ({publicCount})
-                                </button>
-                                <button
-                                    onClick={() => setFilterStatus('unlisted')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${filterStatus === 'unlisted'
-                                        ? 'bg-yellow-600 text-white shadow-lg'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                        }`}
-                                >
-                                    🔗 Unlisted ({unlistedCount})
-                                </button>
-                                <button
-                                    onClick={() => setFilterStatus('private')}
-                                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${filterStatus === 'private'
-                                        ? 'bg-red-600 text-white shadow-lg'
-                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                        }`}
-                                >
-                                    🔒 Private ({privateCount})
-                                </button>
+                                <div className="flex flex-wrap gap-2 flex-1">
+                                    {(filterOptions ?? []).map(({ key, label, icon, count }) => (
+                                        <button
+                                            key={key}
+                                            onClick={() => setFilterStatus(key as typeof filterStatus)}
+                                            className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
+                                                filterStatus === key
+                                                    ? 'bg-blue-600 text-white shadow-lg'
+                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                            }`}
+                                        >
+                                            {typeof icon === 'string' ? (
+                                                <span className="text-base">{icon}</span>
+                                            ) : (
+                                                icon
+                                            )}
+                                            {label} ({count})
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
 
@@ -628,7 +586,7 @@ export default function ContentPage() {
                                 <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
                                 <h3 className="text-xl font-bold text-gray-900 mb-2">Failed to load videos</h3>
                                 <p className="text-gray-600 mb-6">{error}</p>
-                                <Button onClick={() => fetchVideos(true)} className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+                                    <Button onClick={() => fetchVideos(true)} className="bg-linear-to-r from-blue-600 to-purple-600 text-white">
                                     <RefreshCw className="w-4 h-4 mr-2" />
                                     Try Again
                                 </Button>
@@ -646,7 +604,7 @@ export default function ContentPage() {
                                         : 'Try adjusting your filters or search'}
                                 </p>
                                 <Link href="/upload">
-                                    <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+                                    <Button className="bg-linear-to-r from-blue-600 to-purple-600 text-white">
                                         <Upload className="w-4 h-4 mr-2" />
                                         Upload Video
                                     </Button>
@@ -658,49 +616,41 @@ export default function ContentPage() {
                             <>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {filteredVideos.map((video) => (
-                                        <div
-                                            key={video.id}
-                                            className="group bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-2xl transition-all duration-300 hover:-translate-y-1"
-                                        >
-                                            {/* Thumbnail */}
-                                            <div className="relative aspect-video bg-gray-100 cursor-pointer overflow-hidden"
+                                        <div key={video.id} className={`${cardBase} flex flex-col gap-4`}>
+                                            <div
+                                                className="relative rounded-2xl overflow-hidden bg-gray-100 aspect-video cursor-pointer"
                                                 onClick={() => {
                                                     setSelectedVideo(video)
                                                     setShowVideoModal(true)
                                                 }}
                                             >
-                                                <img
-                                                    src={video.thumbnail}
-                                                    alt={video.title}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
-                                                    <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all transform scale-75 group-hover:scale-100">
-                                                        <Play className="w-8 h-8 text-blue-600 fill-blue-600 ml-1" />
-                                                    </div>
-                                                </div>
-                                                <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/80 text-white text-xs font-bold rounded">
+                                                <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
+                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition" />
+                                                <div className="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-black/70 text-white text-xs font-bold">
                                                     {formatDuration(video.duration)}
                                                 </div>
-                                                <div className={`absolute top-2 left-2 px-3 py-1 rounded-full border text-xs font-bold ${getStatusColor(video.privacyStatus)}`}>
+                                                <div
+                                                    className={`absolute top-3 left-3 px-3 py-1 rounded-full border text-xs font-bold ${getStatusColor(video.privacyStatus)}`}
+                                                >
                                                     {getStatusIcon(video.privacyStatus)} {(video.privacyStatus || 'UNKNOWN').toUpperCase()}
                                                 </div>
                                             </div>
 
-                                            {/* Content */}
-                                            <div className="p-4">
-                                                <h3 className="font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors cursor-pointer"
-                                                    onClick={() => {
-                                                        setSelectedVideo(video)
-                                                        setShowVideoModal(true)
-                                                    }}
-                                                >
-                                                    {video.title}
-                                                </h3>
-                                                <p className="text-sm text-gray-600 mb-3 line-clamp-2">{video.description}</p>
+                                            <div className="flex flex-col gap-3">
+                                                <div>
+                                                    <h3
+                                                        className="text-lg md:text-xl font-bold text-gray-900 line-clamp-2 cursor-pointer hover:text-blue-600"
+                                                        onClick={() => {
+                                                            setSelectedVideo(video)
+                                                            setShowVideoModal(true)
+                                                        }}
+                                                    >
+                                                        {video.title}
+                                                    </h3>
+                                                    <p className="text-sm text-gray-500 line-clamp-2">{video.description}</p>
+                                                </div>
 
-                                                {/* Stats */}
-                                                <div className="flex items-center gap-4 mb-3 text-sm text-gray-600">
+                                                <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
                                                     <div className="flex items-center gap-1">
                                                         <Eye className="w-4 h-4" />
                                                         <span>{formatNumber(video.viewCount)}</span>
@@ -715,48 +665,51 @@ export default function ContentPage() {
                                                     </div>
                                                 </div>
 
-                                                {/* Tags */}
                                                 {video.tags.length > 0 && (
-                                                    <div className="flex flex-wrap gap-2 mb-3">
+                                                    <div className="flex flex-wrap gap-2 text-xs text-gray-600">
                                                         {video.tags.slice(0, 3).map((tag, idx) => (
-                                                            <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-lg">
+                                                            <span key={idx} className="px-2 py-1 bg-gray-100 rounded-full">
                                                                 #{tag}
                                                             </span>
                                                         ))}
                                                         {video.tags.length > 3 && (
-                                                            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-lg">
+                                                            <span className="px-2 py-1 bg-gray-100 rounded-full">
                                                                 +{video.tags.length - 3}
                                                             </span>
                                                         )}
                                                     </div>
                                                 )}
 
-                                                {/* Actions */}
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex flex-wrap gap-2">
                                                     <button
                                                         onClick={() => {
                                                             setSelectedVideo(video)
                                                             setShowVideoModal(true)
                                                         }}
-                                                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all text-sm font-semibold"
+                                                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-full bg-linear-to-r from-blue-600 to-purple-600 text-white text-sm font-semibold shadow-lg"
                                                     >
                                                         <Eye className="w-4 h-4" />
                                                         View
                                                     </button>
                                                     <button
                                                         onClick={() => openEditModal(video)}
-                                                        className="p-2 rounded-lg bg-green-100 hover:bg-green-200 transition-colors"
+                                                        className="p-2 rounded-full bg-green-100 hover:bg-green-200 transition"
                                                         title="Edit Video"
                                                     >
                                                         <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                            <path
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                                strokeWidth={2}
+                                                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                                            />
                                                         </svg>
                                                     </button>
                                                     <a
                                                         href={`https://www.youtube.com/watch?v=${video.id}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="p-2 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
+                                                        className="p-2 rounded-full border border-gray-200 hover:border-gray-300 transition"
                                                         title="Open on YouTube"
                                                     >
                                                         <ExternalLink className="w-4 h-4 text-gray-600" />
@@ -773,7 +726,7 @@ export default function ContentPage() {
                                         <Button
                                             onClick={loadMoreVideos}
                                             disabled={isLoadingMore}
-                                            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3"
+                                            className="bg-linear-to-r from-blue-600 to-purple-600 text-white px-8 py-3"
                                         >
                                             {isLoadingMore ? (
                                                 <>
@@ -914,8 +867,7 @@ export default function ContentPage() {
                             <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
                                 <Button
                                     onClick={saveVideoChanges}
-                                    disabled={isSaving || !editForm.title.trim()}
-                                    className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
+                                    className="flex-1 bg-linear-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
                                 >
                                     {isSaving ? (
                                         <>
