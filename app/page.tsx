@@ -1,12 +1,6 @@
 import { HeroSection } from "@/components/hero-section"
-import { HowItWorksSection } from "@/components/how-it-works-section"
-import { FeaturesSection } from "@/components/features-section"
-import { PricingSection } from "@/components/pricing-section"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
-import { BeforeAfterSection } from "@/components/before-after-section"
-import { VideoDemoSection } from "@/components/video-demo-section"
-import { YouTubeGrowthShowcase } from "@/components/youtube-growth-showcase"
 
 export default function HomePage() {
   return (
@@ -14,12 +8,6 @@ export default function HomePage() {
       <Header />
       <main className="pt-20 md:pt-20">
         <HeroSection />
-        <HowItWorksSection />
-        <FeaturesSection />
-        <YouTubeGrowthShowcase />
-        <BeforeAfterSection />
-        <VideoDemoSection />
-        <PricingSection />
       </main>
       <Footer />
     </div>

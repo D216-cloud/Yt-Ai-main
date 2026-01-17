@@ -1,7 +1,0 @@
-<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1280" height="720" rx="16" fill="#031123" />
-  <rect x="0" y="560" width="1280" height="160" fill="#000" opacity="0.35" />
-  <text x="40" y="640" fill="#fff" font-size="42" font-family="Arial, Helvetica, sans-serif" font-weight="700">Game Highlights: Pro Plays</text>
-  <rect x="40" y="40" width="320" height="200" rx="12" fill="#7c3aed" />
-  <text x="1000" y="80" fill="#fff" font-size="24" font-family="Arial, Helvetica, sans-serif">Gaming</text>
-</svg>

@@ -17,17 +17,18 @@ import {
     Play,
     Plus,
     Settings,
-    X,
-    Search
+    X
 } from "lucide-react"
 
 interface SharedSidebarProps {
     sidebarOpen: boolean
     setSidebarOpen: (open: boolean) => void
     activePage?: string
+    isCollapsed?: boolean
+    setIsCollapsed?: (collapsed: boolean) => void
 }
 
-export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage: activePageProp }: SharedSidebarProps) {
+export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage: activePageProp, isCollapsed = false, setIsCollapsed }: SharedSidebarProps) {
     const pathname = usePathname()
     const [youtubeChannel, setYoutubeChannel] = useState<any>(null)
     const [showChannelDropdown, setShowChannelDropdown] = useState(false)
@@ -201,12 +202,12 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
     }
 
     const navLinks = [
-        { icon: Home, label: 'Dashboard', href: '/dashboard', id: 'dashboard', badge: null },
-        { icon: FileText, label: 'Vid-Info', href: '/vid-info', id: 'vid-info', badge: null },
-        { icon: Video, label: 'Content', href: '/content', id: 'content', badge: '12' },
-        { icon: Upload, label: 'Bulk Upload', href: '/bulk-upload', id: 'bulk-upload', badge: null },
-        { icon: GitCompare, label: 'Compare', href: '/compare', id: 'compare', badge: null },
-        { icon: Search, label: 'Keyword Research', href: '/keyword-research', id: 'keyword-research', badge: null },
+        { icon: Home, label: 'Dashboard', href: '/dashboard', id: 'dashboard', badge: null, description: 'Overview of channel analytics & insights' },
+        { icon: Sparkles, label: 'Title Search', href: '/title-search', id: 'title-search', badge: 'NEW', description: 'Generate SEO-friendly titles & scores' },
+        { icon: FileText, label: 'Vid-Info', href: '/vid-info', id: 'vid-info', badge: null, description: 'View and edit video metadata' },
+        { icon: Video, label: 'Content', href: '/content', id: 'content', badge: '12', description: 'Manage and analyze content' },
+        { icon: Upload, label: 'Bulk Upload', href: '/bulk-upload', id: 'bulk-upload', badge: null, description: 'Upload multiple videos at once' },
+        { icon: GitCompare, label: 'Compare', href: '/compare', id: 'compare', badge: null, description: 'Compare channel performance' },
     ]
 
     const formatNumber = (num: number): string => {
@@ -217,6 +218,19 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
 
     // Determine active page from pathname if not provided
     const activePage = activePageProp || pathname.split('/')[1] || 'dashboard'
+
+    // Tooltip for collapsed sidebar icons (includes description)
+    const [tooltip, setTooltip] = useState<{label: string, description?: string, top: number, left: number} | null>(null)
+
+    const handleMouseEnter = (e: any, label: string, description?: string) => {
+        if (!isCollapsed) return
+        if (typeof window === 'undefined' || window.innerWidth < 768) return
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+        // position next to the icon and center vertically
+        setTooltip({ label, description, top: rect.top + rect.height / 2, left: rect.right + 12 })
+    }
+
+    const handleMouseLeave = () => setTooltip(null)
 
     return (
         <>
@@ -250,52 +264,67 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
 
             {/* Enhanced Sidebar */}
             <aside
-                className={`fixed left-0 top-16 bottom-0 w-64 md:w-64 lg:w-64 flex flex-col shrink-0 bg-white border-r border-gray-200 transform transition-all duration-300 z-40 h-[calc(100vh-4rem)] ${
+                className={`fixed left-0 top-16 bottom-0 flex flex-col shrink-0 bg-white border-r border-gray-200 transform transition-all duration-300 z-40 h-[calc(100vh-4rem)] ${
                     sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-                } md:translate-x-0`}
+                } md:translate-x-0 ${isCollapsed ? 'md:w-20' : 'md:w-64'}`}
             >
-
+                {/* Sidebar Header with Collapse Button */}
+                <div className={`flex items-center justify-between p-4 border-b border-gray-200 ${isCollapsed ? 'flex-col gap-4' : ''}`}>
+                    {!isCollapsed && <h2 className="font-bold text-lg text-gray-900">Menu</h2>}
+                    <button
+                        onClick={() => setIsCollapsed?.(!isCollapsed)}
+                        className="hidden md:flex p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                        title={isCollapsed ? 'Expand' : 'Collapse'}
+                    >
+                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
 
                 {/* Navigation Links */}
-                <nav className="flex-1 p-4 space-y-2 overflow-y-auto no-scrollbar">
+                <nav className={`flex-1 overflow-y-auto no-scrollbar ${isCollapsed ? 'px-2 py-4' : 'p-4'} space-y-2`}>
                     {navLinks.map((link) => (
                         <Link
                             key={link.id}
                             href={link.href}
-                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 ${
+                            className={`flex items-center gap-3 ${isCollapsed ? 'justify-center px-3 py-3' : 'px-4 py-3'} rounded-xl font-bold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 ${
                                 activePage === link.id
                                     ? 'bg-blue-600 text-white shadow-md'
                                     : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                             }`}
+                            title={isCollapsed ? link.label : ''}
+                            onMouseEnter={(e) => handleMouseEnter(e, link.label, (link as any).description)}
+                            onMouseLeave={handleMouseLeave}
+                            onFocus={(e) => handleMouseEnter(e, link.label, (link as any).description)}
+                            onBlur={handleMouseLeave}
                         >
-                            <link.icon className={`w-5 h-5 ${activePage === link.id ? 'text-white' : 'text-gray-600'}`} />
-                            <span className="flex-1">{link.label}</span>
-                            {link.badge && (
-                                <span className={`px-2 py-1 text-xs font-bold rounded-full ${
-                                    activePage === link.id ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-600'
-                                }`}>
-                                    {link.badge}
-                                </span>
+                            <link.icon className={`w-5 h-5 flex-shrink-0 ${activePage === link.id ? 'text-white' : 'text-gray-600'}`} />
+                            {!isCollapsed && (
+                                <>
+                                    <span className="flex-1">{link.label}</span>
+                                    {link.badge && (
+                                        <span className={`px-2 py-1 text-xs font-bold rounded-full ${
+                                            activePage === link.id ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-600'
+                                        }`}>
+                                            {link.badge}
+                                        </span>
+                                    )}
+                                </>
                             )}
                         </Link>
                     ))}
                 </nav>
 
-                {/* Upgrade Box */}
-                <div className="p-4 border-t border-gray-200 mt-auto">
-                    <div className="bg-blue-600 rounded-xl p-4 text-white shadow-md">
-                        <h3 className="font-bold text-sm mb-2">Upgrade to Vidiomex Pro</h3>
-                        <p className="text-xs mb-4 text-white/90">Unlock advanced analytics, priority support, and unlimited uploads.</p>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <div className="text-sm font-bold">Pro</div>
-                                <div className="text-xs">From $9/mo</div>
-                            </div>
-                            <a href="/pricing" className="inline-flex items-center px-3 py-2 bg-white text-blue-600 rounded-lg font-semibold hover:bg-white/90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-300">Upgrade</a>
+                {/* Tooltip for collapsed icons */}
+                {tooltip && (
+                    <div style={{ position: 'fixed', top: tooltip.top, left: tooltip.left, transform: 'translateY(-50%)' }} className="z-50">
+                        <div className="bg-blue-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm w-56">
+                            <div className="font-semibold text-sm mb-1">{tooltip.label}</div>
+                            {tooltip.description && <div className="text-xs text-blue-100">{tooltip.description}</div>}
                         </div>
                     </div>
-                </div>
-
+                )}
             </aside>
 
             {/* Connect Modal */}

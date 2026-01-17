@@ -38,6 +38,7 @@ export default function DashboardPage() {
   const { data: session } = useSession()
   const firstName = session?.user?.name ? session.user.name.split(' ')[0] : 'Creator' 
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [youtubeChannel, setYoutubeChannel] = useState<YouTubeChannel | null>(null)
   const [showConnectModal, setShowConnectModal] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
@@ -330,10 +331,16 @@ export default function DashboardPage() {
 
       <div className="flex">
         {/* Shared Sidebar */}
-        <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="dashboard" />
+        <SharedSidebar 
+          sidebarOpen={sidebarOpen} 
+          setSidebarOpen={setSidebarOpen} 
+          activePage="dashboard"
+          isCollapsed={sidebarCollapsed}
+          setIsCollapsed={setSidebarCollapsed}
+        />
 
         {/* Main Content */}
-        <main className="flex-1 pt-14 md:pt-16 md:ml-72 p-4 md:p-8 pb-20 md:pb-8">
+        <main className={`flex-1 pt-14 md:pt-16 p-4 md:p-8 pb-20 md:pb-8 transition-all duration-300 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'}`}>
           <div className="max-w-7xl mx-auto">
             {/* Redesigned Welcome Section */}
             <div className="mb-8 mt-8 md:mt-10">

@@ -4,7 +4,8 @@ import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { Menu, X, Play, LogOut, User, Mail, Sparkles, DollarSign, Cog, Youtube } from "lucide-react"
+import { PillNav, PillButton } from "@/components/pills"
+import { Menu, X, Play, LogOut, User, Mail, Sparkles, DollarSign, Cog, Youtube, Search } from "lucide-react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter, usePathname } from "next/navigation"
 
@@ -34,153 +35,88 @@ export function Header() {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 w-full h-16 border-b bg-white/95 backdrop-blur-xl supports-backdrop-filter:bg-white/90 shadow-sm">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center">
-            <div className="h-10 w-10 rounded-lg overflow-hidden shadow-md flex items-center justify-center hover:shadow-lg transition-shadow">
-              <Image src="/vidiomex-logo.svg" alt="Vidiomex" width={40} height={40} className="object-cover" />
-            </div>
-          </Link>
+    <header className="fixed top-0 left-0 right-0 z-50 w-full h-16 bg-transparent">
+      <div className="relative mx-auto px-4 sm:px-6 lg:px-8 h-16">
+        <div className="flex items-center h-16">
+          {/* Left: Logo */}
+          <div className="shrink-0">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-md overflow-hidden shadow-sm flex items-center justify-center">
+                <Image src="/vidiomex-logo.svg" alt="Vidiomex" width={32} height={32} className="object-cover" />
+              </div>
+              <span className="hidden sm:inline-block text-sm font-semibold text-gray-800">Pallet Ross</span>
+            </Link>
+          </div>
 
-          {/* Only show navigation links if NOT on auth pages */}
+          {/* Center: Navigation (absolutely centered) */}
           {!isAuthPage && (
-            <nav className="hidden md:flex items-center space-x-1">
-              <Link
-                href="#features"
-                className="group flex items-center px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-700 hover:text-white hover:bg-linear-to-r hover:from-primary hover:to-secondary transition-all duration-300 shadow-sm hover:shadow-lg transform hover:scale-105"
-              >
-                <Sparkles className="h-4 w-4 mr-2 text-primary group-hover:text-white transition-colors" />
-                Features
-              </Link>
-              <Link
-                href="#pricing"
-                className="group flex items-center px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-700 hover:text-white hover:bg-linear-to-r hover:from-primary hover:to-secondary transition-all duration-300 shadow-sm hover:shadow-lg transform hover:scale-105"
-              >
-                <DollarSign className="h-4 w-4 mr-2 text-primary group-hover:text-white transition-colors" />
-                Pricing
-              </Link>
-              <Link
-                href="#how-it-works"
-                className="group flex items-center px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-700 hover:text-white hover:bg-linear-to-r hover:from-primary hover:to-secondary transition-all duration-300 shadow-sm hover:shadow-lg transform hover:scale-105"
-              >
-                <Cog className="h-4 w-4 mr-2 text-primary group-hover:text-white transition-colors" />
-                How It Works
-              </Link>
+            <nav className="absolute inset-x-0 flex items-center justify-center pointer-events-none">
+              <div className="pointer-events-auto hidden md:flex items-center gap-6 md:translate-x-6">
+                <PillNav items={[
+                  { href: "#", label: "Get Started" },
+                  { href: "#", label: "Create strategy" },
+                  { href: "#pricing", label: "Pricing" },
+                  { href: "#contact", label: "Contact" },
+                  { href: "#", label: "Solution" },
+                  { href: "#", label: "E-Commerce" },
+                ]} />
+              </div>
             </nav>
           )}
 
-          <div className="hidden md:flex items-center space-x-3">
-            {session ? (
-              <>
-                <div className="group flex items-center space-x-3 px-4 py-2 rounded-xl bg-gray-100 hover:bg-linear-to-r hover:from-primary hover:to-secondary hover:text-white transition-all duration-300 shadow-sm hover:shadow-lg transform hover:scale-105 cursor-pointer">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-linear-to-br from-blue-600 to-purple-600 text-white font-semibold text-sm group-hover:from-white group-hover:to-white group-hover:text-primary transition-colors">
-                    {session.user?.name?.[0]?.toUpperCase() || session.user?.email?.[0]?.toUpperCase() || "U"}
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium text-gray-900 group-hover:text-white transition-colors">{session.user?.name || "User"}</span>
-                    <span className="text-xs text-gray-600 group-hover:text-white/80 transition-colors">{session.user?.email}</span>
-                  </div>
-                </div>
-                <Button
-                  onClick={handleLogout}
-                  variant="outline"
-                  className="group flex items-center px-5 py-2.5 rounded-xl text-sm font-semibold text-gray-700 hover:text-white hover:bg-linear-to-r hover:from-primary hover:to-secondary transition-all duration-300 shadow-sm hover:shadow-lg transform hover:scale-105 border-gray-300 hover:border-transparent"
-                >
-                  <LogOut className="h-4 w-4 mr-2 text-primary group-hover:text-white transition-colors" />
-                  Logout
-                </Button>
-              </>
-            ) : null}
-            {showGetStarted && (
-              <Button
-                onClick={handleGetStarted}
-                className="bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg"
-              >
-                Get Started
-              </Button>
-            )}
-          </div>
+          {/* Right: Icons / Account */}
+          <div className="ml-auto flex items-center space-x-3">
+            <button aria-label="Search" className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+              <Search className="h-4 w-4 text-gray-700" />
+            </button>
 
-          <div className="md:hidden flex items-center space-x-2">
-            {session && (
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-linear-to-br from-blue-600 to-purple-600 shadow-md">
-                <span className="text-white text-sm font-bold uppercase">
-                  {session.user?.email?.substring(0, 2) || "U"}
-                </span>
+            {session ? (
+              <div className="hidden md:flex items-center gap-3">
+                <button className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                  <Play className="h-4 w-4 text-gray-700" />
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-semibold text-gray-700">{session.user?.name?.[0]?.toUpperCase() || "U"}</div>
+                </div>
+              </div>
+            ) : (
+              <div className="hidden md:flex items-center gap-3">
+                <PillButton onClick={handleGetStarted}>Get Started</PillButton>
+                <PillButton onClick={handleGetStarted} variant="primary">Sign up</PillButton>
               </div>
             )}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-gray-600 hover:text-gray-900"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-            >
-              {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </Button>
+
+            {/* Mobile menu button */}
+            <div className="md:hidden">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-gray-600 hover:text-gray-900"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+              >
+                {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </Button>
+            </div>
           </div>
         </div>
 
+        {/* Mobile dropdown */}
         {isMenuOpen && (
-          <div className="md:hidden border-t bg-white/95 backdrop-blur-xl">
-            <div className="px-2 pt-2 pb-3 space-y-1">
-              {/* Only show navigation links if NOT on auth pages */}
+          <div className="md:hidden mt-2 bg-white/95 backdrop-blur-lg rounded-b-xl shadow-sm overflow-hidden">
+            <div className="px-4 py-3 space-y-2">
               {!isAuthPage && (
                 <>
-                  <Link
-                    href="#features"
-                    className="flex items-center px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    Features
-                  </Link>
-                  <Link
-                    href="#pricing"
-                    className="flex items-center px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    Pricing
-                  </Link>
-                  <Link
-                    href="#how-it-works"
-                    className="flex items-center px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    How It Works
-                  </Link>
+                  <Link href="#" className="block px-3 py-2 rounded-md text-sm font-medium text-gray-700">Get Started</Link>
+                  <Link href="#" className="block px-3 py-2 rounded-md text-sm font-medium text-gray-700">Create strategy</Link>
+                  <Link href="#pricing" className="block px-3 py-2 rounded-md text-sm font-medium text-gray-700">Pricing</Link>
+                  <Link href="#contact" className="block px-3 py-2 rounded-md text-sm font-medium text-gray-700">Contact</Link>
                 </>
               )}
-              <div className="px-4 py-2 space-y-2">
-                {session ? (
-                  <>
-                    <div className="group flex items-center space-x-3 px-4 py-3 rounded-xl bg-gray-100 hover:bg-linear-to-r hover:from-primary hover:to-secondary hover:text-white transition-all duration-300 shadow-sm hover:shadow-lg transform hover:scale-105 cursor-pointer">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br from-blue-600 to-purple-600 text-white font-semibold group-hover:from-white group-hover:to-white group-hover:text-primary transition-colors">
-                        {session.user?.name?.[0]?.toUpperCase() || session.user?.email?.[0]?.toUpperCase() || "U"}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium text-gray-900 group-hover:text-white transition-colors">{session.user?.name || "User"}</span>
-                        <span className="text-xs text-gray-600 group-hover:text-white/80 transition-colors">{session.user?.email}</span>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={handleLogout}
-                      variant="outline"
-                      className="w-full group flex items-center justify-center px-4 py-3 rounded-xl text-sm font-semibold text-gray-700 hover:text-white hover:bg-linear-to-r hover:from-primary hover:to-secondary transition-all duration-300 shadow-sm hover:shadow-lg transform hover:scale-105 border-gray-300 hover:border-transparent"
-                    >
-                      <LogOut className="h-4 w-4 mr-2 text-primary group-hover:text-white transition-colors" />
-                      Logout
-                    </Button>
-                  </>
-                ) : null}
-                {showGetStarted && (
-                  <Button
-                    onClick={handleGetStarted}
-                    className="w-full bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
-                  >
-                    Get Started
-                  </Button>
-                )}
-              </div>
+              {session ? (
+                <Button onClick={handleLogout} className="w-full">Logout</Button>
+              ) : (
+                <Button onClick={handleGetStarted} className="w-full">Get Started</Button>
+              )}
             </div>
           </div>
         )}
