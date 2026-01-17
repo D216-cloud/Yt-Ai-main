@@ -65,6 +65,8 @@ export default function ProfilePage() {
   useEffect(() => {
     const fetchChannelData = async () => {
       try {
+        if (typeof window === 'undefined') return
+        
         setChannelLoading(true)
         // Try to get channel data from localStorage first
         const storedChannel = localStorage.getItem("youtube_channel")
@@ -104,6 +106,8 @@ export default function ProfilePage() {
 
   // Load additional channels and keep a combined list
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    
     const channels: YouTubeChannel[] = []
     if (youtubeChannel) channels.push(youtubeChannel)
 

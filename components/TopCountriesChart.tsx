@@ -23,6 +23,8 @@ export function TopCountriesChart({ channelId }: { channelId: string }) {
         setLoading(true)
         setError(null)
         
+        if (typeof window === 'undefined') return
+        
         // Get access token from localStorage
         const accessToken = localStorage.getItem('youtube_access_token')
         

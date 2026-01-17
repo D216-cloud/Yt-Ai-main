@@ -49,6 +49,12 @@ export default function TitleSearchPage() {
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)
   const [showAnalyzer, setShowAnalyzer] = useState(false)
   const [activeTab, setActiveTab] = useState<'videos' | 'shorts'>('videos')
+  
+  // Featured videos
+  const [latestVideo, setLatestVideo] = useState<Video | null>(null)
+  const [topVideo, setTopVideo] = useState<Video | null>(null)
+  // Access token availability state
+  const [accessTokenAvailable, setAccessTokenAvailable] = useState(false)
 
   const visibleAdditionalChannels = additionalChannelsList.filter(ch => ch && ch.id && ch.id !== youtubeChannel?.id)
   const uniqueChannelCount = React.useMemo(() => {
@@ -87,15 +93,32 @@ export default function TitleSearchPage() {
 
   useEffect(() => {
     try {
+      if (typeof window === 'undefined') return
+      
       const stored = localStorage.getItem('youtube_channel')
       if (stored) {
         const channel = JSON.parse(stored)
         setYoutubeChannel(channel)
+        return
       }
 
       const additionalStored = localStorage.getItem('additional_youtube_channels')
       if (additionalStored) {
-        setAdditionalChannelsList(JSON.parse(additionalStored))
+        try {
+          const parsed = JSON.parse(additionalStored) || []
+          setAdditionalChannelsList(parsed)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            // Fallback: use first additional channel as active
+            const first = parsed[0]
+            setYoutubeChannel(first)
+            localStorage.setItem('youtube_channel', JSON.stringify(first))
+            localStorage.setItem('active_youtube_channel_id', first.id)
+            const tokenForFirst = localStorage.getItem(`youtube_access_token_${first.id}`) || null
+            if (tokenForFirst) localStorage.setItem('youtube_access_token', tokenForFirst)
+          }
+        } catch (err) {
+          console.error('Failed to parse additional channels:', err)
+        }
       }
     } catch (error) {
       console.error('Failed to load channel data:', error)
@@ -112,11 +135,31 @@ export default function TitleSearchPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const formatNumber = (num: number | string): string => {
+  const formatNumber = (num: number | string | undefined): string => {
+    if (num === undefined || num === null) return '0'
     const n = typeof num === 'string' ? parseInt(num, 10) : num
+    if (isNaN(n)) return '0'
     if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'
     if (n >= 1000) return (n / 1000).toFixed(1) + 'K'
     return n.toString()
+  }
+
+  // Utility: resolve access token (channel-scoped fallback)
+  const getResolvedAccessToken = (): string | null => {
+    if (typeof window === 'undefined') return null
+    try {
+      const byId = youtubeChannel?.id ? (localStorage.getItem(`youtube_access_token_${youtubeChannel.id}`) || localStorage.getItem(`youtube_token_${youtubeChannel.id}`)) : null
+      const global = localStorage.getItem('youtube_access_token')
+      const token = byId || global
+      // Persist channel-scoped token to the global key for compatibility so subsequent calls see it
+      if (token && byId && !global) {
+        localStorage.setItem('youtube_access_token', byId)
+      }
+      return token
+    } catch (err) {
+      console.error('Error resolving access token:', err)
+      return null
+    }
   }
 
   // Fetch a single page of videos from channel
@@ -125,11 +168,18 @@ export default function TitleSearchPage() {
     setVideosError("")
 
     try {
-      // Get access token from localStorage (same as content page)
-      const accessToken = localStorage.getItem('youtube_access_token')
+      if (typeof window === 'undefined') return
+      
+      // Get access token (try channel-scoped tokens first)
+      const accessToken = getResolvedAccessToken()
       
       if (!accessToken) {
-        setVideosError("Please connect your YouTube channel first. Go to Settings > Connect YouTube to authorize access.")
+        // If a channel is connected but token missing, give a clearer message
+        if (youtubeChannel) {
+          setVideosError("Connected channel found but access token missing. Reconnect via Settings > Connect YouTube to re-authorize.")
+        } else {
+          setVideosError("Please connect your YouTube channel first. Go to Settings > Connect YouTube to authorize access.")
+        }
         setIsLoadingVideos(false)
         return
       }
@@ -167,11 +217,17 @@ export default function TitleSearchPage() {
     setVideosError("")
 
     try {
-      // Get access token from localStorage (same as content page)
-      const accessToken = localStorage.getItem('youtube_access_token')
+      if (typeof window === 'undefined') return
+      
+      // Get access token (try channel-scoped tokens first)
+      const accessToken = getResolvedAccessToken()
       
       if (!accessToken) {
-        setVideosError("Please connect your YouTube channel first. Go to Settings > Connect YouTube to authorize access.")
+        if (youtubeChannel) {
+          setVideosError("Connected channel found but access token missing. Reconnect via Settings > Connect YouTube to re-authorize.")
+        } else {
+          setVideosError("Please connect your YouTube channel first. Go to Settings > Connect YouTube to authorize access.")
+        }
         setIsLoadingVideos(false)
         return
       }
@@ -229,14 +285,45 @@ export default function TitleSearchPage() {
     }
   }
 
-  // Auto-load connected channel videos on mount
+  // Keep token availability in sync when channel or additional channels change
   useEffect(() => {
-    if (youtubeChannel?.id && videos.length === 0) {
+    if (typeof window === 'undefined') return
+    const token = getResolvedAccessToken()
+    setAccessTokenAvailable(!!token)
+  }, [youtubeChannel, additionalChannelsList])
+
+  // Update debug info when videos load
+  useEffect(() => {
+    if (videos.length > 0) {
+      // Get latest video (most recently published)
+      const latest = [...videos].sort((a, b) => 
+        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+      )[0]
+      setLatestVideo(latest)
+
+      // No localStorage caching here — Dashboard will fetch latest video directly from API for live data
+      // (Removed caching for consistency and to always show fresh results)
+
+      
+      // Get top performing video (most views)
+      const top = [...videos].sort((a, b) => {
+        const aViews = parseInt(a.views) || 0
+        const bViews = parseInt(b.views) || 0
+        return bViews - aViews
+      })[0]
+      setTopVideo(top)
+    }
+  }, [videos, youtubeChannel])
+
+  // Auto-load connected channel videos on mount or when token becomes available
+  useEffect(() => {
+    if (youtubeChannel?.id && videos.length === 0 && accessTokenAvailable) {
       // auto-fetch all videos for connected channel
+      setVideosError("")
       fetchAllVideos()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [youtubeChannel])
+  }, [youtubeChannel, accessTokenAvailable])
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-linear-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
@@ -335,6 +422,57 @@ export default function TitleSearchPage() {
               </div>
 
               {/* Videos Grid / Loading / Empty states */}
+
+              {/* Featured Videos Section */}
+              {(latestVideo || topVideo) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                  {latestVideo && (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+                      <div className="relative">
+                        <img 
+                          src={latestVideo.thumbnail} 
+                          alt={latestVideo.title}
+                          className="w-full h-40 object-cover"
+                        />
+                        <div className="absolute top-2 left-2 bg-red-600 text-white px-2 py-1 rounded text-xs font-semibold">
+                          Latest Video
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <h3 className="font-semibold text-gray-900 line-clamp-2 mb-2">{latestVideo.title}</h3>
+                        <div className="flex items-center gap-4 text-xs text-gray-600">
+                          <span className="flex items-center gap-1">👁️ {formatNumber(latestVideo.views)}</span>
+                          <span className="flex items-center gap-1">❤️ {formatNumber(latestVideo.likes)}</span>
+                          <span className="flex items-center gap-1">💬 {formatNumber(latestVideo.comments)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {topVideo && topVideo.id !== latestVideo?.id && (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+                      <div className="relative">
+                        <img 
+                          src={topVideo.thumbnail} 
+                          alt={topVideo.title}
+                          className="w-full h-40 object-cover"
+                        />
+                        <div className="absolute top-2 left-2 bg-amber-600 text-white px-2 py-1 rounded text-xs font-semibold">
+                          Top Performing
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <h3 className="font-semibold text-gray-900 line-clamp-2 mb-2">{topVideo.title}</h3>
+                        <div className="flex items-center gap-4 text-xs text-gray-600">
+                          <span className="flex items-center gap-1">👁️ {formatNumber(topVideo.views)}</span>
+                          <span className="flex items-center gap-1">❤️ {formatNumber(topVideo.likes)}</span>
+                          <span className="flex items-center gap-1">💬 {formatNumber(topVideo.comments)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* If a channel is connected and videos are still loading, show a focused loading card */}
               {youtubeChannel && isLoadingVideos && videos.length === 0 && (

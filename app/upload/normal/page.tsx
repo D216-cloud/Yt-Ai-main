@@ -92,6 +92,8 @@ export default function NormalUploadPage() {
 
   // Load channels from localStorage
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    
     const storedChannels = localStorage.getItem("additional_youtube_channels")
     const mainChannel = localStorage.getItem("youtube_channel")
     
@@ -257,6 +259,8 @@ export default function NormalUploadPage() {
 
   const saveDraftNormal = async () => {
     if (!videoFile) { alert('No video selected to save as draft'); return }
+    if (typeof window === 'undefined') return
+    
     try {
       // store metadata and a preview reference in localStorage (note: file contents are not persisted)
       const draft = {

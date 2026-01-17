@@ -59,6 +59,8 @@ export default function VideosPage() {
   // Load YouTube channel data
   useEffect(() => {
     try {
+      if (typeof window === 'undefined') return
+      
       const stored = localStorage.getItem('youtube_channel')
       if (stored) {
         setYoutubeChannel(JSON.parse(stored))
@@ -78,6 +80,8 @@ export default function VideosPage() {
       
       setLoading(true)
       try {
+        if (typeof window === 'undefined') return
+        
         const accessToken = localStorage.getItem('youtube_access_token')
         if (!accessToken) {
           setLoading(false)

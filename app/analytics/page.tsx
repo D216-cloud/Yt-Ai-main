@@ -23,6 +23,8 @@ export default function AnalyticsPage() {
     // Load channel data from localStorage
     const loadChannelData = () => {
       try {
+        if (typeof window === 'undefined') return
+        
         const storedChannel = localStorage.getItem("youtube_channel")
         if (storedChannel) {
           const channel = JSON.parse(storedChannel)

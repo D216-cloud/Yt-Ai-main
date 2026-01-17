@@ -63,6 +63,8 @@ export default function ContentPage() {
     useEffect(() => {
         const loadAllChannels = () => {
             try {
+                if (typeof window === 'undefined') return
+                
                 // Load primary channel
                 const stored = localStorage.getItem('youtube_channel')
                 if (stored) {
@@ -133,6 +135,8 @@ export default function ContentPage() {
     }
 
     const getCurrentActiveToken = () => {
+        if (typeof window === 'undefined') return null
+        
         if (activeChannelId === youtubeChannel?.id) {
             return localStorage.getItem('youtube_access_token')
         }

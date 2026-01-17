@@ -46,7 +46,7 @@ export default function DashboardPage() {
   const [latestVideo, setLatestVideo] = useState<LatestVideo | null>(null)
   const [topVideos, setTopVideos] = useState<LatestVideo[]>([])
   const [loadingVideo, setLoadingVideo] = useState(false)
-  const [suggestedTags, setSuggestedTags] = useState<Array<{tag: string, score: number, color: string, level?: string}>>([])
+  const [suggestedTags, setSuggestedTags] = useState<Array<{tag: string, score: number, color: string}>>([])
   const [showAllTags, setShowAllTags] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
   const [publishSuccess, setPublishSuccess] = useState(false)
@@ -54,7 +54,6 @@ export default function DashboardPage() {
   const [publishError, setPublishError] = useState('')
   const [videosWithoutTags, setVideosWithoutTags] = useState<LatestVideo[]>([])
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0)
-  const [tagMode, setTagMode] = useState<'suggest' | 'missing'>('suggest')
 
   // Channel menu state
   const [showChannelMenu, setShowChannelMenu] = useState(false)
@@ -272,54 +271,71 @@ export default function DashboardPage() {
     let mounted = true
     const fetchSuggested = async () => {
       try {
-        console.log(`🎯 Fetching ${tagMode} tags for:`, latestVideo.title)
+        const encodedTitle = encodeURIComponent(latestVideo.title)
         
-        // Use new YouTube SEO Tag Suggestion Engine
-        const res = await fetch('/api/youtube/seo-tags', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: latestVideo.title,
-            videoType: latestVideo.title.toLowerCase().includes('shorts') ? 'shorts' : 'long',
-            mode: tagMode
-          })
-        })
-
-        if (!res.ok) {
-          throw new Error(`SEO Tags API failed: ${res.status}`)
+        // Step 1: Fetch REAL YouTube videos matching this title/keyword
+        console.log('🔍 Fetching real YouTube videos for keyword:', latestVideo.title)
+        const keywordsRes = await fetch(`/api/youtube/keywords?query=${encodedTitle}&maxResults=25`)
+        
+        if (!keywordsRes.ok) {
+          throw new Error('Failed to fetch keywords from YouTube')
         }
 
-        const data = await res.json()
-        const seoTags: Array<{tag: string, score: number, level: string}> = data.tags || []
+        const keywordsData = await keywordsRes.json()
+        const realTitles = keywordsData.titles || []
+        const realTags = keywordsData.allTags || []
         
-        console.log('✅ Got', seoTags.length, 'SEO tags:', seoTags.slice(0, 5).map(t => `${t.tag}(${t.score})`).join(', '))
+        console.log('✅ Found', realTitles.length, 'real videos. Extracting tags from their titles...')
 
-        if (seoTags.length > 0 && mounted) {
-          // Convert to display format with colors based on level
-          const displayTags = seoTags.map(t => ({
-            tag: t.tag,
-            score: t.score,
-            viralScore: t.score, // Use score as viral score for display
-            color: t.level === 'high' ? 'emerald' : t.level === 'medium' ? 'orange' : 'blue',
-            confidence: t.level,
-            level: t.level
-          }))
-          setSuggestedTags(displayTags)
+        if (realTitles.length === 0 && realTags.length === 0) {
+          console.warn('No real tags found, using fallback')
+          if (mounted) setSuggestedTags(generateTags(latestVideo.title))
           return
         }
 
-        // Fallback to old system if no SEO tags
-        console.log('⚠️ No SEO tags found, using fallback')
+        // Step 2: Send real titles to tag suggestion API for scoring
+        const tagRes = await fetch('/api/youtube/tag-suggest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            titles: [...realTitles, ...realTags], // Combine titles and tags
+            maxResults: 20,
+            minScore: 25
+          })
+        })
+
+        if (!tagRes.ok) {
+          throw new Error('Failed to score tags')
+        }
+
+        const tagData = await tagRes.json()
+        const scoredTags: Array<any> = tagData.tags || []
+
+        console.log('🎯 Got', scoredTags.length, 'scored tags:', scoredTags.slice(0, 5).map((t: any) => t.tag).join(', '))
+
+        if (scoredTags.length > 0 && mounted) {
+          // Format with viral scores for display
+          setSuggestedTags(scoredTags.map((t: any) => ({
+            tag: t.tag,
+            score: t.score,
+            viralScore: t.viralScore,
+            color: t.color,
+            confidence: t.confidence
+          })))
+          return
+        }
+
+        // Fallback: Use local generation
         if (mounted) setSuggestedTags(generateTags(latestVideo.title))
       } catch (err) {
-        console.error('❌ SEO tag suggestion failed:', err)
+        console.error('❌ Tag suggestion failed:', err)
         if (mounted) setSuggestedTags(generateTags(latestVideo.title))
       }
     }
 
     fetchSuggested()
     return () => { mounted = false }
-  }, [latestVideo, tagMode])
+  }, [latestVideo])
 
   // Close channel menu on outside clicks
   useEffect(() => {
@@ -760,38 +776,13 @@ export default function DashboardPage() {
               <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700/50">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <h3 className="text-xl font-bold text-white">
-                      {tagMode === 'suggest' ? 'SEO Tag Suggestions' : 'Add Missing Tags'}
-                    </h3>
+                    <h3 className="text-xl font-bold text-white">Add Missing Tags</h3>
                     {publishSuccess && <Check className="w-5 h-5 text-green-400" />}
                     {latestVideo && (
                       <p className="text-gray-400 text-sm mt-1">
                         {new Date(latestVideo.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </p>
                     )}
-                  </div>
-                  <div className="flex gap-2">
-                    {/* Mode Toggle Buttons */}
-                    <button
-                      onClick={() => setTagMode('suggest')}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                        tagMode === 'suggest' 
-                          ? 'bg-blue-600 text-white border-blue-600' 
-                          : 'bg-slate-700/60 text-slate-300 border-slate-600 hover:bg-slate-700'
-                      } border`}
-                    >
-                      🎯 SEO Suggest
-                    </button>
-                    <button
-                      onClick={() => setTagMode('missing')}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                        tagMode === 'missing' 
-                          ? 'bg-amber-600 text-white border-amber-600' 
-                          : 'bg-slate-700/60 text-slate-300 border-slate-600 hover:bg-slate-700'
-                      } border`}
-                    >
-                      � Missing Tags
-                    </button>
                   </div>
                   {publishSuccess && (
                     <div className="px-4 py-2 bg-green-500/20 border border-green-500/50 rounded-lg">
@@ -837,16 +828,7 @@ export default function DashboardPage() {
                           <div className="flex flex-wrap gap-2 mb-3">
                             {suggestedTags.slice(0, showAllTags ? 20 : 5).map((tag, index) => {
                               const realIndex = suggestedTags.indexOf(tag)
-                              
-                              // Different color schemes for different modes
-                              const colorMap: Record<string, {bg: string, border: string, text: string, textColor: string}> = tagMode === 'missing' ? {
-                                // Missing tags mode: All amber/yellow (score 99)
-                                emerald: { bg: 'bg-amber-900/40', border: 'border-amber-700/50', text: 'text-amber-400', textColor: 'text-amber-200' },
-                                orange: { bg: 'bg-amber-900/40', border: 'border-amber-700/50', text: 'text-amber-400', textColor: 'text-amber-200' },
-                                blue: { bg: 'bg-amber-900/40', border: 'border-amber-700/50', text: 'text-amber-400', textColor: 'text-amber-200' },
-                                amber: { bg: 'bg-amber-900/40', border: 'border-amber-700/50', text: 'text-amber-400', textColor: 'text-amber-200' },
-                              } : {
-                                // SEO suggest mode: Green/Orange/Blue based on level
+                              const colorMap: Record<string, {bg: string, border: string, text: string, textColor: string}> = {
                                 emerald: { bg: 'bg-emerald-900/40', border: 'border-emerald-700/50', text: 'text-emerald-400', textColor: 'text-emerald-200' },
                                 orange: { bg: 'bg-orange-900/40', border: 'border-orange-700/50', text: 'text-orange-400', textColor: 'text-orange-200' },
                                 blue: { bg: 'bg-blue-900/40', border: 'border-blue-700/50', text: 'text-blue-400', textColor: 'text-blue-200' },
@@ -856,22 +838,18 @@ export default function DashboardPage() {
                                 cyan: { bg: 'bg-cyan-900/40', border: 'border-cyan-700/50', text: 'text-cyan-400', textColor: 'text-cyan-200' },
                                 indigo: { bg: 'bg-indigo-900/40', border: 'border-indigo-700/50', text: 'text-indigo-400', textColor: 'text-indigo-200' },
                               }
-                              
                               const colors = colorMap[tag.color] || colorMap.blue
                               
                               return (
                                 <div 
                                   key={index} 
                                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${colors.bg} border ${colors.border} rounded-full hover:scale-105 transition-transform`}
-                                  title={tagMode === 'missing' ? `Missing tag from title: ${tag.tag}` : `${tag.level} opportunity (${tag.score}/100): ${tag.tag}`}
+                                  title={`Relevance: ${tag.score}, Viral Potential: ${tag.viralScore}, Confidence: ${tag.confidence}`}
                                 >
                                   <span className={`${colors.text} font-bold text-sm`}>{tag.score}</span>
                                   <span className={`${colors.textColor} text-sm`}>{tag.tag}</span>
-                                  {tagMode === 'suggest' && tag.score >= 60 && (
+                                  {tag.viralScore && tag.viralScore > 60 && (
                                     <span className={`${colors.text} text-xs font-bold`}>⚡</span>
-                                  )}
-                                  {tagMode === 'missing' && (
-                                    <span className={`${colors.text} text-xs font-bold`}>📝</span>
                                   )}
                                   <X 
                                     className={`w-4 h-4 ${colors.text} cursor-pointer hover:opacity-70`}

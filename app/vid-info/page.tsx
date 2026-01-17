@@ -136,6 +136,8 @@ export default function VideoInfoPage() {
       const videoId = extractVideoId(inputUrl)
       if (!videoId) throw new Error("Invalid YouTube video URL. Supports videos & Shorts")
 
+      if (typeof window === 'undefined') return
+      
       const accessToken = localStorage.getItem('youtube_access_token')
       const response = await fetch(`/api/youtube/videosByIds?ids=${videoId}${accessToken ? `&access_token=${accessToken}` : ''}`)
       const data = await response.json()
@@ -159,6 +161,8 @@ export default function VideoInfoPage() {
       const channelId = extractChannelId(inputUrl)
       if (!channelId) throw new Error("Invalid YouTube channel URL. Supports /channel/, /@username, /c/, /user/ formats")
 
+      if (typeof window === 'undefined') return
+      
       const accessToken = localStorage.getItem('youtube_access_token')
       const response = await fetch(`/api/youtube/channel-analysis?id=${encodeURIComponent(channelId)}${accessToken ? `&access_token=${accessToken}` : ''}`)
       const data = await response.json()

@@ -47,6 +47,8 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
 
     // Load YouTube channel data
     useEffect(() => {
+        if (typeof window === 'undefined') return
+        
         try {
             const stored = localStorage.getItem('youtube_channel')
             if (stored) {
@@ -104,9 +106,11 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
     }, [])
 
     const disconnectChannel = () => {
-        localStorage.removeItem('youtube_channel')
-        localStorage.removeItem('youtube_access_token')
-        localStorage.removeItem('youtube_refresh_token')
+        if (typeof window !== 'undefined') {
+            localStorage.removeItem('youtube_channel')
+            localStorage.removeItem('youtube_access_token')
+            localStorage.removeItem('youtube_refresh_token')
+        }
         setYoutubeChannel(null)
         setShowChannelDropdown(false)
         // Redirect to connect page or show success message
@@ -127,7 +131,9 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
     const startYouTubeAuth = () => {
         setIsConnecting(true)
         // Set return page to indicate this is for additional channels
-        localStorage.setItem('oauth_return_page', 'sidebar')
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('oauth_return_page', 'sidebar')
+        }
         // Create a popup window for YouTube authentication
         const popup = window.open(
             '/api/youtube/auth?popup=true',
@@ -141,6 +147,8 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
             
             if (event.data.type === 'YOUTUBE_AUTH_SUCCESS') {
                 const { channel, token, refreshToken } = event.data
+                
+                if (typeof window === 'undefined') return
                 
                 // Check if this channel is already connected (primary or additional)
                 const existingChannels = JSON.parse(localStorage.getItem('additional_youtube_channels') || '[]')
