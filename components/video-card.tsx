@@ -15,6 +15,7 @@ interface VideoCardProps {
     likes: string
     comments: string
     duration: string
+    privacyStatus?: 'public' | 'unlisted' | 'private'
   }
 }
 
@@ -44,21 +45,23 @@ export default function VideoCard({ video }: VideoCardProps) {
     return duration.replace('PT', '').replace('M', ':').replace('S', '')
   }
 
-  // Detect if this is a short (duration under 60 seconds)
+  // Detect if this is a short (duration under 3 minutes / 180 seconds)
   const isShort = () => {
+    if (!video.duration) return false
     try {
-      let totalSeconds = 0
-      const parts = video.duration.match(/(\d+)([HMS])/g) || []
+      // Handle ISO 8601 duration format: PT1H2M30S, PT1M30S, PT45S, etc.
+      const match = video.duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
+      if (!match) return false
       
-      for (const part of parts) {
-        const value = parseInt(part)
-        if (part.includes('H')) totalSeconds += value * 3600
-        else if (part.includes('M')) totalSeconds += value * 60
-        else if (part.includes('S')) totalSeconds += value
-      }
+      const h = parseInt(match[1] || '0')
+      const m = parseInt(match[2] || '0')
+      const s = parseInt(match[3] || '0')
+      const totalSeconds = h * 3600 + m * 60 + s
       
-      return totalSeconds <= 60
+      // Shorts are videos under 3 minutes (180 seconds)
+      return totalSeconds < 180
     } catch (e) {
+      console.error('Duration parsing error in VideoCard:', e)
       return false
     }
   }
@@ -96,26 +99,12 @@ export default function VideoCard({ video }: VideoCardProps) {
               height={356}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
-            {/* Hover Overlay with Score Button */}
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-              <button
-                onClick={handleScoreWithBoost}
-                disabled={isAnalyzing}
-                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all disabled:opacity-50"
-              >
-                {isAnalyzing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Scoring...</span>
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-4 h-4" />
-                    <span>Score</span>
-                  </>
-                )}
-              </button>
-            </div>
+            {/* Privacy Status Badge */}
+            {video.privacyStatus && video.privacyStatus !== 'public' && (
+              <div className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-semibold text-white bg-red-600/80 backdrop-blur-sm">
+                {video.privacyStatus === 'private' ? '🔒 Private' : '🔗 Unlisted'}
+              </div>
+            )}
           </div>
 
           {/* Video Info */}
@@ -164,29 +153,15 @@ export default function VideoCard({ video }: VideoCardProps) {
               height={180}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
+            {/* Privacy Status Badge */}
+            {video.privacyStatus && video.privacyStatus !== 'public' && (
+              <div className="absolute top-2 left-2 px-2 py-1 rounded text-xs font-semibold text-white bg-red-600/80 backdrop-blur-sm">
+                {video.privacyStatus === 'private' ? '🔒 Private' : '🔗 Unlisted'}
+              </div>
+            )}
             {/* Duration Badge */}
             <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs font-semibold px-2 py-1 rounded">
               {formatDuration(video.duration)}
-            </div>
-            {/* Hover Overlay with Score Button */}
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-              <button
-                onClick={handleScoreWithBoost}
-                disabled={isAnalyzing}
-                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all disabled:opacity-50"
-              >
-                {isAnalyzing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Scoring...</span>
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-4 h-4" />
-                    <span>Score with Boost</span>
-                  </>
-                )}
-              </button>
             </div>
           </div>
 

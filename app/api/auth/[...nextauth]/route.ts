@@ -107,9 +107,13 @@ export const authOptions: NextAuthOptions = {
       console.log("✅ Default redirect to /connect")
       return `${baseUrl}/connect`
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id
+      }
+      // Store the access token from Google
+      if (account?.access_token) {
+        token.accessToken = account.access_token
       }
       return token
     },
@@ -117,6 +121,8 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string
       }
+      // Include access token in session
+      (session as any).accessToken = token.accessToken
       return session
     },
   },

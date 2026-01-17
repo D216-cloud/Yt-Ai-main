@@ -3,7 +3,7 @@
 import React from 'react'
 import Link from "next/link"
 import { Button } from '@/components/ui/button'
-import { GitCompare, Upload, BarChart3, ArrowUpRight, Lightbulb, Youtube, Lock, Sparkles, Users, MessageSquare, Eye, Play, DollarSign, Calendar, ThumbsUp, ChevronDown, Plus, X } from "lucide-react"
+import { GitCompare, Upload, BarChart3, ArrowUpRight, Lightbulb, Youtube, Lock, Sparkles, Users, MessageSquare, Eye, Play, DollarSign, Calendar, ThumbsUp, ChevronDown, Plus, X, Check } from "lucide-react"
 import { ViewsIcon, SubscribersIcon, WatchTimeIcon, EngagementIcon } from "@/components/icons/dashboard-icons"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
@@ -11,6 +11,7 @@ import { useState, useEffect, useRef } from "react"
 import SharedSidebar from "@/components/shared-sidebar"
 import DashboardHeader from "@/components/dashboard-header"
 import Image from "next/image"
+import { TagBox } from "@/components/tag-box"
 
 interface YouTubeChannel {
   id: string
@@ -45,6 +46,15 @@ export default function DashboardPage() {
   const [latestVideo, setLatestVideo] = useState<LatestVideo | null>(null)
   const [topVideos, setTopVideos] = useState<LatestVideo[]>([])
   const [loadingVideo, setLoadingVideo] = useState(false)
+  const [suggestedTags, setSuggestedTags] = useState<Array<{tag: string, score: number, color: string, level?: string}>>([])
+  const [showAllTags, setShowAllTags] = useState(false)
+  const [isPublishing, setIsPublishing] = useState(false)
+  const [publishSuccess, setPublishSuccess] = useState(false)
+  const [newTagInput, setNewTagInput] = useState('')
+  const [publishError, setPublishError] = useState('')
+  const [videosWithoutTags, setVideosWithoutTags] = useState<LatestVideo[]>([])
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0)
+  const [tagMode, setTagMode] = useState<'suggest' | 'missing'>('suggest')
 
   // Channel menu state
   const [showChannelMenu, setShowChannelMenu] = useState(false)
@@ -147,6 +157,21 @@ export default function DashboardPage() {
             titleScore: video.titleScore || 67
           })
 
+          // Filter videos that don't have tags yet
+          const videosNoTags = data.videos
+            .filter((v: any) => !v.tags || v.tags.length === 0)
+            .map((v: any) => ({
+              id: v.id || '',
+              title: v.title || 'Untitled',
+              thumbnail: v.thumbnail || '',
+              publishedAt: v.publishedAt || new Date().toISOString(),
+              viewCount: v.viewCount || 0,
+              titleScore: v.titleScore || 0
+            }))
+
+          setVideosWithoutTags(videosNoTags)
+          setCurrentVideoIndex(0)
+
           // compute top 3 videos by viewCount
           const sorted = data.videos
             .slice()
@@ -178,6 +203,123 @@ export default function DashboardPage() {
 
     fetchLatestVideo()
   }, [youtubeChannel])
+
+  // Generate suggested tags from video title (improved, up to 20 tags)
+  const generateTags = (title: string) => {
+    if (!title) return []
+
+    const commonWords = new Set(['the','a','an','and','or','but','in','on','at','to','for','of','with','is','are','am','be','been','being','have','has','had','do','does','did','will','would','could','should','can','may','might','must','this','that','these','those','video','shorts'])
+
+    const cleaned = title
+      .toLowerCase()
+      .replace(/[#@]/g, '')
+      .replace(/["'“”‘’()\[\]:;!?.,/\\]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    const words = cleaned.split(' ').filter(Boolean)
+
+    const ngrams: string[] = []
+
+    // unigrams
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i]
+      if (w.length > 1 && !commonWords.has(w)) ngrams.push(w)
+    }
+
+    // bigrams and trigrams
+    for (let n = 2; n <= 3; n++) {
+      for (let i = 0; i + n <= words.length; i++) {
+        const seq = words.slice(i, i + n).filter(w => !commonWords.has(w)).join(' ')
+        if (seq && seq.split(' ').length >= 1) ngrams.push(seq)
+      }
+    }
+
+    // Add some suffix variants to increase diversity
+    const suffixes = ['review','tutorial','tips','how to','guide','2026','best','top']
+    for (const w of words.slice(0, 6)) {
+      for (const s of suffixes) {
+        const candidate = `${w} ${s}`.trim()
+        if (candidate.split(' ').length <= 4) ngrams.push(candidate)
+      }
+    }
+
+    // Build unique list preserving order, limit to 20
+    const seen = new Set<string>()
+    const final: string[] = []
+    for (const t of ngrams) {
+      const tag = t.trim()
+      if (!tag) continue
+      if (seen.has(tag)) continue
+      if (tag.length > 60) continue
+      seen.add(tag)
+      final.push(tag)
+      if (final.length >= 20) break
+    }
+
+    const colors = ['emerald','orange','blue','amber','purple','rose','cyan','indigo']
+    const tags = final.map((tag, i) => ({ tag, score: Math.floor(Math.random() * 40 + 45), color: colors[i % colors.length] }))
+
+    return tags
+  }
+
+  useEffect(() => {
+    if (!latestVideo?.title) {
+      setSuggestedTags([])
+      return
+    }
+
+    let mounted = true
+    const fetchSuggested = async () => {
+      try {
+        console.log(`🎯 Fetching ${tagMode} tags for:`, latestVideo.title)
+        
+        // Use new YouTube SEO Tag Suggestion Engine
+        const res = await fetch('/api/youtube/seo-tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: latestVideo.title,
+            videoType: latestVideo.title.toLowerCase().includes('shorts') ? 'shorts' : 'long',
+            mode: tagMode
+          })
+        })
+
+        if (!res.ok) {
+          throw new Error(`SEO Tags API failed: ${res.status}`)
+        }
+
+        const data = await res.json()
+        const seoTags: Array<{tag: string, score: number, level: string}> = data.tags || []
+        
+        console.log('✅ Got', seoTags.length, 'SEO tags:', seoTags.slice(0, 5).map(t => `${t.tag}(${t.score})`).join(', '))
+
+        if (seoTags.length > 0 && mounted) {
+          // Convert to display format with colors based on level
+          const displayTags = seoTags.map(t => ({
+            tag: t.tag,
+            score: t.score,
+            viralScore: t.score, // Use score as viral score for display
+            color: t.level === 'high' ? 'emerald' : t.level === 'medium' ? 'orange' : 'blue',
+            confidence: t.level,
+            level: t.level
+          }))
+          setSuggestedTags(displayTags)
+          return
+        }
+
+        // Fallback to old system if no SEO tags
+        console.log('⚠️ No SEO tags found, using fallback')
+        if (mounted) setSuggestedTags(generateTags(latestVideo.title))
+      } catch (err) {
+        console.error('❌ SEO tag suggestion failed:', err)
+        if (mounted) setSuggestedTags(generateTags(latestVideo.title))
+      }
+    }
+
+    fetchSuggested()
+    return () => { mounted = false }
+  }, [latestVideo, tagMode])
 
   // Close channel menu on outside clicks
   useEffect(() => {
@@ -261,6 +403,104 @@ export default function DashboardPage() {
         popup.close()
       }
     }, 300000)
+  }
+
+  const handlePublishTags = async () => {
+    if (!latestVideo || suggestedTags.length === 0) return
+
+    setIsPublishing(true)
+    setPublishError('')
+    try {
+      // Extract just the tag names
+      const tagNames = suggestedTags.map(t => t.tag)
+
+      console.log('Publishing tags:', tagNames)
+
+      // Call API to publish tags to YouTube
+      const response = await fetch('/api/tags/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoId: latestVideo.id,
+          tags: tagNames,
+          channelId: youtubeChannel?.id,
+          accessToken: localStorage.getItem('youtube_access_token')
+        })
+      })
+
+      console.log('Response status:', response.status)
+
+      // Parse response as JSON
+      let data
+      try {
+        data = await response.json()
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError)
+        setPublishError('Invalid response from server')
+        setIsPublishing(false)
+        return
+      }
+
+      console.log('Response data:', data)
+
+      if (response.ok && (data.success || data.message)) {
+        setPublishSuccess(true)
+        setPublishError('')
+        console.log('Tags published successfully')
+
+        // Remove published video from the untagged list (if present) and pick next
+        setVideosWithoutTags(prev => {
+          const updated = prev.filter(v => v.id !== latestVideo.id)
+
+          // after short delay, open the next untagged video if available
+          setTimeout(() => {
+            setPublishSuccess(false)
+            if (updated.length > 0) {
+              const next = updated[0]
+              setLatestVideo(next)
+              setSuggestedTags(generateTags(next.title))
+            }
+          }, 1200)
+
+          return updated
+        })
+
+        // Reset success message after 3 seconds
+        setTimeout(() => setPublishSuccess(false), 3000)
+      } else {
+        const errorMsg = data.error || data.message || 'Failed to publish tags'
+        setPublishError(errorMsg)
+        console.error('Failed to publish tags:', errorMsg)
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Error publishing tags'
+      setPublishError(errorMsg)
+      console.error('Error publishing tags:', error)
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
+  const handleAddTag = () => {
+    if (!newTagInput.trim()) return
+
+    const colors = ['emerald', 'orange', 'blue', 'amber', 'purple', 'rose', 'cyan', 'indigo']
+    const newTag = {
+      tag: newTagInput.trim().toLowerCase(),
+      score: Math.floor(Math.random() * 40 + 50),
+      color: colors[suggestedTags.length % colors.length]
+    }
+
+    setSuggestedTags([...suggestedTags, newTag])
+    setNewTagInput('')
+  }
+
+  const handleRemoveTag = (index: number) => {
+    setSuggestedTags(suggestedTags.filter((_, i) => i !== index))
+  }
+
+  const handleShowMore = () => {
+    setShowAllTags(!showAllTags)
   }
 
   const formatNumber = (num: string | number): string => {
@@ -515,107 +755,311 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Optimize / Connect Section */}
+            {/* Add Missing Tags Section */}
             <div className="mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-black text-gray-900">Optimize Your Latest Video</h2>
-                <Link href="/videos">
-                  <Button variant="link" className="text-blue-600 hover:text-blue-700">
-                    View All
-                  </Button>
-                </Link>
-              </div>
+              <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700/50">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-xl font-bold text-white">
+                      {tagMode === 'suggest' ? 'SEO Tag Suggestions' : 'Add Missing Tags'}
+                    </h3>
+                    {publishSuccess && <Check className="w-5 h-5 text-green-400" />}
+                    {latestVideo && (
+                      <p className="text-gray-400 text-sm mt-1">
+                        {new Date(latestVideo.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    {/* Mode Toggle Buttons */}
+                    <button
+                      onClick={() => setTagMode('suggest')}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                        tagMode === 'suggest' 
+                          ? 'bg-blue-600 text-white border-blue-600' 
+                          : 'bg-slate-700/60 text-slate-300 border-slate-600 hover:bg-slate-700'
+                      } border`}
+                    >
+                      🎯 SEO Suggest
+                    </button>
+                    <button
+                      onClick={() => setTagMode('missing')}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                        tagMode === 'missing' 
+                          ? 'bg-amber-600 text-white border-amber-600' 
+                          : 'bg-slate-700/60 text-slate-300 border-slate-600 hover:bg-slate-700'
+                      } border`}
+                    >
+                      � Missing Tags
+                    </button>
+                  </div>
+                  {publishSuccess && (
+                    <div className="px-4 py-2 bg-green-500/20 border border-green-500/50 rounded-lg">
+                      <p className="text-green-400 text-sm font-semibold">✓ Tags published successfully</p>
+                    </div>
+                  )}
+                </div>
 
-              {youtubeChannel ? (
-                // Existing optimize UI when channel connected
-                (loadingVideo ? (
-                  <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 rounded-2xl p-6 shadow-xl">
-                    <div className="flex items-center justify-center py-12">
-                      <div className="text-white">Loading video...</div>
+                {publishError && (
+                  <div className="mb-4 px-4 py-2 bg-red-500/20 border border-red-500/50 rounded-lg">
+                    <p className="text-red-400 text-sm font-semibold">{publishError}</p>
+                  </div>
+                )}
+
+                {latestVideo ? (
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start mb-4">
+                    {/* Thumbnail */}
+                    <div className="md:col-span-3">
+                      <div className="relative w-full h-32 rounded-lg overflow-hidden bg-gray-700">
+                        {latestVideo?.thumbnail ? (
+                          <Image 
+                            src={latestVideo.thumbnail} 
+                            alt="Video thumbnail" 
+                            fill 
+                            className="object-cover" 
+                            unoptimized 
+                            onError={(e: any) => { const target = e.target as HTMLImageElement; target.style.display = 'none' }} 
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-500">
+                            <Youtube className="w-12 h-12" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Tags Section */}
+                    <div className="md:col-span-9">
+                      <p className="text-white font-semibold mb-3 line-clamp-2">{latestVideo.title}</p>
+                      
+                      {suggestedTags.length > 0 ? (
+                        <div>
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {suggestedTags.slice(0, showAllTags ? 20 : 5).map((tag, index) => {
+                              const realIndex = suggestedTags.indexOf(tag)
+                              
+                              // Different color schemes for different modes
+                              const colorMap: Record<string, {bg: string, border: string, text: string, textColor: string}> = tagMode === 'missing' ? {
+                                // Missing tags mode: All amber/yellow (score 99)
+                                emerald: { bg: 'bg-amber-900/40', border: 'border-amber-700/50', text: 'text-amber-400', textColor: 'text-amber-200' },
+                                orange: { bg: 'bg-amber-900/40', border: 'border-amber-700/50', text: 'text-amber-400', textColor: 'text-amber-200' },
+                                blue: { bg: 'bg-amber-900/40', border: 'border-amber-700/50', text: 'text-amber-400', textColor: 'text-amber-200' },
+                                amber: { bg: 'bg-amber-900/40', border: 'border-amber-700/50', text: 'text-amber-400', textColor: 'text-amber-200' },
+                              } : {
+                                // SEO suggest mode: Green/Orange/Blue based on level
+                                emerald: { bg: 'bg-emerald-900/40', border: 'border-emerald-700/50', text: 'text-emerald-400', textColor: 'text-emerald-200' },
+                                orange: { bg: 'bg-orange-900/40', border: 'border-orange-700/50', text: 'text-orange-400', textColor: 'text-orange-200' },
+                                blue: { bg: 'bg-blue-900/40', border: 'border-blue-700/50', text: 'text-blue-400', textColor: 'text-blue-200' },
+                                amber: { bg: 'bg-amber-900/40', border: 'border-amber-700/50', text: 'text-amber-400', textColor: 'text-amber-200' },
+                                purple: { bg: 'bg-purple-900/40', border: 'border-purple-700/50', text: 'text-purple-400', textColor: 'text-purple-200' },
+                                rose: { bg: 'bg-rose-900/40', border: 'border-rose-700/50', text: 'text-rose-400', textColor: 'text-rose-200' },
+                                cyan: { bg: 'bg-cyan-900/40', border: 'border-cyan-700/50', text: 'text-cyan-400', textColor: 'text-cyan-200' },
+                                indigo: { bg: 'bg-indigo-900/40', border: 'border-indigo-700/50', text: 'text-indigo-400', textColor: 'text-indigo-200' },
+                              }
+                              
+                              const colors = colorMap[tag.color] || colorMap.blue
+                              
+                              return (
+                                <div 
+                                  key={index} 
+                                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${colors.bg} border ${colors.border} rounded-full hover:scale-105 transition-transform`}
+                                  title={tagMode === 'missing' ? `Missing tag from title: ${tag.tag}` : `${tag.level} opportunity (${tag.score}/100): ${tag.tag}`}
+                                >
+                                  <span className={`${colors.text} font-bold text-sm`}>{tag.score}</span>
+                                  <span className={`${colors.textColor} text-sm`}>{tag.tag}</span>
+                                  {tagMode === 'suggest' && tag.score >= 60 && (
+                                    <span className={`${colors.text} text-xs font-bold`}>⚡</span>
+                                  )}
+                                  {tagMode === 'missing' && (
+                                    <span className={`${colors.text} text-xs font-bold`}>📝</span>
+                                  )}
+                                  <X 
+                                    className={`w-4 h-4 ${colors.text} cursor-pointer hover:opacity-70`}
+                                    onClick={() => handleRemoveTag(realIndex)}
+                                  />
+                                </div>
+                              )
+                            })}
+                            {suggestedTags.length > 5 && !showAllTags && (
+                              <button onClick={handleShowMore} className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-700/60 hover:bg-slate-700 border border-slate-600 rounded-full transition-colors">
+                                <span className="text-slate-300 text-sm">+{suggestedTags.length - 5} more</span>
+                              </button>
+                            )}
+                          </div>
+
+                          {showAllTags && suggestedTags.length > 5 && (
+                            <button 
+                              onClick={handleShowMore}
+                              className="text-slate-400 hover:text-slate-300 text-sm font-medium flex items-center gap-1 transition-colors mb-3"
+                            >
+                              <ChevronDown className="w-4 h-4 transform rotate-180" />
+                              Show less
+                            </button>
+                          )}
+                          {!showAllTags && suggestedTags.length > 5 && (
+                            <button 
+                              onClick={handleShowMore}
+                              className="text-slate-400 hover:text-slate-300 text-sm font-medium flex items-center gap-1 transition-colors mb-3"
+                            >
+                              <ChevronDown className="w-4 h-4" />
+                              Show more
+                            </button>
+                          )}
+
+                          {/* Add Tag Input */}
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={newTagInput}
+                              onChange={(e) => setNewTagInput(e.target.value)}
+                              onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                              placeholder="Add new tag..."
+                              className="flex-1 px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 text-sm"
+                            />
+                            <button
+                              onClick={handleAddTag}
+                              disabled={!newTagInput.trim()}
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors text-sm"
+                            >
+                              + Add Tag
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2 mb-4 animate-pulse">
+                          {[0,1,2,3,4].map((i) => (
+                            <div key={i} className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-700/30 border border-slate-600 rounded-full">
+                              <span className="text-slate-400 font-semibold text-sm">—</span>
+                              <span className="text-slate-400 text-sm">loading...</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
-                ) : latestVideo ? (
-                  <Link href={`/videos?videoId=${latestVideo.id}`} className="block">
-                    <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-                        <div className="md:col-span-3">
-                          <div className="relative w-full h-40 md:h-32 rounded-lg overflow-hidden bg-gray-700">
-                            {latestVideo.thumbnail ? (
-                              <Image src={latestVideo.thumbnail} alt={latestVideo.title} fill className="object-cover" unoptimized onError={(e: any) => { const target = e.target as HTMLImageElement; target.style.display = 'none' }} />
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-gray-400 text-sm mb-4">No video selected yet</p>
+                  </div>
+                )}
+
+                <div className="mt-6 flex gap-3">
+                  <Button 
+                    onClick={() => setSuggestedTags([])}
+                    disabled={suggestedTags.length === 0 || isPublishing}
+                    variant="outline"
+                    className="flex-1 px-4 py-3 rounded-lg text-white border-white/10"
+                  >
+                    Remove all
+                  </Button>
+
+                  <Button 
+                    onClick={handlePublishTags}
+                    disabled={!latestVideo || suggestedTags.length === 0 || isPublishing}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg"
+                  >
+                    {isPublishing ? 'Publishing...' : 'Publish tags'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Videos Without Tags Carousel */}
+            {videosWithoutTags.length > 0 && publishSuccess && (
+              <div className="mb-8">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">✓ Next Videos to Tag</h3>
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+                  {/* Carousel Container */}
+                  <div className="relative">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                      {videosWithoutTags.slice(currentVideoIndex, currentVideoIndex + 3).map((video, idx) => (
+                        <div key={video.id} className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl overflow-hidden shadow-md border border-slate-700/50 hover:shadow-lg transition-shadow">
+                          {/* Thumbnail */}
+                          <div className="relative w-full h-40 bg-gray-700 overflow-hidden">
+                            {video.thumbnail ? (
+                              <Image
+                                src={video.thumbnail}
+                                alt={video.title}
+                                fill
+                                className="object-cover hover:scale-105 transition-transform duration-300"
+                                unoptimized
+                                onError={(e: any) => { const target = e.target as HTMLImageElement; target.style.display = 'none' }}
+                              />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-gray-500">
                                 <Youtube className="w-12 h-12" />
                               </div>
                             )}
                           </div>
-                        </div>
 
-                        <div className="md:col-span-6">
-                          <h3 className="text-white font-bold text-lg sm:text-xl mb-2 line-clamp-2">{latestVideo.title}</h3>
-                          <div className="flex items-center gap-3 text-sm text-gray-400 mb-3">
-                            <span>{latestVideo.viewCount.toLocaleString()} views</span>
-                            <span>•</span>
-                            <span>{new Date(latestVideo.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-                            <span className="ml-2 px-2 py-0.5 rounded-md bg-white/5 text-xs">Title score: <strong className="ml-1 text-white">{latestVideo.titleScore || 67}</strong></span>
+                          {/* Video Info */}
+                          <div className="p-4">
+                            <h4 className="text-white font-semibold mb-2 line-clamp-2 text-sm">{video.title}</h4>
+                            <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
+                              <span>{Number(video.viewCount).toLocaleString()} views</span>
+                              <span>•</span>
+                              <span>{new Date(video.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                            </div>
+                            <button 
+                              onClick={() => {
+                                // Open this video in the tag editor
+                                setLatestVideo(video)
+                                setSuggestedTags(generateTags(video.title))
+                                setPublishSuccess(false)
+                              }}
+                              className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors"
+                            >
+                              Tag This Video
+                            </button>
                           </div>
-
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            <div className="px-2 py-1 text-xs rounded-full bg-white/6 text-white">Add end screen</div>
-                            <div className="px-2 py-1 text-xs rounded-full bg-white/6 text-white">Shorten intro</div>
-                            <div className="px-2 py-1 text-xs rounded-full bg-white/6 text-white">Add tags</div>
-                          </div>
-
-                          <p className="text-sm text-gray-300">Quick suggestions to improve discovery and watch time — estimated uplift <span className="font-semibold text-white">+12%</span></p>
                         </div>
+                      ))}
+                    </div>
 
-                        <div className="md:col-span-3 flex flex-col gap-3">
-                          <Link href={`/videos?videoId=${latestVideo.id}`} className="w-full">
-                            <Button className="w-full bg-amber-500 text-white py-3 font-semibold flex items-center justify-center gap-2">Optimize <ArrowUpRight className="w-4 h-4" /></Button>
-                          </Link>
-                          <a href={`https://youtube.com/watch?v=${latestVideo.id}`} target="_blank" rel="noreferrer" className="w-full">
-                            <Button variant="outline" className="w-full text-white/90 flex items-center justify-center gap-2">Preview <Eye className="w-4 h-4" /></Button>
-                          </a>
-                          <button onClick={(e) => { e.preventDefault() }} className="w-full bg-white text-slate-900 py-2 rounded-lg font-semibold flex items-center justify-center gap-2">Generate Titles <Lightbulb className="w-4 h-4" /></button>
-                        </div>
+                    {/* Dot Navigation */}
+                    {videosWithoutTags.length > 3 && (
+                      <div className="flex justify-center gap-2 mb-4">
+                        {Array.from({ length: Math.ceil(videosWithoutTags.length / 3) }).map((_, dotIndex) => (
+                          <button
+                            key={dotIndex}
+                            onClick={() => setCurrentVideoIndex(dotIndex * 3)}
+                            className={`transition-all duration-300 ${
+                              dotIndex === Math.floor(currentVideoIndex / 3)
+                                ? 'w-8 h-2 bg-blue-600 rounded-full'
+                                : 'w-2 h-2 bg-gray-400 rounded-full hover:bg-gray-300'
+                            }`}
+                            aria-label={`Go to video group ${dotIndex + 1}`}
+                          />
+                        ))}
                       </div>
-                    </div>
-                  </Link>
-                ) : (
-                  <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 rounded-2xl p-6 shadow-xl">
-                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                      <div className="text-white text-lg font-semibold mb-2">No Videos Found</div>
-                      <div className="text-gray-400 text-sm mb-6">Upload your first video to see it here</div>
-                      <Link href="/upload/normal">
-                        <Button className="bg-white hover:bg-gray-100 text-gray-900 font-semibold px-6 py-2 rounded-lg">
-                          Upload Video
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                // Channel not connected - show connect card with same size
-                <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 rounded-2xl p-6 shadow-xl">
-                  <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-white font-bold text-lg mb-2">Connect your YouTube channel</h3>
-                      <p className="text-gray-300 mb-4">Link your channel to unlock personalized recommendations, analytics, and optimization tools directly in your dashboard.</p>
-                      <div className="flex items-center gap-3">
-                        <Link href="/connect">
-                          <Button className="bg-white text-gray-900 font-semibold px-6 py-2 rounded-lg">Connect Channel</Button>
-                        </Link>
-                        <Link href="/docs">
-                          <Button variant="outline" className="text-white border-white/20">Learn more</Button>
-                        </Link>
+                    )}
+
+                    {/* Navigation Arrows */}
+                    {videosWithoutTags.length > 3 && (
+                      <div className="flex justify-between items-center">
+                        <button
+                          onClick={() => setCurrentVideoIndex(Math.max(0, currentVideoIndex - 3))}
+                          disabled={currentVideoIndex === 0}
+                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white rounded-lg transition-colors text-sm font-semibold"
+                        >
+                          ← Previous
+                        </button>
+                        <span className="text-gray-400 text-sm font-semibold">
+                          {Math.floor(currentVideoIndex / 3) + 1} / {Math.ceil(videosWithoutTags.length / 3)}
+                        </span>
+                        <button
+                          onClick={() => setCurrentVideoIndex(Math.min(videosWithoutTags.length - 3, currentVideoIndex + 3))}
+                          disabled={currentVideoIndex >= videosWithoutTags.length - 3}
+                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white rounded-lg transition-colors text-sm font-semibold"
+                        >
+                          Next →
+                        </button>
                       </div>
-                    </div>
-                    <div className="w-full md:w-48 h-32 rounded-xl overflow-hidden bg-gray-700 flex items-center justify-center">
-                      <Image src="/images/connect-illustration.png" alt="Connect" width={240} height={160} className="object-cover opacity-80"/>
-                    </div>
+                    )}
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
               {/* Top Performing Videos */}
               <div className="mb-8">

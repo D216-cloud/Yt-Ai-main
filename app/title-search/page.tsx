@@ -28,6 +28,7 @@ interface Video {
   likes: string
   comments: string
   duration: string
+  privacyStatus?: 'public' | 'unlisted' | 'private'
 }
 
 export default function TitleSearchPage() {
@@ -59,28 +60,23 @@ export default function TitleSearchPage() {
     return Object.keys(map).length
   }, [youtubeChannel, additionalChannelsList])
 
-  // Filter videos based on duration (shorts ≤60 seconds, videos >60 seconds)
+  // Filter videos based on duration (shorts < 3 minutes, videos >= 3 minutes)
   const isShortDuration = (duration: string): boolean => {
+    if (!duration) return false
     try {
-      // Handle ISO 8601 duration format: PT1M30S, PT45S, etc.
-      const durationStr = duration.replace('PT', '').replace(/[A-Z]/g, (match) => {
-        if (match === 'M') return ':'
-        return ''
-      })
+      // Handle ISO 8601 duration format: PT1H2M30S, PT1M30S, PT45S, etc.
+      const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
+      if (!match) return false
       
-      let totalSeconds = 0
-      const parts = duration.match(/(\d+)([HMS])/g) || []
+      const h = parseInt(match[1] || '0')
+      const m = parseInt(match[2] || '0')
+      const s = parseInt(match[3] || '0')
+      const totalSeconds = h * 3600 + m * 60 + s
       
-      for (const part of parts) {
-        const value = parseInt(part)
-        if (part.includes('H')) totalSeconds += value * 3600
-        else if (part.includes('M')) totalSeconds += value * 60
-        else if (part.includes('S')) totalSeconds += value
-      }
-      
-      return totalSeconds <= 60
+      // Shorts are videos under 3 minutes (180 seconds)
+      return totalSeconds < 180
     } catch (e) {
-      // If parsing fails, assume it's not a short
+      console.error('Duration parsing error:', e, 'for duration:', duration)
       return false
     }
   }
@@ -125,18 +121,21 @@ export default function TitleSearchPage() {
 
   // Fetch a single page of videos from channel
   const fetchVideos = async (pageToken?: string) => {
-    const channelIdToUse = channelId.trim() || youtubeChannel?.id
-
-    if (!channelIdToUse) {
-      setVideosError("Please enter a YouTube channel ID or connect your channel")
-      return
-    }
-
     setIsLoadingVideos(true)
     setVideosError("")
 
     try {
-      const url = `/api/channel/videos?channelId=${encodeURIComponent(channelIdToUse)}${pageToken ? `&pageToken=${pageToken}` : ''}`
+      // Get access token from localStorage (same as content page)
+      const accessToken = localStorage.getItem('youtube_access_token')
+      
+      if (!accessToken) {
+        setVideosError("Please connect your YouTube channel first. Go to Settings > Connect YouTube to authorize access.")
+        setIsLoadingVideos(false)
+        return
+      }
+
+      // Use same endpoint as content page with mine=true and access token
+      const url = `/api/youtube/videos?mine=true&fetchAll=false&maxResults=50&access_token=${accessToken}${pageToken ? `&pageToken=${pageToken}` : ''}`
       const response = await fetch(url)
 
       if (!response.ok) {
@@ -155,28 +154,37 @@ export default function TitleSearchPage() {
       setNextPageToken(data.nextPageToken)
       setShowAnalyzer(true)
     } catch (err: any) {
-      setVideosError(err.message || 'Failed to fetch channel videos')
+      setVideosError(err.message || 'Failed to fetch videos')
       console.error('Error fetching videos:', err)
     } finally {
       setIsLoadingVideos(false)
     }
   }
 
-  // Fetch all videos by iterating through playlist pages (safe cap at 200 videos)
+  // Fetch all videos by iterating through playlist pages (same as content page - all videos: private, unlisted, public)
   const fetchAllVideos = async () => {
-    const channelIdToUse = channelId.trim() || youtubeChannel?.id
-
-    if (!channelIdToUse) return
-
     setIsLoadingVideos(true)
     setVideosError("")
 
     try {
+      // Get access token from localStorage (same as content page)
+      const accessToken = localStorage.getItem('youtube_access_token')
+      
+      if (!accessToken) {
+        setVideosError("Please connect your YouTube channel first. Go to Settings > Connect YouTube to authorize access.")
+        setIsLoadingVideos(false)
+        return
+      }
+
       let allVideos: Video[] = []
       let pageToken: string | undefined = undefined
+      let pageCount = 0
+      const pageLimit = 100 // Fetch up to 100 pages (5000+ videos max)
 
       do {
-        const url = `/api/channel/videos?channelId=${encodeURIComponent(channelIdToUse)}${pageToken ? `&pageToken=${pageToken}` : ''}&maxResults=50`
+        // Use same endpoint as content page with mine=true to get all videos
+        const url = `/api/youtube/videos?mine=true&fetchAll=false&maxResults=50&access_token=${accessToken}${pageToken ? `&pageToken=${pageToken}` : ''}`
+        
         const response = await fetch(url)
         if (!response.ok) {
           const err = await response.json()
@@ -184,11 +192,16 @@ export default function TitleSearchPage() {
         }
 
         const data = await response.json()
-        allVideos = [...allVideos, ...data.videos]
+        if (data.videos && data.videos.length > 0) {
+          allVideos = [...allVideos, ...data.videos]
+        }
         pageToken = data.nextPageToken
+        pageCount += 1
 
-        // Safety cap
-        if (allVideos.length >= 200) break
+        if (pageCount >= pageLimit) {
+          console.warn(`⚠️ Reached page limit of ${pageLimit} pages (${allVideos.length} videos)`)
+          break
+        }
       } while (pageToken)
 
       setVideos(allVideos)
@@ -206,9 +219,8 @@ export default function TitleSearchPage() {
     e.preventDefault()
     setVideos([])
     setNextPageToken(null)
-    // If channelId provided, fetch first page; otherwise fetch all for connected channel
-    if (channelId.trim()) fetchVideos()
-    else fetchAllVideos()
+    // Always fetch all videos for authenticated user (same as content page)
+    fetchAllVideos()
   }
 
   const loadMore = () => {
