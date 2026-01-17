@@ -14,7 +14,11 @@ import {
     X,
     Play,
     ChevronDown,
-    Youtube
+    Youtube,
+    Zap,
+    Users,
+    HelpCircle,
+    Moon
 } from "lucide-react"
 
 interface DashboardHeaderProps {
@@ -26,6 +30,7 @@ export default function DashboardHeader({ sidebarOpen, setSidebarOpen }: Dashboa
     const router = useRouter()
     const { data: session } = useSession()
     const [showProfileMenu, setShowProfileMenu] = useState(false)
+    const [darkMode, setDarkMode] = useState(false)
 
     // Determine user's plan (fallback to Free)
     const planName = (session?.user as any)?.plan || (session?.user as any)?.subscription || 'Free'
@@ -88,39 +93,83 @@ export default function DashboardHeader({ sidebarOpen, setSidebarOpen }: Dashboa
 
                         {/* Profile Menu Dropdown */}
                         {showProfileMenu && (
-                            <div className="absolute right-0 mt-2 w-64 md:w-80 lg:w-96 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
-                                <div className="p-5 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-200">
-                                    <p className="font-bold text-gray-900">{session?.user?.name || "Creator"}</p>
-                                    <p className="text-sm text-gray-600">{session?.user?.email || '—'}</p>
-                                    <p className="text-sm text-gray-600 mt-1">Plan: <span className="font-semibold text-gray-900">{planName}</span></p>
+                            <div className="absolute right-0 mt-2 w-72 bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+                                {/* Header with Avatar - Subtle bg */}
+                                <div className="p-5 bg-gradient-to-b from-gray-50/50 to-white border-b border-gray-100">
+                                    <div className="flex items-center gap-3 mb-3">
+                                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-md shrink-0">
+                                            <span className="text-white text-lg font-bold">
+                                                {session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || "U"}
+                                            </span>
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-bold text-gray-900 text-sm">{session?.user?.name || "Creator"}</p>
+                                            <p className="text-xs text-gray-500">{session?.user?.email || '—'}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Upgrade Profile Button */}
+                                    <button className="w-full flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-cyan-400 via-teal-500 to-teal-600 text-white rounded-full hover:from-cyan-500 hover:via-teal-600 hover:to-teal-700 transition-all shadow-md font-semibold">
+                                        <div className="flex items-center gap-2">
+                                            <Zap className="w-4 h-4" />
+                                            <span className="text-sm">Upgrade profile</span>
+                                        </div>
+                                        <span className="text-xs bg-white/30 px-2 py-1 rounded-full font-semibold">PRO</span>
+                                    </button>
                                 </div>
-                                <div className="p-2">
+
+                                {/* Menu Items */}
+                                <div className="p-3 space-y-1">
                                     <Link href="/profile">
-                                        <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors text-left">
-                                            <User className="w-4 h-4 text-gray-600" />
-                                            <span className="text-sm font-medium text-gray-900">Profile Settings</span>
+                                        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 transition-colors text-left">
+                                            <User className="w-5 h-5 text-gray-700" />
+                                            <span className="text-sm font-medium text-gray-900">User Profile</span>
                                         </button>
                                     </Link>
-                                    <Link href="/connect">
-                                        <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors text-left">
-                                            <Youtube className="w-4 h-4 text-gray-600" />
-                                            <span className="text-sm font-medium text-gray-900">Manage Channels</span>
-                                        </button>
-                                    </Link>
+                                    <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 transition-colors text-left">
+                                        <Zap className="w-5 h-5 text-gray-700" />
+                                        <span className="text-sm font-medium text-gray-900">Integrations</span>
+                                    </button>
                                     <Link href="/settings">
-                                        <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors text-left">
-                                            <Settings className="w-4 h-4 text-gray-600" />
+                                        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 transition-colors text-left">
+                                            <Settings className="w-5 h-5 text-gray-700" />
                                             <span className="text-sm font-medium text-gray-900">Settings</span>
                                         </button>
                                     </Link>
+                                    <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 transition-colors text-left">
+                                        <Users className="w-5 h-5 text-gray-700" />
+                                        <span className="text-sm font-medium text-gray-900">Community</span>
+                                    </button>
+                                    <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-100 transition-colors text-left">
+                                        <HelpCircle className="w-5 h-5 text-gray-700" />
+                                        <span className="text-sm font-medium text-gray-900">Help Center</span>
+                                    </button>
+
+                                    {/* Dark Mode Toggle */}
+                                    <div className="px-4 py-3 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <Moon className="w-5 h-5 text-gray-700" />
+                                            <span className="text-sm font-medium text-gray-900">Dark Mode</span>
+                                        </div>
+                                        <button
+                                            onClick={() => setDarkMode(!darkMode)}
+                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${darkMode ? 'bg-blue-500' : 'bg-gray-300'}`}
+                                        >
+                                            <span
+                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${darkMode ? 'translate-x-6' : 'translate-x-1'}`}
+                                            />
+                                        </button>
+                                    </div>
                                 </div>
-                                <div className="p-2 border-t border-gray-200">
+
+                                {/* Footer */}
+                                <div className="px-3 py-2 border-t border-gray-100 bg-red-50/60">
                                     <button
                                         onClick={handleSignOut}
-                                        className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors text-left"
+                                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-red-100 transition-colors text-left"
                                     >
-                                        <LogOut className="w-4 h-4 text-red-600" />
-                                        <span className="text-sm font-medium text-red-600">Sign Out</span>
+                                        <LogOut className="w-5 h-5 text-red-500" />
+                                        <span className="text-sm font-semibold text-red-500">User Profile</span>
                                     </button>
                                 </div>
                             </div>

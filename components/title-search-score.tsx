@@ -116,51 +116,8 @@ export default function TitleSearchScoreComponent() {
 
   return (
     <div className="w-full">
-      {/* Search Section */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm mb-8">
-        <div className="px-6 py-6">
-          <form onSubmit={handleSearch} className="space-y-4">
-            <div className="flex gap-2">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Enter a keyword or title idea... (e.g., 'cartoon video', 'how to make...')"
-                  value={keyword}
-                  onChange={(e) => {
-                    setKeyword(e.target.value)
-                    setError('')
-                  }}
-                  className="pl-10 h-12 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-              <Button
-                type="submit"
-                disabled={loading}
-                className="h-12 px-8 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg disabled:opacity-50 transition-all flex items-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    Generate Ideas
-                  </>
-                )}
-              </Button>
-            </div>
-            {error && (
-              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                {error}
-              </div>
-            )}
-          </form>
-        </div>
-      </div>
+      {/* Search Section removed as requested */}
+      <div className="hidden" />
 
       {/* Results Section */}
       {results && (
@@ -380,15 +337,7 @@ export default function TitleSearchScoreComponent() {
 
       {/* Empty State */}
       {!results && !loading && (
-        <div className="text-center py-12">
-          <div className="space-y-4">
-            <Sparkles className="h-16 w-16 text-blue-300 mx-auto" />
-            <h2 className="text-2xl font-bold text-gray-900">YouTube Title Intelligence</h2>
-            <p className="text-gray-600 max-w-md mx-auto">
-              Enter a keyword or title idea to get SEO-optimized suggestions, search scores, and real YouTube trends
-            </p>
-          </div>
-        </div>
+        <div className="text-center py-12" />
       )}
     </div>
   )
