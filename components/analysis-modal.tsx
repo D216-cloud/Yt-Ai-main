@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
 import { signIn } from 'next-auth/react'
-import GenerateTitle from '@/components/generate-title' 
 
 export default function AnalysisModal() {
   const [open, setOpen] = useState(false)
@@ -125,6 +124,13 @@ export default function AnalysisModal() {
             </div>
           ) : (
             <div className="space-y-6">
+              {/* Show warnings from backend (non-fatal issues) */}
+              {data?.warnings && data.warnings.length > 0 && (
+                <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-100 text-amber-800 text-sm">
+                  <strong>Note:</strong> {data.warnings.join(' — ')}
+                </div>
+              )}
+
               {/* Title Score - full width */}
               <div className="bg-white rounded-xl p-6 shadow-sm">
                 <div className="flex items-center justify-between gap-6">
@@ -158,9 +164,7 @@ export default function AnalysisModal() {
                   ))}
                 </div>
 
-                <div className="flex items-center gap-3 mb-4">
-                  <GenerateTitle title={title} onUse={(t: string) => { copy(t); setVisible(false); setTimeout(()=>setOpen(false),160) }} />
-                </div>
+
 
                 <p className="text-xs text-gray-500 mt-2">ℹ️ {data?.disclaimer}</p>
               </div>

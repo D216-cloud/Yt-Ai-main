@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import Image from "next/image"
-import { ChevronDown, ChevronUp, Loader2, TrendingUp, Target, Copy, Check } from "lucide-react"
+import { Loader2, Zap } from "lucide-react"
 
 interface VideoCardProps {
   video: {
@@ -18,35 +18,8 @@ interface VideoCardProps {
   }
 }
 
-interface AnalysisData {
-  titleScore: number
-  status: 'EXCELLENT' | 'GOOD' | 'AVERAGE' | 'POOR'
-  breakdown: {
-    lengthScore: number
-    keywordScore: number
-    powerWordsScore: number
-    freshnessScore: number
-    clarityScore: number
-    competitionScore: number
-  }
-  recommendations: string[]
-  searchQueries: string[]
-  totalSearchQueries: number
-  searchDemand: 'LOW' | 'MEDIUM' | 'HIGH'
-  competition: 'LOW' | 'MEDIUM' | 'HIGH'
-  trend: 'RISING' | 'STABLE' | 'DECLINING'
-  suggestedTitles: string[]
-  keywords: string[]
-  disclaimer: string
-}
-
 export default function VideoCard({ video }: VideoCardProps) {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null)
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
-  
-  // click outside handling
   const containerRef = useRef<HTMLDivElement | null>(null)
 
   const formatViews = (views: string) => {
@@ -67,131 +40,191 @@ export default function VideoCard({ video }: VideoCardProps) {
     return `${Math.floor(diffDays / 365)} years ago`
   }
 
-  // Open analysis modal (global) and let the modal handle loading and fetching
-  const handleAnalyze = () => {
-    setIsAnalyzing(true)
+  const formatDuration = (duration: string) => {
+    return duration.replace('PT', '').replace('M', ':').replace('S', '')
+  }
+
+  // Detect if this is a short (duration under 60 seconds)
+  const isShort = () => {
     try {
-      window.dispatchEvent(new CustomEvent('open-analysis', { detail: { title: video.title, videoId: video.id } }))
+      let totalSeconds = 0
+      const parts = video.duration.match(/(\d+)([HMS])/g) || []
+      
+      for (const part of parts) {
+        const value = parseInt(part)
+        if (part.includes('H')) totalSeconds += value * 3600
+        else if (part.includes('M')) totalSeconds += value * 60
+        else if (part.includes('S')) totalSeconds += value
+      }
+      
+      return totalSeconds <= 60
     } catch (e) {
-      console.error('Failed to open analysis modal', e)
-    } finally {
-      // small visual feedback on button, modal will show actual loading
-      setTimeout(() => setIsAnalyzing(false), 600)
+      return false
     }
   }
 
-  // Close dropdown when clicking outside
+  const isShortVideo = isShort()
+
+  // Open analysis modal and dispatch event
+  const handleScoreWithBoost = () => {
+    setIsAnalyzing(true)
+    // Functionality removed - no modal opening
+    setTimeout(() => setIsAnalyzing(false), 600)
+  }
+
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsDropdownOpen(false)
+        // noop
       }
     }
     document.addEventListener('mousedown', onDocClick)
     return () => document.removeEventListener('mousedown', onDocClick)
   }, [])
 
-  const copyTitle = (title: string, index: number) => {
-    navigator.clipboard.writeText(title)
-    setCopiedIndex(index)
-    setTimeout(() => setCopiedIndex(null), 2000)
-  }
-
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return 'from-green-500 to-emerald-600'
-    if (score >= 60) return 'from-blue-500 to-cyan-600'
-    if (score >= 40) return 'from-yellow-500 to-orange-600'
-    return 'from-red-500 to-pink-600'
-  }
-
-  const getStatusBadge = (status: string) => {
-    const colors = {
-      EXCELLENT: 'bg-green-100 text-green-800',
-      GOOD: 'bg-blue-100 text-blue-800',
-      AVERAGE: 'bg-yellow-100 text-yellow-800',
-      POOR: 'bg-red-100 text-red-800',
-    }
-    return colors[status as keyof typeof colors] || colors.AVERAGE
-  }
-
-  const getLevelBadge = (level: string) => {
-    const colors = {
-      HIGH: 'bg-red-100 text-red-700',
-      MEDIUM: 'bg-yellow-100 text-yellow-700',
-      LOW: 'bg-green-100 text-green-700',
-      RISING: 'bg-emerald-100 text-emerald-700',
-      STABLE: 'bg-blue-100 text-blue-700',
-      DECLINING: 'bg-gray-100 text-gray-700',
-    }
-    return colors[level as keyof typeof colors] || colors.MEDIUM
-  }
-
   return (
-    <div ref={containerRef} className="relative bg-white rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transform transition-all duration-300 overflow-hidden border border-gray-100">
-      {/* Video Card Header */}
-      <div className="p-4">
-        <div className="flex flex-col sm:flex-row gap-6 items-start">
-          {/* Thumbnail */}
-          <div className="relative shrink-0 w-full sm:w-48">
+    <>
+      {isShortVideo ? (
+        // SHORTS CARD - Portrait/Vertical Layout
+        <div ref={containerRef} className="relative bg-white rounded-2xl shadow-md hover:shadow-xl transform transition-all duration-300 overflow-hidden border border-gray-200 group cursor-pointer">
+          {/* Thumbnail Container - Tall Aspect */}
+          <div className="relative w-full aspect-[9/16] bg-gray-200 overflow-hidden">
             <Image
               src={video.thumbnail}
               alt={video.title}
-              width={240}
-              height={135}
-              className="rounded-2xl object-cover shadow-sm w-full h-auto"
+              width={200}
+              height={356}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
-            <div className="absolute bottom-3 left-3 bg-black/80 text-white text-xs px-2 py-0.5 rounded">
-              {video.duration.replace('PT', '').replace('M', ':').replace('S', '')}
+            {/* Hover Overlay with Score Button */}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+              <button
+                onClick={handleScoreWithBoost}
+                disabled={isAnalyzing}
+                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all disabled:opacity-50"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Scoring...</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4" />
+                    <span>Score</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
           {/* Video Info */}
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-gray-900 mb-2 text-base sm:text-lg leading-tight line-clamp-3">
+          <div className="p-3 bg-white">
+            {/* Title */}
+            <h3 className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2 mb-2">
               {video.title}
             </h3>
 
-            <p className="text-sm text-gray-600 mb-3 line-clamp-3">{video.description || ''}</p>
-
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="inline-flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-full text-gray-700">👁️ {formatViews(video.views)}</span>
-              <span className="inline-flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-full text-gray-700">📅 {formatDate(video.publishedAt)}</span>
-              <span className="inline-flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-full text-gray-700">👍 {formatViews(video.likes)}</span>
+            {/* Views & Date */}
+            <div className="flex items-center gap-2 text-xs text-gray-600 mb-3">
+              <span>{formatViews(video.views)} views</span>
+              <span>•</span>
+              <span>{formatDate(video.publishedAt)}</span>
             </div>
-          </div>
 
-          {/* Actions */}
-          <div className="flex gap-3 mt-4 sm:mt-0 sm:flex-col sm:items-end w-full sm:w-auto">
+            {/* Action Button */}
             <button
-              onClick={handleAnalyze}
+              onClick={handleScoreWithBoost}
               disabled={isAnalyzing}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white text-amber-600 border border-amber-200 py-2 px-4 rounded-xl hover:bg-amber-50 transition-all font-medium disabled:opacity-50 shadow-sm"
+              className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-3 rounded-lg transition-all text-sm disabled:opacity-50"
             >
               {isAnalyzing ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Analyzing</span>
+                  <span>Scoring...</span>
                 </>
               ) : (
                 <>
-                  <span className="font-medium">{analysisData ? 'Open Analysis' : 'Analyze'}</span>
+                  <Zap className="w-4 h-4" />
+                  <span>Score with Boost</span>
                 </>
               )}
             </button>
-
-            <button
-              onClick={() => navigator.clipboard.writeText(`https://youtu.be/${video.id}`)}
-              className="w-full sm:w-auto inline-flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
-            >
-              Share
-            </button>
-
-            <a href={`https://youtu.be/${video.id}`} target="_blank" rel="noreferrer" className="text-xs text-gray-500 hover:underline mt-1 sm:mt-0">Open on YouTube</a>
           </div>
         </div>
-      </div>
+      ) : (
+        // VIDEOS CARD - Landscape/Horizontal Layout
+        <div ref={containerRef} className="relative bg-white rounded-2xl shadow-md hover:shadow-xl transform transition-all duration-300 overflow-hidden border border-gray-200 group cursor-pointer">
+          {/* Thumbnail Container */}
+          <div className="relative w-full aspect-video bg-gray-200 overflow-hidden">
+            <Image
+              src={video.thumbnail}
+              alt={video.title}
+              width={320}
+              height={180}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+            {/* Duration Badge */}
+            <div className="absolute bottom-2 right-2 bg-black/80 text-white text-xs font-semibold px-2 py-1 rounded">
+              {formatDuration(video.duration)}
+            </div>
+            {/* Hover Overlay with Score Button */}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+              <button
+                onClick={handleScoreWithBoost}
+                disabled={isAnalyzing}
+                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all disabled:opacity-50"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Scoring...</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4" />
+                    <span>Score with Boost</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
 
+          {/* Video Info */}
+          <div className="p-3 bg-white">
+            {/* Title */}
+            <h3 className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2 mb-2">
+              {video.title}
+            </h3>
 
-    </div>
+            {/* Views & Date */}
+            <div className="flex items-center gap-2 text-xs text-gray-600 mb-3">
+              <span>{formatViews(video.views)} views</span>
+              <span>•</span>
+              <span>{formatDate(video.publishedAt)}</span>
+            </div>
+
+            {/* Action Button */}
+            <button
+              onClick={handleScoreWithBoost}
+              disabled={isAnalyzing}
+              className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-3 rounded-lg transition-all text-sm disabled:opacity-50"
+            >
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Scoring...</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4" />
+                  <span>Score with Boost</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

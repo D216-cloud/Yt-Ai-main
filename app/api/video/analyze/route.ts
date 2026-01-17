@@ -11,6 +11,20 @@ import {
 } from '@/lib/youtubeAnalyzer';
 
 export async function POST(request: NextRequest) {
+  // Helper: fetch with timeout
+  const fetchWithTimeout = async (url: string, opts: any = {}, timeoutMs = 8000) => {
+    const controller = new AbortController()
+    const id = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const res = await fetch(url, { ...opts, signal: controller.signal })
+      clearTimeout(id)
+      return res
+    } catch (err) {
+      clearTimeout(id)
+      throw err
+    }
+  }
+
   try {
     const session = await getServerSession();
     
@@ -31,6 +45,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const warnings: string[] = []
+
     // Step 1: Calculate base title score
     const titleAnalysis = calculateTitleScore(title);
 
@@ -38,15 +54,24 @@ export async function POST(request: NextRequest) {
     const keywords = extractKeywords(title);
 
     if (keywords.length === 0) {
-      return NextResponse.json(
-        { error: 'Could not extract meaningful keywords from title' },
-        { status: 400 }
-      );
+      // Do not fail - proceed with partial data and warn the client
+      warnings.push('Could not extract meaningful keywords from title')
     }
 
     // Step 3: Get real YouTube search queries
     const primaryKeyword = keywords.slice(0, 3).join(' ');
-    const searchQueries = await expandKeywordQueries(primaryKeyword);
+    let searchQueries: string[] = []
+    try {
+      if (primaryKeyword) {
+        searchQueries = await expandKeywordQueries(primaryKeyword)
+      } else {
+        searchQueries = []
+      }
+    } catch (err: any) {
+      console.error('Failed to expand keyword queries:', err)
+      warnings.push('Failed to fetch autocomplete suggestions')
+      searchQueries = []
+    }
 
     // Step 4: Calculate keyword match score
     const keywordMatchScore = calculateKeywordMatchScore(title, searchQueries);
@@ -56,18 +81,21 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.YOUTUBE_API_KEY;
     let resultsCount = 0;
     
-    if (apiKey) {
+    if (apiKey && primaryKeyword) {
       try {
-        const searchResponse = await fetch(
-          `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(primaryKeyword)}&type=video&maxResults=1&key=${apiKey}`
-        );
-        
+        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(primaryKeyword)}&type=video&maxResults=1&key=${apiKey}`
+        const searchResponse = await fetchWithTimeout(url, {}, 8000)
         if (searchResponse.ok) {
-          const searchData = await searchResponse.json();
+          const searchData = await searchResponse.json()
           resultsCount = searchData.pageInfo?.totalResults || 0;
+        } else {
+          const txt = await searchResponse.text().catch(() => '')
+          console.error('YouTube API returned non-OK:', searchResponse.status, txt)
+          warnings.push('YouTube search API returned an error')
         }
       } catch (error) {
         console.error('Error fetching search results:', error);
+        warnings.push('Failed to fetch YouTube search results')
       }
     }
 
@@ -93,10 +121,10 @@ export async function POST(request: NextRequest) {
     const searchDemand = estimateSearchDemand(searchQueries.length, resultsCount);
     const trend = estimateTrend(title);
 
-    // Step 9: Generate improved titles
+    // Step 9: Generate improved titles locally
     const suggestedTitles = generateTitleSuggestions(title, keywords);
 
-    // Step 10: Return comprehensive analysis
+    // Step 10: Return comprehensive analysis with warnings if any
     return NextResponse.json({
       titleScore: finalScore,
       status: getScoreStatus(finalScore),
@@ -110,6 +138,7 @@ export async function POST(request: NextRequest) {
       suggestedTitles,
       keywords,
       disclaimer: 'Keyword insights are estimated using public YouTube autocomplete and video performance signals. YouTube does not provide exact search volume.',
+      warnings,
     });
 
   } catch (error: any) {

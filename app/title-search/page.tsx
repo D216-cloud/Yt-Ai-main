@@ -7,7 +7,6 @@ import SharedSidebar from '@/components/shared-sidebar'
 import DashboardHeader from '@/components/dashboard-header'
 import TitleSearchScoreComponent from '@/components/title-search-score'
 import VideoCard from '@/components/video-card'
-import AnalysisModal from '@/components/analysis-modal'
 import { Sparkles, ChevronDown, Youtube, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 
 interface YouTubeChannel {
@@ -48,6 +47,7 @@ export default function TitleSearchPage() {
   const [videosError, setVideosError] = useState("")
   const [nextPageToken, setNextPageToken] = useState<string | null>(null)
   const [showAnalyzer, setShowAnalyzer] = useState(false)
+  const [activeTab, setActiveTab] = useState<'videos' | 'shorts'>('videos')
 
   const visibleAdditionalChannels = additionalChannelsList.filter(ch => ch && ch.id && ch.id !== youtubeChannel?.id)
   const uniqueChannelCount = React.useMemo(() => {
@@ -58,6 +58,36 @@ export default function TitleSearchPage() {
     }
     return Object.keys(map).length
   }, [youtubeChannel, additionalChannelsList])
+
+  // Filter videos based on duration (shorts ≤60 seconds, videos >60 seconds)
+  const isShortDuration = (duration: string): boolean => {
+    try {
+      // Handle ISO 8601 duration format: PT1M30S, PT45S, etc.
+      const durationStr = duration.replace('PT', '').replace(/[A-Z]/g, (match) => {
+        if (match === 'M') return ':'
+        return ''
+      })
+      
+      let totalSeconds = 0
+      const parts = duration.match(/(\d+)([HMS])/g) || []
+      
+      for (const part of parts) {
+        const value = parseInt(part)
+        if (part.includes('H')) totalSeconds += value * 3600
+        else if (part.includes('M')) totalSeconds += value * 60
+        else if (part.includes('S')) totalSeconds += value
+      }
+      
+      return totalSeconds <= 60
+    } catch (e) {
+      // If parsing fails, assume it's not a short
+      return false
+    }
+  }
+
+  const filteredVideos = activeTab === 'shorts' 
+    ? videos.filter(v => isShortDuration(v.duration))
+    : videos.filter(v => !isShortDuration(v.duration))
 
   useEffect(() => {
     try {
@@ -213,7 +243,6 @@ export default function TitleSearchPage() {
         {/* Main Content */}
         <main className={`flex-1 pt-14 md:pt-16 p-4 md:p-8 pb-20 md:pb-8 transition-all duration-300 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'}`}>
           <div className="max-w-7xl mx-auto">
-            <AnalysisModal />
             {/* Channel Selector & Upgrade Banner Section */}
             <div className="mb-8 mt-8 md:mt-10">
               {/* Channel Selector */}
@@ -255,23 +284,41 @@ export default function TitleSearchPage() {
 
             {/* Channel Video Analyzer Section (moved up) */}
             <div className="w-full mb-8">
-              {/* Section Header */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg bg-white/5">
-                  <img src="/icons/youtube-play.svg" alt="YouTube" className="w-8 h-8" />
-                </div>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                  <div>
-                    <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-1">
-                      Channel Video Analyzer
-                    </h2>
-                    <p className="text-gray-600 text-sm sm:text-base max-w-full sm:max-w-xl leading-snug wrap-break-word">Optimize your video titles using real YouTube search queries and suggestions</p>
+              {/* Section Header with Tabs */}
+              <div className="flex flex-col gap-4 mb-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg bg-white/5">
+                    <img src="/icons/youtube-play.svg" alt="YouTube" className="w-8 h-8" />
                   </div>
-                  {youtubeChannel && (
-                    <span className="ml-0 sm:ml-2 mt-2 sm:mt-0 inline-flex items-center px-3 py-1 rounded-full bg-white border border-gray-100 text-xs font-semibold text-gray-700 shadow-sm">
-                      Using: <span className="ml-2 font-medium">{youtubeChannel.title}</span>
-                    </span>
-                  )}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                    <div>
+                      <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-1">
+                        Channel Video Analyzer
+                      </h2>
+                      <p className="text-gray-600 text-sm sm:text-base max-w-full sm:max-w-xl leading-snug wrap-break-word">Optimize your video titles using real YouTube search queries and suggestions</p>
+                    </div>
+                    {youtubeChannel && (
+                      <span className="ml-0 sm:ml-2 mt-2 sm:mt-0 inline-flex items-center px-3 py-1 rounded-full bg-white border border-gray-100 text-xs font-semibold text-gray-700 shadow-sm">
+                        Using: <span className="ml-2 font-medium">{youtubeChannel.title}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex gap-2 border-b border-gray-200">
+                  <button
+                    onClick={() => setActiveTab('videos')}
+                    className={`flex items-center gap-2 px-4 py-3 font-semibold text-base transition-all ${activeTab === 'videos' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
+                  >
+                    📹 Videos
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('shorts')}
+                    className={`flex items-center gap-2 px-4 py-3 font-semibold text-base transition-all ${activeTab === 'shorts' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
+                  >
+                    ⏱️ Shorts
+                  </button>
                 </div>
               </div>
 
@@ -296,40 +343,46 @@ export default function TitleSearchPage() {
                 <div>
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
                     <h3 className="text-2xl font-extrabold text-gray-900 flex items-center gap-3">
-                      Your Channel Videos
-                      <span className="inline-flex items-center px-3 py-0.5 rounded-full bg-linear-to-r from-slate-50 to-amber-50 text-sm font-semibold text-amber-700 border border-amber-100">{videos.length} videos</span>
+                      {activeTab === 'videos' ? 'Videos' : 'Shorts'}
+                      <span className="inline-flex items-center px-3 py-0.5 rounded-full bg-linear-to-r from-slate-50 to-amber-50 text-sm font-semibold text-amber-700 border border-amber-100">{filteredVideos.length} items</span>
                     </h3>
-                    <p className="text-sm text-gray-500">
-                      Open the <strong>Analyze</strong> panel on any video to view title insights
-                    </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {videos.map((video) => (
-                      <VideoCard key={video.id} video={video} />
-                    ))}
-                  </div>
+                  {filteredVideos.length > 0 ? (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {filteredVideos.map((video) => (
+                          <VideoCard key={video.id} video={video} />
+                        ))}
+                      </div>
 
-                  {/* Load More Button */}
-                  {nextPageToken && (
-                    <div className="mt-6 flex justify-center">
-                      <button
-                        onClick={loadMore}
-                        disabled={isLoadingVideos}
-                        className="w-full sm:w-auto px-8 py-3 bg-linear-to-r from-slate-700 to-amber-500 text-white rounded-xl hover:from-slate-800 hover:to-amber-600 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-center"
-                      >
-                        {isLoadingVideos ? (
-                          <>
-                            <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
-                            <span>Loading...</span>
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="w-5 h-5" />
-                            <span>Load More Videos</span>
-                          </>
-                        )}
-                      </button>
+                      {/* Load More Button */}
+                      {nextPageToken && (
+                        <div className="mt-6 flex justify-center">
+                          <button
+                            onClick={loadMore}
+                            disabled={isLoadingVideos}
+                            className="w-full sm:w-auto px-8 py-3 bg-linear-to-r from-slate-700 to-amber-500 text-white rounded-xl hover:from-slate-800 hover:to-amber-600 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-center"
+                          >
+                            {isLoadingVideos ? (
+                              <>
+                                <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+                                <span>Loading...</span>
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="w-5 h-5" />
+                                <span>Load More {activeTab === 'videos' ? 'Videos' : 'Shorts'}</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="p-8 rounded-xl bg-white shadow-sm border border-gray-100 text-center">
+                      <p className="text-lg font-semibold text-gray-900">No {activeTab === 'videos' ? 'videos' : 'shorts'} found</p>
+                      <p className="text-sm text-gray-600 mt-2">Your channel doesn't have any {activeTab === 'videos' ? 'long-form videos' : 'short videos'} yet.</p>
                     </div>
                   )}
                 </div>
