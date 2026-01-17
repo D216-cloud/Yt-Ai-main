@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from 'react'
-import { Loader2, X, Check, Copy, Youtube } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { signIn } from 'next-auth/react'
 import GenerateTitle from '@/components/generate-title' 
 
@@ -86,27 +86,32 @@ export default function AnalysisModal() {
     <div className="fixed inset-0 z-60 flex items-center justify-center p-6">
       <div className="absolute inset-0 bg-black/40" onClick={() => { setVisible(false); setTimeout(() => setOpen(false), 160) }} />
 
-      <div className={`relative max-w-4xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden transform transition-all duration-160 ${visible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
+      <div className={`relative max-w-4xl w-full bg-white sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-hidden transform transition-all duration-160 ${visible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'} sm:max-h-[70vh] max-h-[92vh]`}>
         {/* Header gradient (premium navy → gold) */}
-        <div className="flex items-center gap-4 p-6 bg-linear-to-b from-slate-800 to-amber-500">
+        <div className="flex items-center gap-4 p-4 sm:p-6 bg-linear-to-b from-slate-800 to-amber-500">
           <div className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center">
             <img src="/icons/youtube-play.svg" alt="YouTube" className="w-6 h-6" />
           </div>
           <div className="flex-1">
-            <p className="text-sm text-white/90">Analysis</p>
-            <p className="text-white font-semibold truncate max-w-full">{title}</p>
+            <p className="text-xs sm:text-sm text-white/90">Analysis</p>
+            <p className="text-sm sm:text-base text-white font-semibold max-w-full mobile-clamp-2">{title}</p>
           </div>
-          <button onClick={() => { setVisible(false); setTimeout(() => setOpen(false), 160) }} className="p-2 rounded-full bg-white/80 hover:bg-white">
+          <button onClick={() => { setVisible(false); setTimeout(() => setOpen(false), 160) }} aria-label="Close analysis" className="p-2 rounded-full bg-white/80 hover:bg-white hidden sm:inline-flex">
+            <X className="w-5 h-5 text-gray-700" />
+          </button>
+
+          {/* Mobile close button (visible only on small screens) */}
+          <button onClick={() => { setVisible(false); setTimeout(() => setOpen(false), 160) }} aria-label="Close" className="sm:hidden absolute top-3 right-3 p-2 rounded-full bg-white/90 hover:bg-white shadow-md z-50">
             <X className="w-5 h-5 text-gray-700" />
           </button>
         </div>
 
         {/* Scrollable content area (max height) */}
-        <div className="max-h-[70vh] overflow-y-auto p-6">
+        <div className="max-h-[calc(92vh-72px)] sm:max-h-[70vh] overflow-y-auto p-4 sm:p-6">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <Loader2 className="w-12 h-12 text-amber-500 animate-spin mb-6" />
-              <p className="text-gray-700">Analyzing title and gathering insights...</p>
+            <div className="flex flex-col items-center justify-center py-8">
+              <Loader2 className="w-10 h-10 text-amber-500 animate-spin mb-3" />
+              <p className="text-gray-700 text-sm">Analyzing title and gathering insights<span className="animate-pulse">...</span></p>
             </div>
           ) : data?.error ? (
             <div className="p-8 text-center space-y-4">
@@ -147,32 +152,17 @@ export default function AnalysisModal() {
               {/* Search queries + Generate + Suggestions */}
               <div className="bg-white rounded-xl p-6 shadow-sm">
                 <p className="text-sm text-gray-500 mb-3">People are searching for</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                <div className="grid grid-cols-1 gap-3 mb-4">
                   {data?.searchQueries?.slice(0, 10)?.map((q: string, i: number) => (
-                    <div key={i} className="inline-flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg text-sm text-gray-700">✔ {q}</div>
+                    <div key={i} className="w-full flex items-center gap-3 bg-gray-50 px-3 py-3 rounded-lg text-sm text-gray-700">✔ <span className="truncate">{q}</span></div>
                   ))}
                 </div>
 
                 <div className="flex items-center gap-3 mb-4">
                   <GenerateTitle title={title} onUse={(t: string) => { copy(t); setVisible(false); setTimeout(()=>setOpen(false),160) }} />
-                </div> 
-
-                <p className="text-sm text-gray-500 mb-3">Suggested Titles</p>
-                <div className="space-y-3">
-                  {data?.suggestedTitles?.slice(0, 8)?.map((t: string, i: number) => (
-                    <div key={i} className="flex items-center gap-3 bg-gray-50 p-4 rounded-lg hover:shadow-md transition transform hover:-translate-y-1">
-                      <p className="text-sm text-gray-800 flex-1">{t}</p>
-                      <div className="flex gap-2">
-                        <button onClick={() => { copy(t) }} className="p-2 rounded-md hover:bg-white bg-white/60">
-                          <Copy className="w-4 h-4 text-gray-600" />
-                        </button>
-                        <button onClick={() => { copy(t); setVisible(false); setTimeout(()=>setOpen(false),160) }} className="px-3 py-1 rounded-md bg-linear-to-r from-amber-400 to-amber-600 text-white font-semibold">Use</button>
-                      </div>
-                    </div>
-                  ))}
                 </div>
 
-                <p className="text-xs text-gray-500 mt-4">ℹ️ {data?.disclaimer}</p>
+                <p className="text-xs text-gray-500 mt-2">ℹ️ {data?.disclaimer}</p>
               </div>
             </div>
           )}

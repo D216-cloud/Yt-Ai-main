@@ -197,7 +197,7 @@ export default function TitleSearchPage() {
   }, [youtubeChannel])
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
+    <div className="min-h-screen overflow-x-hidden bg-linear-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
       <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex">
@@ -256,22 +256,22 @@ export default function TitleSearchPage() {
             {/* Channel Video Analyzer Section (moved up) */}
             <div className="w-full mb-8">
               {/* Section Header */}
-              <div className="flex items-center gap-4 mb-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg bg-white/5">
                   <img src="/icons/youtube-play.svg" alt="YouTube" className="w-8 h-8" />
                 </div>
-                <div>
-                  <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-1">
-                    Channel Video Analyzer
-                  </h2>
-                  <div className="flex items-center gap-3">
-                    <p className="text-gray-600 text-sm sm:text-base">Optimize your video titles using real YouTube search queries and suggestions</p>
-                    {youtubeChannel && (
-                      <span className="ml-2 inline-flex items-center px-3 py-1 rounded-full bg-white border border-gray-100 text-xs font-semibold text-gray-700 shadow-sm">
-                        Using: <span className="ml-2 font-medium">{youtubeChannel.title}</span>
-                      </span>
-                    )}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                  <div>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-1">
+                      Channel Video Analyzer
+                    </h2>
+                    <p className="text-gray-600 text-sm sm:text-base max-w-full sm:max-w-xl leading-snug wrap-break-word">Optimize your video titles using real YouTube search queries and suggestions</p>
                   </div>
+                  {youtubeChannel && (
+                    <span className="ml-0 sm:ml-2 mt-2 sm:mt-0 inline-flex items-center px-3 py-1 rounded-full bg-white border border-gray-100 text-xs font-semibold text-gray-700 shadow-sm">
+                      Using: <span className="ml-2 font-medium">{youtubeChannel.title}</span>
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -294,7 +294,7 @@ export default function TitleSearchPage() {
               {/* If we have videos, show grid */}
               {videos.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
                     <h3 className="text-2xl font-extrabold text-gray-900 flex items-center gap-3">
                       Your Channel Videos
                       <span className="inline-flex items-center px-3 py-0.5 rounded-full bg-linear-to-r from-slate-50 to-amber-50 text-sm font-semibold text-amber-700 border border-amber-100">{videos.length} videos</span>

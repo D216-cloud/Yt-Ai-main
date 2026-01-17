@@ -127,7 +127,7 @@ export default function VideoCard({ video }: VideoCardProps) {
   }
 
   return (
-    <div ref={containerRef} className="relative bg-white rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transform transition-all duration-300 overflow-visible border border-gray-100">
+    <div ref={containerRef} className="relative bg-white rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transform transition-all duration-300 overflow-hidden border border-gray-100">
       {/* Video Card Header */}
       <div className="p-4">
         <div className="flex flex-col sm:flex-row gap-6 items-start">
