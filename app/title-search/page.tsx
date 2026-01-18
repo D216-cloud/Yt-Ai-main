@@ -50,9 +50,9 @@ export default function TitleSearchPage() {
   const [showAnalyzer, setShowAnalyzer] = useState(false)
   const [activeTab, setActiveTab] = useState<'videos' | 'shorts'>('videos')
   
-  // Featured videos
-  const [latestVideo, setLatestVideo] = useState<Video | null>(null)
-  const [topVideo, setTopVideo] = useState<Video | null>(null)
+  // Featured videos -- removed (no longer used)
+  // const [latestVideo, setLatestVideo] = useState<Video | null>(null)
+  // const [topVideo, setTopVideo] = useState<Video | null>(null)
   // Access token availability state
   const [accessTokenAvailable, setAccessTokenAvailable] = useState(false)
 
@@ -359,28 +359,22 @@ export default function TitleSearchPage() {
     setAccessTokenAvailable(!!token)
   }, [youtubeChannel, additionalChannelsList])
 
-  // Update debug info when videos load
-  useEffect(() => {
-    if (videos.length > 0) {
-      // Get latest video (most recently published)
-      const latest = [...videos].sort((a, b) => 
-        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-      )[0]
-      setLatestVideo(latest)
+  // Featured video logic removed — we no longer compute or display latest/top videos here
+  // useEffect(() => {
+  //   if (videos.length > 0) {
+  //     const latest = [...videos].sort((a, b) => 
+  //       new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+  //     )[0]
+  //     setLatestVideo(latest)
 
-      // No localStorage caching here — Dashboard will fetch latest video directly from API for live data
-      // (Removed caching for consistency and to always show fresh results)
-
-      
-      // Get top performing video (most views)
-      const top = [...videos].sort((a, b) => {
-        const aViews = parseInt(a.views) || 0
-        const bViews = parseInt(b.views) || 0
-        return bViews - aViews
-      })[0]
-      setTopVideo(top)
-    }
-  }, [videos, youtubeChannel])
+  //     const top = [...videos].sort((a, b) => {
+  //       const aViews = parseInt(a.views) || 0
+  //       const bViews = parseInt(b.views) || 0
+  //       return bViews - aViews
+  //     })[0]
+  //     setTopVideo(top)
+  //   }
+  // }, [videos, youtubeChannel])
 
   // Auto-load connected channel videos on mount or when token becomes available
   useEffect(() => {
@@ -490,56 +484,7 @@ export default function TitleSearchPage() {
 
               {/* Videos Grid / Loading / Empty states */}
 
-              {/* Featured Videos Section */}
-              {(latestVideo || topVideo) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-                  {latestVideo && (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
-                      <div className="relative">
-                        <img 
-                          src={latestVideo.thumbnail} 
-                          alt={latestVideo.title}
-                          className="w-full h-40 object-cover"
-                        />
-                        <div className="absolute top-2 left-2 bg-red-600 text-white px-2 py-1 rounded text-xs font-semibold">
-                          Latest Video
-                        </div>
-                      </div>
-                      <div className="p-4">
-                        <h3 className="font-semibold text-gray-900 line-clamp-2 mb-2">{latestVideo.title}</h3>
-                        <div className="flex items-center gap-4 text-xs text-gray-600">
-                          <span className="flex items-center gap-1">👁️ {formatNumber(latestVideo.views)}</span>
-                          <span className="flex items-center gap-1">❤️ {formatNumber(latestVideo.likes)}</span>
-                          <span className="flex items-center gap-1">💬 {formatNumber(latestVideo.comments)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {topVideo && topVideo.id !== latestVideo?.id && (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
-                      <div className="relative">
-                        <img 
-                          src={topVideo.thumbnail} 
-                          alt={topVideo.title}
-                          className="w-full h-40 object-cover"
-                        />
-                        <div className="absolute top-2 left-2 bg-amber-600 text-white px-2 py-1 rounded text-xs font-semibold">
-                          Top Performing
-                        </div>
-                      </div>
-                      <div className="p-4">
-                        <h3 className="font-semibold text-gray-900 line-clamp-2 mb-2">{topVideo.title}</h3>
-                        <div className="flex items-center gap-4 text-xs text-gray-600">
-                          <span className="flex items-center gap-1">👁️ {formatNumber(topVideo.views)}</span>
-                          <span className="flex items-center gap-1">❤️ {formatNumber(topVideo.likes)}</span>
-                          <span className="flex items-center gap-1">💬 {formatNumber(topVideo.comments)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+
 
               {/* If a channel is connected and videos are still loading, show a focused loading card */}
               {youtubeChannel && isLoadingVideos && videos.length === 0 && (

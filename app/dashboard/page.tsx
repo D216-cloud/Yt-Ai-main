@@ -46,11 +46,17 @@ export default function DashboardPage() {
   const [latestVideo, setLatestVideo] = useState<LatestVideo | null>(null)
   const [topVideos, setTopVideos] = useState<LatestVideo[]>([])
   const [loadingVideo, setLoadingVideo] = useState(false)
-  const [suggestedTags, setSuggestedTags] = useState<Array<{tag: string, score: number, color: string}>>([])
+  const [suggestedTags, setSuggestedTags] = useState<Array<{tag: string, score: number, color: string, viralScore?: number, confidence?: string}>>([])
   const [showAllTags, setShowAllTags] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
   const [publishSuccess, setPublishSuccess] = useState(false)
   const [newTagInput, setNewTagInput] = useState('')
+
+  // Input suggestion states
+  const [inputSuggestions, setInputSuggestions] = useState<Array<{tag: string, score?: number}>>([])
+  const [suggestionLoading, setSuggestionLoading] = useState(false)
+  const [showInputSuggestions, setShowInputSuggestions] = useState(false)
+  const suggestionTimerRef = useRef<number | null>(null)
   const [publishError, setPublishError] = useState('')
   const [videosWithoutTags, setVideosWithoutTags] = useState<LatestVideo[]>([])
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0)
@@ -104,7 +110,13 @@ export default function DashboardPage() {
     }
 
     window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      if (suggestionTimerRef.current) {
+        window.clearTimeout(suggestionTimerRef.current)
+        suggestionTimerRef.current = null
+      }
+    }
   }, [])
 
   // Load YouTube channel data
@@ -274,63 +286,140 @@ export default function DashboardPage() {
     fetchLatestVideo()
   }, [youtubeChannel])
 
-  // Generate suggested tags from video title (improved, up to 20 tags)
-  const generateTags = (title: string) => {
+  // Fetch real tag suggestions for a given title using competitor keywords + tag-suggest API
+  const fetchSuggestedTagsFromTitle = async (title: string) => {
+    if (!title) return
+    try {
+      // Step 1: get competitor titles and tags
+      const encoded = encodeURIComponent(title)
+      const kres = await fetch(`/api/youtube/keywords?query=${encoded}&maxResults=25`)
+      if (!kres.ok) throw new Error('Failed to fetch keywords')
+      const kdata = await kres.json()
+
+      const titles = kdata.titles || []
+      const allTags = kdata.allTags || []
+
+      if (titles.length === 0 && allTags.length === 0) {
+        // No real data available, fallback to previous generator but keep it as last resort
+        const fallback = generateTagsFallback(title)
+        setSuggestedTags(fallback)
+        return
+      }
+
+      // Step 2: call tag-suggest to score real tags
+      const tagRes = await fetch('/api/youtube/tag-suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titles: [...titles, ...allTags], maxResults: 20, minScore: 25 })
+      })
+
+      if (!tagRes.ok) throw new Error('Failed to score tags')
+      const tagData = await tagRes.json()
+      const scoredTags: any[] = tagData.tags || []
+
+      if (scoredTags.length === 0) {
+        const fallback = generateTagsFallback(title)
+        setSuggestedTags(fallback)
+        return
+      }
+
+      // Prioritize short (single-word) tags while keeping viralScore ordering
+      const sorted = scoredTags.slice().sort((a: any, b: any) => {
+        const aw = (a.tag || '').split(' ').length
+        const bw = (b.tag || '').split(' ').length
+        if (aw !== bw) return aw - bw
+        return (b.viralScore || 0) - (a.viralScore || 0)
+      })
+
+      setSuggestedTags(sorted.map((t: any) => ({ tag: t.tag, score: t.score, viralScore: t.viralScore, color: t.color, confidence: t.confidence })))
+    } catch (err) {
+      console.error('Failed to fetch suggested tags:', err)
+      // fallback
+      setSuggestedTags(generateTagsFallback(title))
+    }
+  }
+
+  // Local lightweight fallback generator (kept for offline cases) — simpler than old generator
+  const generateTagsFallback = (title: string) => {
     if (!title) return []
-
     const commonWords = new Set(['the','a','an','and','or','but','in','on','at','to','for','of','with','is','are','am','be','been','being','have','has','had','do','does','did','will','would','could','should','can','may','might','must','this','that','these','those','video','shorts'])
-
-    const cleaned = title
-      .toLowerCase()
-      .replace(/[#@]/g, '')
-      .replace(/["'“”‘’()\[\]:;!?.,/\\]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-
+    const cleaned = title.toLowerCase().replace(/[#@]/g, '').replace(/["'“”‘’()\[\]:;!?.,/\\]/g, '').replace(/\s+/g, ' ').trim()
     const words = cleaned.split(' ').filter(Boolean)
-
     const ngrams: string[] = []
-
-    // unigrams
     for (let i = 0; i < words.length; i++) {
       const w = words[i]
       if (w.length > 1 && !commonWords.has(w)) ngrams.push(w)
     }
-
-    // bigrams and trigrams
-    for (let n = 2; n <= 3; n++) {
+    for (let n = 2; n <= 2; n++) {
       for (let i = 0; i + n <= words.length; i++) {
         const seq = words.slice(i, i + n).filter(w => !commonWords.has(w)).join(' ')
-        if (seq && seq.split(' ').length >= 1) ngrams.push(seq)
+        if (seq) ngrams.push(seq)
       }
     }
-
-    // Add some suffix variants to increase diversity
-    const suffixes = ['review','tutorial','tips','how to','guide','2026','best','top']
-    for (const w of words.slice(0, 6)) {
-      for (const s of suffixes) {
-        const candidate = `${w} ${s}`.trim()
-        if (candidate.split(' ').length <= 4) ngrams.push(candidate)
-      }
-    }
-
-    // Build unique list preserving order, limit to 20
+    // Unique and color map
     const seen = new Set<string>()
-    const final: string[] = []
+    const final: any[] = []
+    const colors = ['emerald','orange','blue','amber','purple','rose','cyan','indigo']
     for (const t of ngrams) {
       const tag = t.trim()
       if (!tag) continue
       if (seen.has(tag)) continue
-      if (tag.length > 60) continue
       seen.add(tag)
-      final.push(tag)
-      if (final.length >= 20) break
+      final.push({ tag, score: 40 + Math.floor(Math.random() * 40), color: colors[final.length % colors.length] })
+      if (final.length >= 12) break
+    }
+    return final
+  }
+
+  // Fetch suggestions for the Add Tag input (debounced)
+  const fetchInputSuggestions = async (query: string) => {
+    if (!query || query.trim().length < 2) {
+      setInputSuggestions([])
+      setShowInputSuggestions(false)
+      return
     }
 
-    const colors = ['emerald','orange','blue','amber','purple','rose','cyan','indigo']
-    const tags = final.map((tag, i) => ({ tag, score: Math.floor(Math.random() * 40 + 45), color: colors[i % colors.length] }))
+    setSuggestionLoading(true)
+    try {
+      const res = await fetch(`/api/youtube/tag-suggest?title=${encodeURIComponent(query)}&maxResults=10&minScore=20`)
+      if (!res.ok) throw new Error('Failed to fetch tag suggestions')
+      const data = await res.json()
+      const tags = (data.tags || []).slice(0, 10)
+      // Sort to prefer single-word tags and higher viralScore
+      tags.sort((a: any, b: any) => {
+        const aw = (a.tag || '').split(' ').length
+        const bw = (b.tag || '').split(' ').length
+        if (aw !== bw) return aw - bw
+        return (b.viralScore || 0) - (a.viralScore || 0)
+      })
+      setInputSuggestions(tags.map((t: any) => ({ tag: t.tag, score: t.score })))
+      setShowInputSuggestions(true)
+    } catch (err) {
+      console.error('Input suggestion fetch failed:', err)
+      setInputSuggestions([])
+      setShowInputSuggestions(false)
+    } finally {
+      setSuggestionLoading(false)
+    }
+  }
 
-    return tags
+  const handleAddSuggestedTag = (tagStr: string) => {
+    const normalized = tagStr.trim().toLowerCase()
+    if (!normalized) return
+    // Prevent duplicates
+    const exists = suggestedTags.some(t => t.tag.toLowerCase() === normalized)
+    if (exists) {
+      setNewTagInput('')
+      setInputSuggestions([])
+      setShowInputSuggestions(false)
+      return
+    }
+    const colors = ['emerald','orange','blue','amber','purple','rose','cyan','indigo']
+    const newTag = { tag: normalized, score: 50, color: colors[suggestedTags.length % colors.length] }
+    setSuggestedTags(prev => [...prev, newTag])
+    setNewTagInput('')
+    setInputSuggestions([])
+    setShowInputSuggestions(false)
   }
 
   useEffect(() => {
@@ -360,7 +449,7 @@ export default function DashboardPage() {
 
         if (realTitles.length === 0 && realTags.length === 0) {
           console.warn('No real tags found, using fallback')
-          if (mounted) setSuggestedTags(generateTags(latestVideo.title))
+          if (mounted) fetchSuggestedTagsFromTitle(latestVideo.title)
           return
         }
 
@@ -396,11 +485,11 @@ export default function DashboardPage() {
           return
         }
 
-        // Fallback: Use local generation
-        if (mounted) setSuggestedTags(generateTags(latestVideo.title))
+        // Fallback: Use API-based fallback generator
+        if (mounted) fetchSuggestedTagsFromTitle(latestVideo.title)
       } catch (err) {
         console.error('❌ Tag suggestion failed:', err)
-        if (mounted) setSuggestedTags(generateTags(latestVideo.title))
+        if (mounted) fetchSuggestedTagsFromTitle(latestVideo.title)
       }
     }
 
@@ -545,7 +634,7 @@ export default function DashboardPage() {
             if (updated.length > 0) {
               const next = updated[0]
               setLatestVideo(next)
-              setSuggestedTags(generateTags(next.title))
+              fetchSuggestedTagsFromTitle(next.title)
             }
           }, 1200)
 
@@ -569,17 +658,29 @@ export default function DashboardPage() {
   }
 
   const handleAddTag = () => {
-    if (!newTagInput.trim()) return
+    const val = newTagInput.trim()
+    if (!val) return
+
+    const normalized = val.toLowerCase()
+    // prevent duplicates
+    if (suggestedTags.some(t => t.tag.toLowerCase() === normalized)) {
+      setNewTagInput('')
+      setInputSuggestions([])
+      setShowInputSuggestions(false)
+      return
+    }
 
     const colors = ['emerald', 'orange', 'blue', 'amber', 'purple', 'rose', 'cyan', 'indigo']
     const newTag = {
-      tag: newTagInput.trim().toLowerCase(),
-      score: Math.floor(Math.random() * 40 + 50),
+      tag: normalized,
+      score: 50,
       color: colors[suggestedTags.length % colors.length]
     }
 
-    setSuggestedTags([...suggestedTags, newTag])
+    setSuggestedTags(prev => [...prev, newTag])
     setNewTagInput('')
+    setInputSuggestions([])
+    setShowInputSuggestions(false)
   }
 
   const handleRemoveTag = (index: number) => {
@@ -977,22 +1078,60 @@ export default function DashboardPage() {
                           )}
 
                           {/* Add Tag Input */}
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={newTagInput}
-                              onChange={(e) => setNewTagInput(e.target.value)}
-                              onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-                              placeholder="Add new tag..."
-                              className="flex-1 px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 text-sm"
-                            />
-                            <button
-                              onClick={handleAddTag}
-                              disabled={!newTagInput.trim()}
-                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors text-sm"
-                            >
-                              + Add Tag
-                            </button>
+                          <div className="relative">
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={newTagInput}
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                  setNewTagInput(val)
+
+                                  // Debounce suggestions
+                                  if (suggestionTimerRef.current) window.clearTimeout(suggestionTimerRef.current)
+                                  suggestionTimerRef.current = window.setTimeout(() => {
+                                    fetchInputSuggestions(val)
+                                  }, 300)
+                                }}
+                                onFocus={() => {
+                                  if (inputSuggestions.length > 0) setShowInputSuggestions(true)
+                                }}
+                                onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                                placeholder="Add new tag..."
+                                className="flex-1 px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 text-sm"
+                              />
+                              <button
+                                onClick={handleAddTag}
+                                disabled={!newTagInput.trim()}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors text-sm"
+                              >
+                                + Add Tag
+                              </button>
+                            </div>
+
+                            {/* Input suggestion dropdown */}
+                            {showInputSuggestions && inputSuggestions.length > 0 && (
+                              <div className="absolute left-0 right-0 mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-lg p-2 z-50">
+                                {suggestionLoading ? (
+                                  <div className="py-2 text-slate-400 text-sm">Loading suggestions...</div>
+                                ) : (
+                                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                                    {inputSuggestions.map((sug, idx) => (
+                                      <button
+                                        key={idx}
+                                        onClick={() => handleAddSuggestedTag(sug.tag)}
+                                        className="w-full text-left px-3 py-2 hover:bg-slate-700 rounded-md text-sm"
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <div className="text-slate-200">{sug.tag}</div>
+                                          {sug.score && <div className="text-slate-400 text-xs">{sug.score}</div>}
+                                        </div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       ) : (
@@ -1074,7 +1213,7 @@ export default function DashboardPage() {
                               onClick={() => {
                                 // Open this video in the tag editor
                                 setLatestVideo(video)
-                                setSuggestedTags(generateTags(video.title))
+                                fetchSuggestedTagsFromTitle(video.title)
                                 setPublishSuccess(false)
                               }}
                               className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors"
