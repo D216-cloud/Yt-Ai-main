@@ -34,28 +34,64 @@ export async function GET(req: NextRequest) {
     let pageCount = 0
     const maxPages = 10 // Fetch up to 10 pages (500 videos max) to avoid timeout
 
-    do {
-      const searchResponse = await youtube.search.list({
-        part: ['snippet'],
-        channelId: channelId,
-        order: 'date', // Order by upload date (most recent first)
-        type: ['video'],
-        maxResults: 50, // Maximum allowed by YouTube API
-        pageToken: nextPageToken
-      })
+    // Helper: try a request and on auth failure attempt server-side refresh using provided refresh_token
+    const refreshTokenParam = new URL(req.url).searchParams.get('refresh_token') || undefined
+    let newAccessToken: string | null = null
 
-      if (searchResponse.data?.items && searchResponse.data.items.length > 0) {
-        allVideos.push(...searchResponse.data.items)
+    const runSearch = async () => {
+      let attempt = 0
+      while (attempt < 2) {
+        try {
+          const searchResponse = await youtube.search.list({
+            part: ['snippet'],
+            channelId: channelId,
+            order: 'date', // Order by upload date (most recent first)
+            type: ['video'],
+            maxResults: 50, // Maximum allowed by YouTube API
+            pageToken: nextPageToken
+          })
+
+          if (searchResponse.data?.items && searchResponse.data.items.length > 0) {
+            allVideos.push(...searchResponse.data.items)
+          }
+
+          nextPageToken = searchResponse.data?.nextPageToken as string | undefined
+          return
+        } catch (err: any) {
+          console.warn('Search request failed, attempt:', attempt, 'error:', err?.message || err)
+          // If this looks like an auth error and we have a refresh token, try to refresh
+          if (attempt === 0 && refreshTokenParam && process.env.YOUTUBE_CLIENT_ID && process.env.YOUTUBE_CLIENT_SECRET) {
+            try {
+              const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                  client_id: process.env.YOUTUBE_CLIENT_ID!,
+                  client_secret: process.env.YOUTUBE_CLIENT_SECRET!,
+                  refresh_token: refreshTokenParam,
+                  grant_type: 'refresh_token'
+                })
+              })
+              const tokenData = await tokenRes.json().catch(() => ({}))
+              if (tokenRes.ok && tokenData.access_token) {
+                oauth2Client.setCredentials({ access_token: tokenData.access_token })
+                // Save new token to return it to client so they can persist it
+                newAccessToken = tokenData.access_token
+                // retry
+                attempt += 1
+                continue
+              }
+            } catch (refreshErr) {
+              console.warn('Server-side refresh failed:', refreshErr)
+            }
+          }
+          // Not recoverable, rethrow
+          throw err
+        }
       }
+    }
 
-      nextPageToken = searchResponse.data?.nextPageToken as string | undefined
-      pageCount++
-
-      // Break if no more pages or reached max pages
-      if (!nextPageToken || pageCount >= maxPages) {
-        break
-      }
-    } while (nextPageToken)
+    await runSearch()
 
     if (allVideos.length === 0) {
       return NextResponse.json({ videos: [] })
@@ -114,7 +150,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ 
       videos: videos, // Return all videos
-      totalFound: videos.length
+      totalFound: videos.length,
+      newAccessToken: newAccessToken || null
     })
 
   } catch (error: any) {

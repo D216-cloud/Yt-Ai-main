@@ -32,7 +32,8 @@ export async function GET(req: NextRequest) {
     youtubeAuthUrl.searchParams.set("response_type", "code")
     youtubeAuthUrl.searchParams.set("scope", "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube")
     youtubeAuthUrl.searchParams.set("access_type", "offline")
-    youtubeAuthUrl.searchParams.set("prompt", "consent")
+    // Force account chooser so users can pick among multiple Google accounts
+    youtubeAuthUrl.searchParams.set("prompt", "select_account consent")
     
     console.log("Redirecting to YouTube OAuth with URI:", redirectUri)
     

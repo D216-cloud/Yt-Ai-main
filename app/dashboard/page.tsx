@@ -119,6 +119,47 @@ export default function DashboardPage() {
     }
   }, [])
 
+  // Disconnect a specific additional channel (keeps primary intact)
+  const handleDisconnectAdditional = (channelId: string) => {
+    if (!confirm('Disconnect this channel?')) return
+    try {
+      const current = JSON.parse(localStorage.getItem('additional_youtube_channels') || '[]')
+      const updated = (current || []).filter((ch: any) => ch.id !== channelId)
+      localStorage.setItem('additional_youtube_channels', JSON.stringify(updated))
+      // remove any stored tokens for this channel
+      localStorage.removeItem(`youtube_access_token_${channelId}`)
+      localStorage.removeItem(`youtube_refresh_token_${channelId}`)
+      setAdditionalChannelsList(updated)
+      // If the removed channel was currently set as youtube_channel, clear it
+      const primary = localStorage.getItem('youtube_channel')
+      if (primary) {
+        const primaryObj = JSON.parse(primary)
+        if (primaryObj?.id === channelId) {
+          localStorage.removeItem('youtube_channel')
+          localStorage.removeItem('youtube_access_token')
+          localStorage.removeItem('youtube_refresh_token')
+          setYoutubeChannel(null)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to disconnect channel', err)
+    }
+  }
+
+  // Disconnect primary channel (clears primary and tokens)
+  const handleDisconnectPrimary = () => {
+    if (!confirm('Disconnect primary channel?')) return
+    try {
+      localStorage.removeItem('youtube_channel')
+      localStorage.removeItem('youtube_access_token')
+      localStorage.removeItem('youtube_refresh_token')
+      setYoutubeChannel(null)
+      setShowChannelMenu(false)
+    } catch (err) {
+      console.error('Failed to disconnect primary channel', err)
+    }
+  }
+
   // Fetch latest and top videos when channel is loaded
   useEffect(() => {
     const fetchLatestVideo = async () => {
@@ -133,13 +174,43 @@ export default function DashboardPage() {
           return
         }
 
-        const response = await fetch(`/api/youtube/best-videos?channelId=${youtubeChannel.id}&accessToken=${accessToken}`)
+        // Attach refresh token (if available) so server can auto-refresh and return a new access token if needed
+        const refreshTokenParam = localStorage.getItem(`youtube_refresh_token_${youtubeChannel.id}`) || localStorage.getItem('youtube_refresh_token') || ''
+        const response = await fetch(`/api/youtube/best-videos?channelId=${youtubeChannel.id}&accessToken=${accessToken}${refreshTokenParam ? `&refresh_token=${encodeURIComponent(refreshTokenParam)}` : ''}`)
         
         if (!response.ok) {
-          throw new Error('Failed to fetch videos')
+          // Try to recover by attempting a client-side refresh using our refresh endpoint
+          const clientRefreshToken = localStorage.getItem(`youtube_refresh_token_${youtubeChannel.id}`) || localStorage.getItem('youtube_refresh_token')
+          if (clientRefreshToken) {
+            console.log('Attempting to refresh access token for dashboard latest video')
+            const refreshRes = await fetch('/api/youtube/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: clientRefreshToken }) })
+            if (refreshRes.ok) {
+              const refreshData = await refreshRes.json()
+              if (refreshData?.access_token) {
+                localStorage.setItem(`youtube_access_token_${youtubeChannel.id}`, refreshData.access_token)
+                localStorage.setItem('youtube_access_token', refreshData.access_token)
+                // retry
+                const retryRes = await fetch(`/api/youtube/best-videos?channelId=${youtubeChannel.id}&accessToken=${refreshData.access_token}`)
+                if (retryRes.ok) {
+                  const retryData = await retryRes.json()
+                  // persist server-provided new token as well if present
+                  if (retryData?.newAccessToken) {
+                    localStorage.setItem(`youtube_access_token_${youtubeChannel.id}`, retryData.newAccessToken)
+                    localStorage.setItem('youtube_access_token', retryData.newAccessToken)
+                  }
+                  // replace data for downstream
+                  data = retryData
+                } else {
+                  throw new Error('Failed to fetch videos after refresh')
+                }
+              }
+            }
+          }
+          // If still failing, bail out
+          if (!response.ok) throw new Error('Failed to fetch videos')
         }
         
-        const data = await response.json()
+        let data = await response.json()
         
         console.log('Fetched videos data:', data)
         
@@ -626,7 +697,7 @@ export default function DashboardPage() {
 
                   {/* Menu */}
                   {showChannelMenu && (
-                    <div className="absolute top-full mt-2 right-1 bg-white rounded-xl shadow-xl w-80 text-sm text-gray-800 overflow-hidden z-40">
+                    <div className="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 bg-white rounded-xl shadow-xl w-96 text-sm text-gray-800 overflow-hidden z-40">
                       {/* Header */}
                       <div className="flex items-center gap-3 px-4 py-3 bg-white">
                         <div className="flex items-center gap-3">
@@ -636,8 +707,18 @@ export default function DashboardPage() {
                             <div className="text-xs text-gray-500">Connected • <span className="font-medium text-gray-700">{formatNumber(youtubeChannel?.videoCount || 0)} videos</span></div>
                           </div>
                         </div>
-                        <div className="ml-auto">
+                        <div className="ml-auto flex items-center gap-2">
                           <span className="inline-flex items-center text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">{uniqueChannelCount} {uniqueChannelCount === 1 ? 'channel' : 'channels'}</span>
+                          <button
+                            onClick={() => handleDisconnectPrimary()}
+                            className="text-red-600 border border-red-100 px-2 py-1 rounded-md text-xs hover:bg-red-50 focus:outline-none"
+                            title="Disconnect primary channel"
+                          >
+                            <div className="flex items-center gap-1">
+                              <X className="w-3 h-3" />
+                              <span>Disconnect</span>
+                            </div>
+                          </button>
                         </div>
                       </div>
 
@@ -661,7 +742,18 @@ export default function DashboardPage() {
                               <div className="text-sm font-semibold truncate">{ch.title}</div>
                               <div className="text-xs text-gray-500">{formatNumber(ch.videoCount)} videos</div>
                             </div>
-                            <div className="text-xs text-gray-400">{formatNumber(ch.subscriberCount)} subs</div>
+                            <div className="text-xs text-gray-400 mr-3">{formatNumber(ch.subscriberCount)} subs</div>
+
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDisconnectAdditional(ch.id)
+                              }}
+                              className="text-red-600 text-xs px-2 py-1 rounded-md hover:bg-red-50 border border-red-50 focus:outline-none"
+                              title="Disconnect this channel"
+                            >
+                              Disconnect
+                            </button>
                           </button>
                         )) : (
                           <div className="px-4 py-4 text-sm text-gray-600">No other channels connected</div>

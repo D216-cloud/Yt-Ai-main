@@ -162,6 +162,41 @@ export default function TitleSearchPage() {
     }
   }
 
+  // Helper: try to refresh access token using stored refresh token and return new token or null
+  const attemptRefreshToken = async (): Promise<string | null> => {
+    try {
+      if (typeof window === 'undefined') return null
+      const refreshToken = youtubeChannel?.id ? (localStorage.getItem(`youtube_refresh_token_${youtubeChannel.id}`) || localStorage.getItem('youtube_refresh_token')) : (localStorage.getItem('youtube_refresh_token') || null)
+      if (!refreshToken) return null
+
+      const res = await fetch('/api/youtube/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken })
+      })
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        console.warn('Refresh failed', errData)
+        return null
+      }
+
+      const data = await res.json()
+      if (data?.access_token) {
+        // Persist new token
+        if (youtubeChannel?.id) {
+          localStorage.setItem(`youtube_access_token_${youtubeChannel.id}`, data.access_token)
+        }
+        localStorage.setItem('youtube_access_token', data.access_token)
+        return data.access_token
+      }
+      return null
+    } catch (err) {
+      console.error('Error attempting refresh:', err)
+      return null
+    }
+  }
+
   // Fetch a single page of videos from channel
   const fetchVideos = async (pageToken?: string) => {
     setIsLoadingVideos(true)
@@ -171,7 +206,7 @@ export default function TitleSearchPage() {
       if (typeof window === 'undefined') return
       
       // Get access token (try channel-scoped tokens first)
-      const accessToken = getResolvedAccessToken()
+      let accessToken = getResolvedAccessToken()
       
       if (!accessToken) {
         // If a channel is connected but token missing, give a clearer message
@@ -185,11 +220,27 @@ export default function TitleSearchPage() {
       }
 
       // Use same endpoint as content page with mine=true and access token
-      const url = `/api/youtube/videos?mine=true&fetchAll=false&maxResults=50&access_token=${accessToken}${pageToken ? `&pageToken=${pageToken}` : ''}`
-      const response = await fetch(url)
+      let url = `/api/youtube/videos?mine=true&fetchAll=false&maxResults=50&access_token=${accessToken}${pageToken ? `&pageToken=${pageToken}` : ''}`
+      let response = await fetch(url)
+
+      // If unauthorized, try refresh + retry once
+      if (!response.ok && response.status === 401) {
+        const newToken = await attemptRefreshToken()
+        if (newToken) {
+          accessToken = newToken
+          url = `/api/youtube/videos?mine=true&fetchAll=false&maxResults=50&access_token=${accessToken}${pageToken ? `&pageToken=${pageToken}` : ''}`
+          response = await fetch(url)
+        }
+      }
 
       if (!response.ok) {
-        const errorData = await response.json()
+        const errorData = await response.json().catch(() => ({}))
+        // If we got 401 and refresh attempt didn't help, give clearer guidance
+        if (response.status === 401) {
+          setVideosError('Authentication failed when fetching your channel. Please re-authorize the channel via Settings > Connect YouTube.')
+        } else {
+          setVideosError(errorData.error || 'Failed to fetch videos')
+        }
         throw new Error(errorData.error || 'Failed to fetch videos')
       }
 
@@ -220,7 +271,7 @@ export default function TitleSearchPage() {
       if (typeof window === 'undefined') return
       
       // Get access token (try channel-scoped tokens first)
-      const accessToken = getResolvedAccessToken()
+      let accessToken = getResolvedAccessToken()
       
       if (!accessToken) {
         if (youtubeChannel) {
@@ -232,6 +283,7 @@ export default function TitleSearchPage() {
         return
       }
 
+      // If initial try fails with 401 we'll attempt a refresh and retry
       let allVideos: Video[] = []
       let pageToken: string | undefined = undefined
       let pageCount = 0
@@ -239,11 +291,26 @@ export default function TitleSearchPage() {
 
       do {
         // Use same endpoint as content page with mine=true to get all videos
-        const url = `/api/youtube/videos?mine=true&fetchAll=false&maxResults=50&access_token=${accessToken}${pageToken ? `&pageToken=${pageToken}` : ''}`
+        let url = `/api/youtube/videos?mine=true&fetchAll=false&maxResults=50&access_token=${accessToken}${pageToken ? `&pageToken=${pageToken}` : ''}`
         
-        const response = await fetch(url)
+        let response = await fetch(url)
+        // Try refresh once on 401
+        if (!response.ok && response.status === 401) {
+          const newToken = await attemptRefreshToken()
+          if (newToken) {
+            accessToken = newToken
+            url = `/api/youtube/videos?mine=true&fetchAll=false&maxResults=50&access_token=${accessToken}${pageToken ? `&pageToken=${pageToken}` : ''}`
+            response = await fetch(url)
+          }
+        }
+
         if (!response.ok) {
-          const err = await response.json()
+          const err = await response.json().catch(() => ({}))
+          if (response.status === 401) {
+            setVideosError('Authentication failed when fetching your channel. Please re-authorize the channel via Settings > Connect YouTube.')
+          } else {
+            setVideosError(err.error || 'Failed to fetch videos')
+          }
           throw new Error(err.error || 'Failed to fetch videos')
         }
 

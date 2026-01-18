@@ -29,7 +29,8 @@ export async function GET(req: NextRequest) {
     }
 
     const apiKey = process.env.YOUTUBE_API_KEY
-    const accessToken = String(searchParams.get('access_token') || '') || undefined
+    let accessToken = String(searchParams.get('access_token') || '') || undefined
+    const refreshTokenParam = String(searchParams.get('refresh_token') || '') || undefined
     const useAuth = !!accessToken
     if (!apiKey && !useAuth) {
       return NextResponse.json({ error: "YouTube API key not configured and no access token provided" }, { status: 500 })
@@ -42,10 +43,36 @@ export async function GET(req: NextRequest) {
       }
 
       // First, get the authenticated user's channel to find their uploads playlist
-      const channelResponse = await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', {
+      let channelResponse = await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', {
         headers: { Authorization: `Bearer ${accessToken}` }
       })
       
+      // If unauthorized and refresh_token provided, attempt to refresh and retry once
+      if (!channelResponse.ok && channelResponse.status === 401 && refreshTokenParam) {
+        try {
+          const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              refresh_token: refreshTokenParam,
+              client_id: process.env.YOUTUBE_CLIENT_ID!,
+              client_secret: process.env.YOUTUBE_CLIENT_SECRET!,
+              grant_type: 'refresh_token'
+            })
+          })
+          const tokenData = await tokenResponse.json().catch(() => ({}))
+          if (tokenResponse.ok && tokenData.access_token) {
+            accessToken = tokenData.access_token
+            // retry
+            channelResponse = await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', {
+              headers: { Authorization: `Bearer ${accessToken}` }
+            })
+          }
+        } catch (refreshErr) {
+          console.warn('Server-side refresh failed for videos route:', refreshErr)
+        }
+      }
+
       if (!channelResponse.ok) {
         const err = await channelResponse.json().catch(() => ({}))
         return NextResponse.json({ error: 'Failed to fetch user channel', details: err }, { status: channelResponse.status })
@@ -62,6 +89,28 @@ export async function GET(req: NextRequest) {
       const pageParam = pageToken ? `&pageToken=${pageToken}` : ''
       const initialUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=${initialMax}${pageParam}`
       let videosResponse = await fetch(initialUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+      // Retry videos fetch if unauthorized and we have a refreshed access token
+      if (!videosResponse.ok && videosResponse.status === 401 && refreshTokenParam) {
+        try {
+          const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              refresh_token: refreshTokenParam,
+              client_id: process.env.YOUTUBE_CLIENT_ID!,
+              client_secret: process.env.YOUTUBE_CLIENT_SECRET!,
+              grant_type: 'refresh_token'
+            })
+          })
+          const tokenData = await tokenResponse.json().catch(() => ({}))
+          if (tokenResponse.ok && tokenData.access_token) {
+            accessToken = tokenData.access_token
+            videosResponse = await fetch(initialUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+          }
+        } catch (refreshErr) {
+          console.warn('Server-side refresh failed while fetching playlist items:', refreshErr)
+        }
+      }
       if (!videosResponse.ok) {
         const err = await videosResponse.json().catch(() => ({}))
         return NextResponse.json({ error: 'Failed to fetch videos from uploads playlist', details: err }, { status: videosResponse.status })
@@ -126,9 +175,9 @@ export async function GET(req: NextRequest) {
         })
 
         const totalResults = videosData.pageInfo?.totalResults || videosWithStats.length
-        return NextResponse.json({ success: true, videos: videosWithStats, totalResults, nextPageToken: videosData.nextPageToken || null, maxResults, fetchAll })
+        return NextResponse.json({ success: true, videos: videosWithStats, totalResults, nextPageToken: videosData.nextPageToken || null, maxResults, fetchAll, newAccessToken: (accessToken && accessToken) || null })
       } else {
-        return NextResponse.json({ success: true, videos: [], totalResults: 0, nextPageToken: null, maxResults, fetchAll })
+        return NextResponse.json({ success: true, videos: [], totalResults: 0, nextPageToken: null, maxResults, fetchAll, newAccessToken: (accessToken && accessToken) || null })
       }
     }
 

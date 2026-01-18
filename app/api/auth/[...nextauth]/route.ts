@@ -10,6 +10,13 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      // Force the account chooser so users can select which Google account to use
+      authorization: {
+        params: {
+          prompt: 'select_account',
+          access_type: 'offline',
+        }
+      }
     }),
     CredentialsProvider({
       name: "Credentials",

@@ -88,13 +88,34 @@ export default function VideosPage() {
           return
         }
 
-        const response = await fetch(`/api/youtube/best-videos?channelId=${youtubeChannel.id}&accessToken=${accessToken}`)
-        
+        const refreshTokenParam = localStorage.getItem(`youtube_refresh_token_${youtubeChannel.id}`) || localStorage.getItem('youtube_refresh_token') || ''
+        let response = await fetch(`/api/youtube/best-videos?channelId=${youtubeChannel.id}&accessToken=${accessToken}${refreshTokenParam ? `&refresh_token=${encodeURIComponent(refreshTokenParam)}` : ''}`)
+        if (!response.ok) {
+          // Try client-side refresh
+          const clientRefreshToken = localStorage.getItem(`youtube_refresh_token_${youtubeChannel.id}`) || localStorage.getItem('youtube_refresh_token')
+          if (clientRefreshToken) {
+            const refreshRes = await fetch('/api/youtube/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: clientRefreshToken }) })
+            if (refreshRes.ok) {
+              const refreshData = await refreshRes.json()
+              if (refreshData?.access_token) {
+                localStorage.setItem(`youtube_access_token_${youtubeChannel.id}`, refreshData.access_token)
+                localStorage.setItem('youtube_access_token', refreshData.access_token)
+                response = await fetch(`/api/youtube/best-videos?channelId=${youtubeChannel.id}&accessToken=${refreshData.access_token}`)
+              }
+            }
+          }
+        }
+
         if (!response.ok) {
           throw new Error('Failed to fetch videos')
         }
         
         const data = await response.json()
+        // persist new token returned by server if any
+        if (data?.newAccessToken) {
+          localStorage.setItem(`youtube_access_token_${youtubeChannel.id}`, data.newAccessToken)
+          localStorage.setItem('youtube_access_token', data.newAccessToken)
+        }
         
         if (data.videos && Array.isArray(data.videos)) {
           setVideos(data.videos)

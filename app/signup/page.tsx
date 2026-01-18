@@ -81,9 +81,10 @@ export default function SignupPage() {
     setIsLoading(true)
     setError("")
     
-    // Use redirect: true to let NextAuth handle the redirect automatically
+    // Use redirect and prompt select_account so the account chooser opens
     signIn("google", {
       callbackUrl: "/connect",
+      prompt: 'select_account'
     })
   }
 
