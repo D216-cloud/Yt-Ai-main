@@ -5,6 +5,9 @@ export async function GET(req: NextRequest) {
   const clientId = process.env.YOUTUBE_CLIENT_ID
   const clientSecret = process.env.YOUTUBE_CLIENT_SECRET
   const apiKey = process.env.YOUTUBE_API_KEY
+  const nextAuthUrl = process.env.NEXTAUTH_URL || process.env.CLIENT_URL || ''
+  let nextAuthHost = ''
+  try { if (nextAuthUrl) nextAuthHost = new URL(nextAuthUrl).host } catch (e) { nextAuthHost = nextAuthUrl }
 
   return NextResponse.json({
     success: true,
@@ -12,7 +15,9 @@ export async function GET(req: NextRequest) {
       clientId: clientId ? "Set" : "Missing",
       clientSecret: clientSecret ? "Set" : "Missing",
       apiKey: apiKey ? "Set" : "Missing",
-      redirectUri: `${process.env.NEXTAUTH_URL || process.env.CLIENT_URL || "http://localhost:3000"}/api/youtube/auth`
+      NEXTAUTH_URL: nextAuthUrl || "Not configured",
+      NEXTAUTH_HOST: nextAuthHost || null,
+      redirectUri: `${nextAuthUrl || "http://localhost:3000"}/api/youtube/auth`
     },
     message: clientId && clientSecret ? "Configuration looks good!" : "Missing required credentials"
   })

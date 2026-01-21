@@ -36,20 +36,22 @@ export async function GET(req: Request) {
     // Use simple heuristic: split query and return most frequent words as keywords
     const words = query.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(Boolean)
     const unique = Array.from(new Set(words))
-    const keywords = unique.map((k, i) => ({ keyword: k, frequency: Math.max(1, words.filter(w => w === k).length) })).slice(0, 20)
+    const heuristicKeywords = unique.map((k, i) => ({ keyword: k, frequency: Math.max(1, words.filter(w => w === k).length) })).slice(0, 20)
 
     return NextResponse.json({
       titles: [],
-      keywords,
+      keywords: heuristicKeywords,
       allTags: [],
       query,
       count: 0,
-      keywordCount: keywords.length,
+      keywordCount: heuristicKeywords.length,
       success: true,
       fallback: true,
       message: 'search.list disabled — using local heuristics'
     })
 
+    // Prepare placeholders (in case search.list is later enabled)
+    const videoIds: string[] = []
     // Fetch full video snippets (including titles, descriptions, tags)
     const titles: string[] = []
     const allTags: string[] = []
