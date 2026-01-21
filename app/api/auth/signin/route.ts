@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
-import connectDB from "@/lib/mongodb"
-import User from "@/models/User"
+import { createServerSupabaseClient } from "@/lib/supabase"
 
 export async function GET(req: NextRequest) {
   // Redirect GET requests to the signup page
@@ -17,13 +16,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
     }
 
-    // Connect to database
-    await connectDB()
+    // Find user in Supabase
+    const supabase = createServerSupabaseClient()
+    const { data: user, error: dbErr } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email.toLowerCase())
+      .limit(1)
+      .single()
 
-    // Find user
-    const user = await User.findOne({ email: email.toLowerCase() })
-
-    if (!user || !user.password) {
+    if (dbErr || !user || !user.password) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
     }
 
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
       {
         message: "Sign in successful",
         user: {
-          id: user._id,
+          id: user.id,
           email: user.email,
           name: user.name,
           image: user.image,

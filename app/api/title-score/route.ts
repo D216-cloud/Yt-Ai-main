@@ -217,35 +217,24 @@ const fetchYouTubeSearchResults = async (
 ): Promise<SearchResult[]> => {
   try {
     // If API key exists, use actual YouTube API
-    if (YOUTUBE_API_KEY) {
-      const response = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(
-          keyword
-        )}&maxResults=20&type=video&key=${YOUTUBE_API_KEY}`
-      )
-
-      if (!response.ok) {
-        throw new Error(`YouTube API error: ${response.status}`)
+    // search.list disabled by project policy. Use mostPopular as an approximate fallback.
+  if (YOUTUBE_API_KEY) {
+      try {
+        const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&chart=mostPopular&maxResults=20&key=${YOUTUBE_API_KEY}`)
+        if (!response.ok) throw new Error(`YouTube API error: ${response.status}`)
+        const data = await response.json()
+        return data.items.map((item: any) => ({
+          id: item.id,
+          title: item.snippet.title,
+          description: item.snippet.description,
+          viewCount: parseInt(item.statistics.viewCount || '0'),
+          publishedAt: item.snippet.publishedAt,
+          tags: item.snippet.tags || [],
+        }))
+      } catch (err) {
+        console.error('YouTube API error (mostPopular fallback):', err)
+        return generateMockSearchResults(keyword)
       }
-
-      const data = await response.json()
-
-      // Get statistics for each video
-      const videoIds = data.items.map((item: any) => item.id.videoId).join(',')
-      const statsResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&key=${YOUTUBE_API_KEY}`
-      )
-
-      const statsData = await statsResponse.json()
-
-      return statsData.items.map((item: any) => ({
-        id: item.id,
-        title: item.snippet.title,
-        description: item.snippet.description,
-        viewCount: parseInt(item.statistics.viewCount || '0'),
-        publishedAt: item.snippet.publishedAt,
-        tags: item.snippet.tags || [],
-      }))
     }
 
     // Fallback: Mock data for testing without API key

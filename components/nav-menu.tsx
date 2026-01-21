@@ -8,7 +8,8 @@ import {
   Video, 
   BarChart3, 
   Upload, 
-  Settings 
+  Settings, 
+  Sparkles 
 } from "lucide-react"
 
 interface NavItem {
@@ -27,13 +28,8 @@ export function NavMenu({ activePage }: NavMenuProps) {
     { id: "dashboard", icon: Home, label: "Dashboard", href: "/dashboard" },
     { id: "profile", icon: User, label: "Profile", href: "/dashboard?page=profile" },
     { id: "compare", icon: GitCompare, label: "Compare", href: "/compare" },
-    { id: "content", icon: Video, label: "Content", href: "/content" },
-    { id: "bulk-upload", icon: Upload, label: "Bulk Upload", href: "/bulk-upload" },
-    // Removed Analytics, AI Tools (Bulk Upload), and Settings per request
-  ]
-
-  return (
-    <div className="flex flex-wrap gap-2 p-4 bg-gray-50 rounded-lg">
+    { id: "bulk-upload", icon: Upload, label: "Smart Upload", href: "/bulk-upload" },
+    { id: "ai-thumbnail", icon: Sparkles, label: "AI Thumbnails", href: "/ai-thumbnail" },
       {navItems.map((item) => {
         const Icon = item.icon
         const isActive = activePage === item.id

@@ -562,7 +562,7 @@ export default function ComparePage() {
   const navLinks = [
     { icon: Home, label: "Dashboard", href: "/dashboard", id: "dashboard" },
     { icon: GitCompare, label: "Compare", href: "/compare", id: "compare" },
-    { icon: Video, label: "Content", href: "/content", id: "content" },
+    { icon: Video, label: "Videos", href: "/videos", id: "videos" },
     { icon: Upload, label: "Bulk Upload", href: "/bulk-upload", id: "bulk-upload" },
   ]
 
@@ -923,7 +923,7 @@ export default function ComparePage() {
   const channel2TopKeywords = React.useMemo(() => computeTopKeywords(channel2Videos), [channel2Videos])
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Mobile Header */}
       <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100 pt-2 pb-2 px-4">
         <div className="flex h-14 items-center justify-between">

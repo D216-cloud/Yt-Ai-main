@@ -30,29 +30,25 @@ export async function GET(req: Request) {
     const youtube = google.youtube({ version: 'v3', auth: apiKey })
 
     // Search YouTube for videos matching the query
-    const searchResponse = await youtube.search.list({
-      part: ['snippet'],
-      q: query,
-      type: [type],
-      maxResults: Math.min(maxResults, 50), // YouTube max is 50 per request
-      order: 'relevance',
-      safeSearch: 'none'
+    // search.list disabled by project policy. Return an informative message and fallback heuristics.
+    console.warn('search.list disabled — returning heuristic keyword suggestions')
+
+    // Use simple heuristic: split query and return most frequent words as keywords
+    const words = query.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(Boolean)
+    const unique = Array.from(new Set(words))
+    const keywords = unique.map((k, i) => ({ keyword: k, frequency: Math.max(1, words.filter(w => w === k).length) })).slice(0, 20)
+
+    return NextResponse.json({
+      titles: [],
+      keywords,
+      allTags: [],
+      query,
+      count: 0,
+      keywordCount: keywords.length,
+      success: true,
+      fallback: true,
+      message: 'search.list disabled — using local heuristics'
     })
-
-    const items = searchResponse.data.items || []
-    const videoIds = items
-      .map(item => item.id?.videoId)
-      .filter(Boolean) as string[]
-
-    if (videoIds.length === 0) {
-      return NextResponse.json({
-        titles: [],
-        keywords: [],
-        query,
-        count: 0,
-        message: 'No results found'
-      })
-    }
 
     // Fetch full video snippets (including titles, descriptions, tags)
     const titles: string[] = []

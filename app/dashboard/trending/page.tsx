@@ -265,9 +265,9 @@ export default function TrendingPage() {
             <User className="w-5 h-5" />
             <span>Profile</span>
           </button>
-          <button onClick={() => { router.push('/content'); setSidebarOpen(false) }} className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm hover:bg-gray-50">
+          <button onClick={() => { router.push('/videos'); setSidebarOpen(false) }} className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm hover:bg-gray-50">
             <Video className="w-5 h-5" />
-            <span>Content</span>
+            <span>Videos</span>
           </button>
           <button onClick={() => { router.push('/analytics'); setSidebarOpen(false) }} className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-sm hover:bg-gray-50">
             <BarChart3 className="w-5 h-5" />
@@ -323,9 +323,9 @@ export default function TrendingPage() {
               <User className="w-5 h-5 text-gray-600" />
               <span className="font-medium">Profile</span>
             </Link>
-            <Link href="/content" className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50">
+            <Link href="/videos" className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50">
               <Video className="w-5 h-5 text-gray-600" />
-              <span className="font-medium">Content</span>
+              <span className="font-medium">Videos</span>
             </Link>
             <Link href="/analytics" className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50">
               <BarChart3 className="w-5 h-5 text-gray-600" />

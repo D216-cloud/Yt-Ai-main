@@ -22,23 +22,8 @@ export async function GET(request: NextRequest) {
     
     // Handle different channel URL formats
     if (channelId.startsWith('@') || channelId.startsWith('c/') || channelId.startsWith('user/')) {
-      // Search for channel by username/handle
-      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(channelId)}&maxResults=1&${
-        accessToken ? `access_token=${accessToken}` : `key=${apiKey}`
-      }`
-      
-      const searchResponse = await fetch(searchUrl)
-      const searchData = await searchResponse.json()
-      
-      if (!searchResponse.ok) {
-        throw new Error(searchData.error?.message || 'Failed to search for channel')
-      }
-      
-      if (!searchData.items || searchData.items.length === 0) {
-        return NextResponse.json({ error: 'Channel not found' }, { status: 404 })
-      }
-      
-      finalChannelId = searchData.items[0].snippet.channelId
+      // Per project policy search.list is disabled — require explicit channelId
+      return NextResponse.json({ error: 'Please provide a channel ID (starts with "UC...") — search by handle/username is disabled.' }, { status: 400 })
     }
 
     // Get channel details
@@ -59,21 +44,45 @@ export async function GET(request: NextRequest) {
 
     const channel = channelData.items[0]
 
-    // Get recent videos for analysis (by date)
-    const videosUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${finalChannelId}&order=date&type=video&maxResults=50&${
-      accessToken ? `access_token=${accessToken}` : `key=${apiKey}`
-    }`
-    
-    const videosResponse = await fetch(videosUrl)
-    const videosData = await videosResponse.json()
+    // Get recent videos for analysis using uploads playlist (no search.list)
+    const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${finalChannelId}&${accessToken ? `access_token=${accessToken}` : `key=${apiKey}`}`)
+    const channelJson = await channelRes.json()
+    const uploadsPlaylistId = channelJson?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads
 
-    // Get top performing videos (by view count)
-    const topVideosUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${finalChannelId}&order=viewCount&type=video&maxResults=25&${
-      accessToken ? `access_token=${accessToken}` : `key=${apiKey}`
-    }`
-    
-    const topVideosResponse = await fetch(topVideosUrl)
-    const topVideosData = await topVideosResponse.json()
+    let recentVideosData: any = { items: [] }
+    if (uploadsPlaylistId) {
+      const videosRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=50&${accessToken ? `access_token=${accessToken}` : `key=${apiKey}`}`)
+      recentVideosData = await videosRes.json()
+    }
+
+    // For top performing videos, fetch a larger recent set and compute top by viewCount
+    let topVideosData: any = { items: [] }
+    if (uploadsPlaylistId) {
+      // Fetch up to 200 most recent via pagination
+      let items: any[] = []
+      let pageToken: string | undefined = undefined
+      let pagesFetched = 0
+      do {
+        const pagedUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ''}&${accessToken ? `access_token=${accessToken}` : `key=${apiKey}`}`
+        const pagedRes = await fetch(pagedUrl)
+        if (!pagedRes.ok) break
+        const pagedData = await pagedRes.json()
+        if (Array.isArray(pagedData.items)) items.push(...pagedData.items)
+        pageToken = pagedData.nextPageToken
+        pagesFetched += 1
+      } while (pageToken && pagesFetched < 4)
+
+      // Convert playlist items to a list of video IDs and fetch their stats
+      const videoIds = items.map((it:any) => it.snippet?.resourceId?.videoId).filter(Boolean)
+      if (videoIds.length > 0) {
+        const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(',')}&${accessToken ? `access_token=${accessToken}` : `key=${apiKey}`}`
+        const statsRes = await fetch(statsUrl)
+        const statsData = await statsRes.json()
+        if (statsRes.ok && statsData.items) {
+          topVideosData.items = statsData.items
+        }
+      }
+    }
     
     let recentVideos = []
     let topVideos = []

@@ -45,76 +45,109 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
         growth: 0
     })
 
-    // Load YouTube channel data
+    // Load YouTube channel data from database
     useEffect(() => {
         if (typeof window === 'undefined') return
-        
-        try {
-            const stored = localStorage.getItem('youtube_channel')
-            if (stored) {
-                const channel = JSON.parse(stored)
-                setYoutubeChannel(channel)
-                // set basic counts immediately
-                setAnalyticsData({
-                    views: parseInt(channel.viewCount) || 0,
-                    subscribers: parseInt(channel.subscriberCount) || 0,
-                    watchTime: 0,
-                    growth: 18
-                })
 
-                // Fetch real analytics summary (watch time in minutes -> convert to hours)
-                ;(async () => {
-                    try {
-                        const token = localStorage.getItem(`youtube_access_token_${channel.id}`) || localStorage.getItem('youtube_access_token')
-                        if (!token) return
-                        const res = await fetch(`/api/youtube/analytics/summary?channelId=${channel.id}&access_token=${encodeURIComponent(token)}`)
-                        if (!res.ok) return
-                        const data = await res.json()
-                        const totalWatchMinutes = Number(data?.summary?.totalWatchMinutes || 0)
-                        setAnalyticsData((prev) => ({
-                            ...prev,
-                            watchTime: Math.round(totalWatchMinutes / 60)
-                        }))
-                    } catch (error) {
-                        console.error('Failed to fetch sidebar analytics summary:', error)
+        const loadChannelData = async () => {
+            try {
+                const res = await fetch('/api/channels')
+                if (res.ok) {
+                    const data = await res.json()
+                    if (data?.channels && Array.isArray(data.channels)) {
+                        const primary = data.channels.find((ch: any) => ch.is_primary)
+                        if (primary) {
+                            const channel = {
+                                id: primary.channel_id,
+                                title: primary.title,
+                                description: primary.description,
+                                thumbnail: primary.thumbnail,
+                                subscriberCount: primary.subscriber_count?.toString() || '0',
+                                videoCount: primary.video_count?.toString() || '0',
+                                viewCount: primary.view_count?.toString() || '0',
+                            }
+                            setYoutubeChannel(channel)
+                            // set basic counts immediately
+                            setAnalyticsData({
+                                views: parseInt(channel.viewCount) || 0,
+                                subscribers: parseInt(channel.subscriberCount) || 0,
+                                watchTime: 0,
+                                growth: 18
+                            })
+
+                            // Fetch real analytics summary (watch time in minutes -> convert to hours)
+                            ;(async () => {
+                                try {
+                                    const res = await fetch(`/api/youtube/analytics/summary?channelId=${channel.id}`)
+                                    if (!res.ok) return
+                                    const data = await res.json()
+                                    const totalWatchMinutes = Number(data?.summary?.totalWatchMinutes || 0)
+                                    setAnalyticsData((prev) => ({
+                                        ...prev,
+                                        watchTime: Math.round(totalWatchMinutes / 60)
+                                    }))
+                                } catch (error) {
+                                    console.error('Failed to fetch sidebar analytics summary:', error)
+                                }
+                            })()
+
+                            // Set active channel ID
+                            setActiveChannelId(channel.id)
+
+                            // Load additional channels from database
+                            const additionalChannels = data.channels
+                                .filter((ch: any) => !ch.is_primary)
+                                .map((c: any) => ({
+                                    id: c.channel_id,
+                                    title: c.title,
+                                    thumbnail: c.thumbnail,
+                                    subscriberCount: c.subscriber_count?.toString() || '0',
+                                    videoCount: c.video_count?.toString() || '0',
+                                    viewCount: c.view_count?.toString() || '0'
+                                }))
+                            setAdditionalChannels(additionalChannels)
+                            console.log('Loaded channels from DB:', { primary: channel.title, additional: additionalChannels.length })
+                        }
                     }
-                })()
+                }
+            } catch (error) {
+                console.error('Failed to load channel data from database:', error)
             }
-            // Load additional channels
-            const additionalStored = localStorage.getItem('additional_youtube_channels')
-            if (additionalStored) {
-                setAdditionalChannels(JSON.parse(additionalStored))
-            }
-            
-            // Set active channel (default to primary)
-            const activeId = localStorage.getItem('active_youtube_channel_id')
-            if (activeId) {
-                setActiveChannelId(activeId)
-            } else if (stored) {
-                const channel = JSON.parse(stored)
-                setActiveChannelId(channel.id)
-                localStorage.setItem('active_youtube_channel_id', channel.id)
-            }
-            
-            // Auto-close modal if it was open and channels are loaded
-            if (showConnectModal && (stored || additionalStored)) {
-                setShowConnectModal(false)
-            }
-        } catch (error) {
-            console.error('Failed to load channel data:', error)
         }
+
+        loadChannelData()
     }, [])
 
-    const disconnectChannel = () => {
-        if (typeof window !== 'undefined') {
-            localStorage.removeItem('youtube_channel')
-            localStorage.removeItem('youtube_access_token')
-            localStorage.removeItem('youtube_refresh_token')
+    const disconnectChannel = async () => {
+        if (!confirm('Disconnect your primary channel? This will remove all connected channels.')) return
+
+        try {
+            // Delete all channels from database
+            const res = await fetch('/api/channels', { method: 'DELETE' })
+            if (res.ok) {
+                // Delete all tokens from database (don't store in localStorage)
+                try {
+                  await fetch('/api/tokens', { 
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channelId: youtubeChannel?.id })
+                  })
+                } catch (tokenErr) {
+                  console.error('Failed to delete tokens:', tokenErr)
+                }
+
+                setYoutubeChannel(null)
+                setAdditionalChannels([])
+                setShowChannelDropdown(false)
+                // Redirect to connect page
+                window.location.href = '/connect'
+            } else {
+                alert('Failed to disconnect channels. Please try again.')
+            }
+        } catch (error) {
+            console.error('Failed to disconnect channel:', error)
+            alert('Failed to disconnect channels. Please try again.')
         }
-        setYoutubeChannel(null)
-        setShowChannelDropdown(false)
-        // Redirect to connect page or show success message
-        window.location.href = '/connect'
     }
 
     const connectMoreChannels = () => {
@@ -142,7 +175,7 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
         )
         
         // Listen for messages from the popup
-        const messageListener = (event: MessageEvent) => {
+        const messageListener = async (event: MessageEvent) => {
             if (event.origin !== window.location.origin) return
             
             if (event.data.type === 'YOUTUBE_AUTH_SUCCESS') {
@@ -164,12 +197,59 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                 
                 // Save additional channel (don't replace primary)
                 const updatedChannels = [...existingChannels, channel]
-                localStorage.setItem('additional_youtube_channels', JSON.stringify(updatedChannels))
-                if (token) localStorage.setItem(`youtube_access_token_${channel.id}`, token)
-                if (refreshToken) localStorage.setItem(`youtube_refresh_token_${channel.id}`, refreshToken)
+                // Clean up temp tokens only - no localStorage for channels
+                // Channels will be fetched from Supabase
                 
                 // Clear the oauth return page to prevent connect page processing
                 localStorage.removeItem('oauth_return_page')
+                
+                // Store token in Supabase for additional channel
+                if (token) {
+                  try {
+                    const tokenRes = await fetch('/api/tokens', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        channelId: channel.id,
+                        accessToken: token,
+                        refreshToken: refreshToken || null,
+                        expiresAt: new Date(Date.now() + 3600 * 1000).toISOString()
+                      })
+                    })
+                    const tokenData = await tokenRes.json()
+                    console.log('✅ Token stored in Supabase for additional channel:', tokenData)
+                  } catch (tokenErr) {
+                    console.error('❌ Failed to store token:', tokenErr)
+                  }
+                }
+                
+                // Store channel in database
+                try {
+                  const storeRes = await fetch('/api/channels', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      channelId: channel.id,
+                      title: channel.title,
+                      description: channel.description,
+                      thumbnail: channel.thumbnail,
+                      subscriberCount: channel.subscriberCount,
+                      videoCount: channel.videoCount,
+                      viewCount: channel.viewCount,
+                      isPrimary: false
+                    })
+                  })
+                  const storeData = await storeRes.json()
+                  if (!storeRes.ok) {
+                    console.error('❌ API Error:', storeRes.status, storeData)
+                    alert('Failed to save channel: ' + (storeData.error || 'Unknown error'))
+                  } else {
+                    console.log('✅ Channel stored in database:', storeData)
+                  }
+                } catch (dbErr) {
+                  console.error('❌ Failed to store channel in database:', dbErr)
+                  alert('Failed to save channel: ' + (dbErr as any).message)
+                }
                 
                 // Update state
                 setAdditionalChannels(updatedChannels)
@@ -213,8 +293,8 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
         { icon: Home, label: 'Dashboard', href: '/dashboard', id: 'dashboard', badge: null, description: 'Overview of channel analytics & insights' },
         { icon: Sparkles, label: 'Title Search', href: '/title-search', id: 'title-search', badge: 'NEW', description: 'Generate SEO-friendly titles & scores' },
         { icon: FileText, label: 'Vid-Info', href: '/vid-info', id: 'vid-info', badge: null, description: 'View and edit video metadata' },
-        { icon: Video, label: 'Content', href: '/content', id: 'content', badge: '12', description: 'Manage and analyze content' },
-        { icon: Upload, label: 'Bulk Upload', href: '/bulk-upload', id: 'bulk-upload', badge: null, description: 'Upload multiple videos at once' },
+        { icon: Upload, label: 'Smart Upload', href: '/bulk-upload', id: 'bulk-upload', badge: null, description: 'Upload multiple videos at once' },
+        { icon: Sparkles, label: 'AI Thumbnail', href: '/ai-thumbnail', id: 'ai-thumbnail', badge: null, description: 'Generate AI thumbnails' },
         { icon: GitCompare, label: 'Compare', href: '/compare', id: 'compare', badge: null, description: 'Compare channel performance' },
     ]
 

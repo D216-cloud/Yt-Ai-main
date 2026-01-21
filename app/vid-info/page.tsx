@@ -715,7 +715,7 @@ export default function VideoInfoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
+    <div className="min-h-screen bg-slate-50">
       <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex">
@@ -1220,7 +1220,7 @@ export default function VideoInfoPage() {
                                       }`}
                                   >
                                     <div className="flex items-start gap-3 mb-3">
-                                      {item.type === 'success' ? <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" /> :
+                                      {item.type === 'success' ? <CheckCircle className="w-6 h-6 text-green-600 shrink-0 mt-0.5" /> :
                                         item.type === 'warning' ? <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" /> :
                                           <Zap className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />}
                                       <div className="flex-1">

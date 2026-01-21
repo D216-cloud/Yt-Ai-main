@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getServerSession } from 'next-auth'
+import { createServerSupabaseClient } from '@/lib/supabase'
+import { getValidAccessToken } from '@/lib/googleTokens'
 
 export const dynamic = 'force-dynamic'
 
@@ -6,10 +9,23 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const channelId = searchParams.get('channelId')
-    const accessToken = searchParams.get('access_token')
 
     if (!channelId) return NextResponse.json({ error: 'channelId is required' }, { status: 400 })
-    if (!accessToken) return NextResponse.json({ error: 'access_token is required' }, { status: 401 })
+
+    // Resolve server-side access token from session
+    const session = await getServerSession()
+    if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const supabase = createServerSupabaseClient()
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('id,email')
+      .eq('email', session.user.email)
+      .limit(1)
+      .single()
+    if (!userRow?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const accessToken = await getValidAccessToken(userRow.id)
+    if (!accessToken) return NextResponse.json({ error: 'Unauthorized. Please reconnect Google.' }, { status: 401 })
 
     const endDate = new Date().toISOString().slice(0, 10)
     const startDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)

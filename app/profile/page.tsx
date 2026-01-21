@@ -82,7 +82,7 @@ export default function ProfilePage() {
           
           if (data.success && data.channel) {
             setYoutubeChannel(data.channel)
-            localStorage.setItem("youtube_channel", JSON.stringify(data.channel))
+            // Store in Supabase only - no localStorage
           }
         }
       } catch (error) {
@@ -280,7 +280,7 @@ export default function ProfilePage() {
       <div className="flex">
         {/* Mobile Sidebar Overlay */}
         {sidebarOpen && (
-          <div className="fixed inset-0 bg-black/50 md:hidden z-30 top-16" onClick={() => setSidebarOpen(false)}></div>
+          <div className="fixed inset-0 bg-black/50 md:hidden z-30" onClick={() => setSidebarOpen(false)}></div>
         )}
 
         {/* Mobile Sidebar */}
@@ -329,7 +329,7 @@ export default function ProfilePage() {
         </aside>
 
         {/* Desktop Sidebar */}
-        <aside className="hidden md:block w-64 border-r border-gray-200 bg-white fixed left-0 top-16 bottom-0 overflow-y-auto">
+        <aside className="hidden md:block w-64 border-r border-gray-200 bg-white fixed left-0 top-0 bottom-0 overflow-y-auto">
           <nav className="p-4 space-y-1">
             {navLinks.map((link) => {
               const Icon = link.icon
@@ -581,8 +581,7 @@ export default function ProfilePage() {
                                   try {
                                     localStorage.setItem('selected_channel_id', ch.id)
                                     setSelectedChannel(ch)
-                                    // update main local cache
-                                    localStorage.setItem('youtube_channel', JSON.stringify(ch))
+                                    // Channels stored in Supabase - no localStorage needed
                                     alert('Selected channel switched')
                                   } catch (e) {
                                     console.error(e)
@@ -603,15 +602,17 @@ export default function ProfilePage() {
                                     setSelectedChannel(null)
                                     alert('Main channel disconnected. You may need to reconnect.')
                                   } else {
-                                    const stored = localStorage.getItem('additional_youtube_channels')
-                                    if (stored) {
+                                    // Disconnect via Supabase API only - no localStorage
+                                    const disconnectChannel = async () => {
                                       try {
-                                        const extra = JSON.parse(stored)
-                                        const filtered = extra.filter((ec: YouTubeChannel) => ec.id !== ch.id)
-                                        localStorage.setItem('additional_youtube_channels', JSON.stringify(filtered))
-                                        setAllChannels(prev => prev.filter(c => c.id !== ch.id))
-                                      } catch (e) { console.error(e) }
+                                        const res = await fetch(`/api/channels?channelId=${ch.id}`, { method: 'DELETE' })
+                                        if (res.ok) {
+                                          setAllChannels(prev => prev.filter(c => c.id !== ch.id))
+                                          alert('Channel disconnected')
+                                        }
+                                      } catch (e) { console.error('Failed to disconnect:', e) }
                                     }
+                                    disconnectChannel()
                                   }
                                 }}
                                 className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded-md border border-red-100 hover:bg-red-100"

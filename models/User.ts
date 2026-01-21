@@ -1,6 +1,8 @@
-import mongoose, { Schema, models } from "mongoose"
+// Mongoose was removed in favor of Supabase. Keep a minimal user type here
+// to satisfy TypeScript imports until auth is migrated to Supabase.
 
 export interface IUser {
+  id?: string
   name?: string
   email: string
   password?: string
@@ -11,42 +13,6 @@ export interface IUser {
   updatedAt?: Date
 }
 
-const UserSchema = new Schema<IUser>(
-  {
-    name: {
-      type: String,
-      required: false,
-    },
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-    },
-    password: {
-      type: String,
-      required: false, // Not required for OAuth users
-    },
-    image: {
-      type: String,
-      required: false,
-    },
-    provider: {
-      type: String,
-      enum: ["google", "credentials"],
-      default: "credentials",
-    },
-    emailVerified: {
-      type: Date,
-      required: false,
-    },
-  },
-  {
-    timestamps: true,
-  }
-)
-
-// Prevent model recompilation
-const User = models.User || mongoose.model<IUser>("User", UserSchema)
-
+// Placeholder for previous Mongoose model; replace with Supabase client usage.
+const User: any = null
 export default User

@@ -134,7 +134,7 @@ export default function DashboardPage() {
   const navLinks = [
     { icon: Home, label: 'Dashboard', href: '/dashboard', id: 'dashboard', badge: null },
     { icon: FileText, label: 'Vid-Info', href: '/vid-info', id: 'vid-info', badge: null },
-    { icon: Video, label: 'Content', href: '/content', id: 'content', badge: '12' },
+    { icon: Video, label: 'Videos', href: '/videos', id: 'videos', badge: '12' },
     { icon: Upload, label: 'Bulk Upload', href: '/bulk-upload', id: 'bulk-upload', badge: null },
     { icon: GitCompare, label: 'Compare', href: '/compare', id: 'compare', badge: null },
   ]
@@ -310,7 +310,7 @@ export default function DashboardPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
+    <div className="min-h-screen bg-slate-50">
       <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex">

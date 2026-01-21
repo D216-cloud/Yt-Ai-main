@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation"
 export function HeroSection() {
     const [isVisible, setIsVisible] = useState(false)
     const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+    const [isStarting, setIsStarting] = useState(false)
     const { data: session } = useSession()
     const router = useRouter()
 
@@ -29,6 +30,7 @@ export function HeroSection() {
     }, [])
 
     const handleStartNow = () => {
+        setIsStarting(true)
         if (session) {
             router.push("/connect")
         } else {
@@ -87,6 +89,10 @@ export function HeroSection() {
                         <div className="flex items-center justify-center gap-4 mb-8">
                             <Button size="lg" onClick={handleStartNow} className="px-8 py-4 text-base font-bold bg-black text-white rounded-full shadow-lg hover:scale-105 transition-transform">
                                 Join for $9.99/m
+                            </Button>
+
+                            <Button size="lg" onClick={() => { setIsStarting(true); setTimeout(() => { if (session) { router.push('/connect') } else { router.push('/signup') } }, 150) }} className="px-8 py-4 text-base font-bold bg-emerald-600 text-white rounded-full shadow-lg hover:scale-105 transition-transform">
+                                {isStarting ? 'Loading...' : 'Start Now'}
                             </Button>
 
                             <Link href="#" className="inline-flex items-center px-6 py-3 rounded-full text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors">

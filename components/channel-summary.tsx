@@ -36,7 +36,7 @@ export default function ChannelSummary({ channel, analyticsData, wide }: { chann
   return (
     <div className={`bg-white border border-gray-200 rounded-2xl p-4 md:p-6 flex ${wide ? 'flex-col md:flex-row items-start md:items-center gap-6' : 'flex-col md:flex-row items-start md:items-center gap-4'} shadow-sm hover:shadow-lg transition-all` }>
       <div className="flex items-center gap-4">
-        <div className={`${wide ? 'w-16 h-16 md:w-20 md:h-20' : 'w-12 h-12 md:w-16 md:h-16'} rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-md overflow-hidden` }>
+        <div className={`${wide ? 'w-16 h-16 md:w-20 md:h-20' : 'w-12 h-12 md:w-16 md:h-16'} rounded-lg bg-linear-to-br from-blue-600 to-purple-600 flex items-center justify-center text-white text-xl font-bold shadow-md overflow-hidden` }>`
           {channel?.thumbnail ? (
             // Use an actual img tag; next/image can be overkill for small component and require loader
             <img src={channel.thumbnail} alt={channel.title} className={`${wide ? 'w-20 h-20 md:w-20 md:h-20' : 'w-16 h-16'} object-cover rounded-lg`} />

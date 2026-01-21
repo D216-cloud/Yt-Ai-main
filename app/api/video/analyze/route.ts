@@ -82,21 +82,10 @@ export async function POST(request: NextRequest) {
     let resultsCount = 0;
     
     if (apiKey && primaryKeyword) {
-      try {
-        const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(primaryKeyword)}&type=video&maxResults=1&key=${apiKey}`
-        const searchResponse = await fetchWithTimeout(url, {}, 8000)
-        if (searchResponse.ok) {
-          const searchData = await searchResponse.json()
-          resultsCount = searchData.pageInfo?.totalResults || 0;
-        } else {
-          const txt = await searchResponse.text().catch(() => '')
-          console.error('YouTube API returned non-OK:', searchResponse.status, txt)
-          warnings.push('YouTube search API returned an error')
-        }
-      } catch (error) {
-        console.error('Error fetching search results:', error);
-        warnings.push('Failed to fetch YouTube search results')
-      }
+      // search.list disabled by project policy — we cannot fetch totalResults. Set to 0 and warn.
+      console.warn('search.list disabled — skipping search result count')
+      warnings.push('Search API disabled on this deployment; competition estimates are approximate')
+      resultsCount = 0
     }
 
     // Step 6: Calculate competition score

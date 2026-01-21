@@ -25,15 +25,8 @@ export function TopCountriesChart({ channelId }: { channelId: string }) {
         
         if (typeof window === 'undefined') return
         
-        // Get access token from localStorage
-        const accessToken = localStorage.getItem('youtube_access_token')
-        
-        if (!accessToken) {
-          setError('No access token found. Please connect your YouTube channel.')
-          return
-        }
-        
-        const response = await fetch(`/api/youtube/analytics/topCountries?channelId=${channelId}&access_token=${accessToken}`)
+        // Server resolves and refreshes token securely
+        const response = await fetch(`/api/youtube/analytics/topCountries?channelId=${channelId}`)
         const data = await response.json()
         
         if (!response.ok) {

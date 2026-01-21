@@ -41,26 +41,21 @@ export async function GET(req: NextRequest) {
     const channel = channelResponse.data.items[0]
     const channelStats = channel.statistics!
 
-    // Get recent videos for analysis
-    const videosResponse = await youtube.search.list({ 
-      part: ['snippet'], 
-      channelId: channelId, 
-      order: 'date', 
-      type: ['video'], 
-      maxResults: 20 
-    })
-
-    const videoIds = videosResponse.data.items
-      ?.map((item: any) => item.id?.videoId)
-      .filter(Boolean) || []
+    // Get uploads playlist and fetch recent videos (no search.list)
+    const channelResp = await youtube.channels.list({ part: ['contentDetails'], id: [channelId] })
+    const uploadsPlaylistId = channelResp.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads
 
     let videos: any[] = []
-    if (videoIds.length > 0) {
-      const videoDetailsResponse = await youtube.videos.list({
-        part: ['statistics', 'snippet'],
-        id: videoIds
-      })
-      videos = videoDetailsResponse.data.items || []
+    if (uploadsPlaylistId) {
+      const plRes = await youtube.playlistItems.list({ part: ['snippet'], playlistId: uploadsPlaylistId, maxResults: 20 })
+      const videoIds = (plRes.data.items || []).map((item: any) => item.snippet?.resourceId?.videoId).filter(Boolean) as string[]
+      if (videoIds.length > 0) {
+        const videoDetailsResponse = await youtube.videos.list({ part: ['statistics', 'snippet'], id: videoIds })
+        videos = videoDetailsResponse.data.items || []
+      }
+    } else {
+      // No uploads playlist — do not use search.list per project policy
+      return NextResponse.json({ error: 'Could not derive uploads playlist for this channel' }, { status: 404 })
     }
 
     // Calculate scores

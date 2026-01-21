@@ -57,7 +57,7 @@ const keyImprovements = [
 
 export function BeforeAfterSection() {
   return (
-    <section className="relative py-24 overflow-hidden bg-gradient-to-b from-white via-gray-50 to-white">
+    <section className="relative py-24 overflow-hidden bg-linear-to-b from-white via-gray-50 to-white">
       {/* Background Elements */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-gradient-to-r from-purple-400/10 to-pink-400/10 rounded-full blur-3xl" />
@@ -67,7 +67,7 @@ export function BeforeAfterSection() {
       <div className="container relative z-10 mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 shadow-lg mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-linear-to-r from-purple-50 to-pink-50 border border-purple-200 shadow-lg mb-6">
             <Sparkles className="w-4 h-4 text-purple-600" />
             <span className="text-sm font-semibold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
               Transformation Results
@@ -107,7 +107,7 @@ export function BeforeAfterSection() {
                   {transformation.stats.map((stat, statIndex) => (
                     <div key={statIndex} className={`flex items-center justify-between p-4 rounded-2xl ${index === 0 ? 'bg-white/50' : 'bg-white'} border ${index === 0 ? 'border-gray-200' : 'border-purple-200'}`}>
                       <div className="flex items-center gap-3">
-                        <div className={`w-12 h-12 rounded-xl ${index === 0 ? 'bg-gray-200' : 'bg-gradient-to-br from-purple-100 to-pink-100'} flex items-center justify-center`}>
+                        <div className={`w-12 h-12 rounded-xl ${index === 0 ? 'bg-gray-200' : 'bg-linear-to-br from-purple-100 to-pink-100'} flex items-center justify-center`}>
                           <stat.icon className={`w-6 h-6 ${stat.color}`} />
                         </div>
                         <div>

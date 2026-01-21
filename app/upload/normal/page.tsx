@@ -144,7 +144,7 @@ export default function NormalUploadPage() {
     { icon: Home, label: "Dashboard", href: "/dashboard", id: "dashboard" },
     { icon: User, label: "Profile", href: "/dashboard?page=profile", id: "profile" },
     { icon: GitCompare, label: "Compare", href: "/compare", id: "compare" },
-    { icon: Video, label: "Content", href: "/content", id: "content" },
+    { icon: Video, label: "Videos", href: "/videos", id: "videos" },
     { icon: BarChart3, label: "Analytics", href: "/analytics", id: "analytics" },
     { icon: Upload, label: "Bulk Upload", href: "/upload/normal", id: "bulk-upload" },
     { icon: Settings, label: "Settings", href: "/settings", id: "settings" },
@@ -310,7 +310,7 @@ export default function NormalUploadPage() {
               {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </Button>
             <Link href="/" className="flex items-center space-x-2 group">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 shadow-lg group-hover:shadow-xl transition flex-shrink-0">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-blue-600 to-purple-600 shadow-lg group-hover:shadow-xl transition shrink-0">
                 <Play className="h-4 w-4 text-white fill-white" />
               </div>
               <span className="font-bold text-gray-900 text-sm">YouTubeAI Pro</span>

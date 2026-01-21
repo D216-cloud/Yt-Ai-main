@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
-import connectDB from "@/lib/mongodb"
-import User from "@/models/User"
+import { createServerSupabaseClient } from "@/lib/supabase"
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,11 +11,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
     }
 
-    // Connect to database
-    await connectDB()
+    const supabase = createServerSupabaseClient()
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() })
+    // Check if user already exists in Supabase users table
+    const { data: existingUser, error: fetchErr } = await supabase
+      .from('users')
+      .select('id,email')
+      .eq('email', email.toLowerCase())
+      .limit(1)
+      .single()
+
+    if (fetchErr && fetchErr.code !== 'PGRST116') {
+      console.error('Error checking existing user:', fetchErr)
+      return NextResponse.json({ error: "Failed to check existing user" }, { status: 500 })
+    }
 
     if (existingUser) {
       return NextResponse.json({ error: "User already exists with this email" }, { status: 400 })
@@ -25,21 +33,33 @@ export async function POST(req: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12)
 
-    // Create new user
-    const user = await User.create({
-      name: name || email.split("@")[0],
+    // Upsert into Supabase users table
+    const payload = {
+      name: name || email.split('@')[0],
       email: email.toLowerCase(),
       password: hashedPassword,
-      provider: "credentials",
-    })
+      provider: 'credentials',
+      email_verified: null,
+    }
+
+    const { data, error: upsertErr } = await supabase
+      .from('users')
+      .insert(payload)
+      .select('id,email,name')
+      .single()
+
+    if (upsertErr) {
+      console.error('Upsert error:', upsertErr)
+      return NextResponse.json({ error: "Failed to create user" }, { status: 500 })
+    }
 
     return NextResponse.json(
       {
         message: "User created successfully",
         user: {
-          id: user._id,
-          email: user.email,
-          name: user.name,
+          id: data.id,
+          email: data.email,
+          name: data.name,
         },
       },
       { status: 201 }

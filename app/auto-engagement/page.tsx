@@ -70,7 +70,7 @@ export default function AutoEngagementPage() {
   const navLinks = [
     { icon: Home, label: "Dashboard", href: "/dashboard", id: "dashboard" },
     { icon: GitCompare, label: "Compare", href: "/compare", id: "compare" },
-    { icon: Video, label: "Content", href: "/content", id: "content" },
+    { icon: Video, label: "Videos", href: "/videos", id: "videos" },
     { icon: Upload, label: "Bulk Upload", href: "/bulk-upload", id: "bulk-upload" },
     { icon: MessageSquare, label: "Auto Engagement", href: "/auto-engagement", id: "auto-engagement" },
   ]

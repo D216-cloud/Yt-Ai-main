@@ -30,10 +30,12 @@ export async function GET(req: NextRequest) {
     youtubeAuthUrl.searchParams.set("client_id", process.env.YOUTUBE_CLIENT_ID)
     youtubeAuthUrl.searchParams.set("redirect_uri", redirectUri)
     youtubeAuthUrl.searchParams.set("response_type", "code")
-    youtubeAuthUrl.searchParams.set("scope", "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube")
+    // Required scopes: youtube.readonly and yt-analytics.readonly
+    youtubeAuthUrl.searchParams.set("scope", "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly")
     youtubeAuthUrl.searchParams.set("access_type", "offline")
-    // Force account chooser so users can pick among multiple Google accounts
+    // Force account chooser and consent so refresh_token is always issued
     youtubeAuthUrl.searchParams.set("prompt", "select_account consent")
+    youtubeAuthUrl.searchParams.set("include_granted_scopes", "true")
     
     console.log("Redirecting to YouTube OAuth with URI:", redirectUri)
     
@@ -98,6 +100,30 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${process.env.NEXTAUTH_URL || process.env.CLIENT_URL || "http://localhost:3000"}/connect?error=${encodeURIComponent(errorMessage)}`)
     }
 
+    // Persist tokens server-side and fetch channel information
+    // Store tokens ONLY in Supabase/Postgres
+    // Never expose refresh_token to the client
+    try {
+      const { getServerSession } = await import('next-auth')
+      const { createServerSupabaseClient } = await import('@/lib/supabase')
+      const { saveInitialTokens } = await import('@/lib/googleTokens')
+      const session = await getServerSession()
+      const supabase = createServerSupabaseClient()
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('id,email')
+        .eq('email', session?.user?.email || '')
+        .limit(1)
+        .single()
+      if (userRow?.id && tokenData?.access_token) {
+        const expiresIn = Number(tokenData.expires_in || 3600)
+        // Save tokens immediately under a temporary/default channel id; will upsert with real channel id below
+        await saveInitialTokens(userRow.id, tokenData.access_token, tokenData.refresh_token || '', expiresIn)
+      }
+    } catch (persistErr) {
+      console.error('Failed to persist YouTube tokens:', persistErr)
+    }
+
     // Fetch channel information
     let channelData = null
     try {
@@ -127,6 +153,60 @@ export async function GET(req: NextRequest) {
       console.error('Failed to fetch channel data:', error)
     }
 
+    // Persist channel information in DB as primary (if not already present)
+    try {
+      const { getServerSession } = await import('next-auth')
+      const { createServerSupabaseClient } = await import('@/lib/supabase')
+      const { saveInitialTokens } = await import('@/lib/googleTokens')
+      const session = await getServerSession()
+      const supabase = createServerSupabaseClient()
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('id,email')
+        .eq('email', session?.user?.email || '')
+        .limit(1)
+        .single()
+
+      if (userRow?.id && channelData?.id) {
+        // Now that we know the real channelId, upsert tokens under this channel id too
+        if (tokenData?.access_token) {
+          const expiresIn = Number(tokenData.expires_in || 3600)
+          await saveInitialTokens(userRow.id, tokenData.access_token, tokenData.refresh_token || '', expiresIn, channelData.id)
+        }
+
+        // Determine if a primary channel already exists
+        const { data: existingPrimary } = await supabase
+          .from('channels')
+          .select('id')
+          .eq('user_id', userRow.id)
+          .eq('is_primary', true)
+          .limit(1)
+          .maybeSingle()
+
+        const isPrimary = !existingPrimary
+
+        await supabase
+          .from('channels')
+          .upsert({
+            user_id: userRow.id,
+            channel_id: channelData.id,
+            title: channelData.title,
+            description: channelData.description,
+            thumbnail: channelData.thumbnail,
+            subscriber_count: Number(channelData.subscriberCount || 0),
+            video_count: Number(channelData.videoCount || 0),
+            view_count: Number(channelData.viewCount || 0),
+            is_primary: isPrimary ? true : undefined,
+            access_token_stored: true,
+            connected_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          } as any,
+          { onConflict: 'user_id,channel_id' })
+      }
+    } catch (chanErr) {
+      console.error('Failed to persist channel info:', chanErr)
+    }
+
     // Check if this is a popup request
     const { searchParams: urlSearchParams } = new URL(req.url)
     const isPopup = urlSearchParams.get('popup') === 'true'
@@ -139,9 +219,7 @@ export async function GET(req: NextRequest) {
             <script>
               window.opener?.postMessage({
                 type: 'YOUTUBE_AUTH_SUCCESS',
-                channel: ${JSON.stringify(channelData)},
-                token: '${tokenData.access_token}',
-                refreshToken: '${tokenData.refresh_token || ''}'
+                channel: ${JSON.stringify(channelData)}
               }, '${process.env.NEXTAUTH_URL || process.env.CLIENT_URL || "http://localhost:3000"}');
               window.close();
             </script>
@@ -152,16 +230,9 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // Regular redirect for non-popup requests
-    const redirectUrl = new URL(`${process.env.NEXTAUTH_URL || process.env.CLIENT_URL || "http://localhost:3000"}/connect`)
-    redirectUrl.searchParams.set("youtube_token", tokenData.access_token)
-    redirectUrl.searchParams.set("refresh_token", tokenData.refresh_token || "")
-    if (channelData) {
-      redirectUrl.searchParams.set("channel_data", JSON.stringify(channelData))
-    }
-    
-    console.log("Redirecting to connect page with tokens")
-    
+    // Regular redirect for non-popup requests — go to dashboard for faster UX
+    const redirectUrl = new URL(`${process.env.NEXTAUTH_URL || process.env.CLIENT_URL || "http://localhost:3000"}/dashboard`)
+    console.log("Redirecting to dashboard after successful YouTube auth")
     return NextResponse.redirect(redirectUrl.toString())
   } catch (error: any) {
     console.error("YouTube auth error:", error)

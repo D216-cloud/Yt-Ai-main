@@ -48,6 +48,7 @@ export default function DashboardPage() {
   const [loadingVideo, setLoadingVideo] = useState(false)
   const [suggestedTags, setSuggestedTags] = useState<Array<{tag: string, score: number, color: string, viralScore?: number, confidence?: string}>>([])
   const [showAllTags, setShowAllTags] = useState(false)
+  const [cardExpanded, setCardExpanded] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
   const [publishSuccess, setPublishSuccess] = useState(false)
   const [newTagInput, setNewTagInput] = useState('')
@@ -57,6 +58,7 @@ export default function DashboardPage() {
   const [suggestionLoading, setSuggestionLoading] = useState(false)
   const [showInputSuggestions, setShowInputSuggestions] = useState(false)
   const suggestionTimerRef = useRef<number | null>(null)
+  const addTagInputRef = useRef<HTMLInputElement | null>(null)
   const [publishError, setPublishError] = useState('')
   const [videosWithoutTags, setVideosWithoutTags] = useState<LatestVideo[]>([])
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0)
@@ -119,30 +121,77 @@ export default function DashboardPage() {
     }
   }, [])
 
-  // Load YouTube channel data
+  // Load YouTube channel data from database
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('youtube_channel')
-      if (stored) {
-        setYoutubeChannel(JSON.parse(stored))
+    const loadChannelData = async () => {
+      try {
+        const res = await fetch('/api/channels')
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.channels && Array.isArray(data.channels)) {
+            const primary = data.channels.find((ch: any) => ch.is_primary)
+            if (primary) {
+              const main = {
+                id: primary.channel_id,
+                title: primary.title,
+                description: primary.description,
+                thumbnail: primary.thumbnail,
+                subscriberCount: primary.subscriber_count?.toString() || '0',
+                videoCount: primary.video_count?.toString() || '0',
+                viewCount: primary.view_count?.toString() || '0',
+              }
+              setYoutubeChannel(main as YouTubeChannel)
+              console.log('Loaded primary channel from DB:', main.title)
+            }
+
+            // Load additional channels
+            const additional = data.channels
+              .filter((ch: any) => !ch.is_primary)
+              .map((ch: any) => ({
+                id: ch.channel_id,
+                title: ch.title,
+                description: ch.description,
+                thumbnail: ch.thumbnail,
+                subscriberCount: ch.subscriber_count?.toString() || '0',
+                videoCount: ch.video_count?.toString() || '0',
+                viewCount: ch.view_count?.toString() || '0',
+              }))
+            setAdditionalChannelsList(additional)
+            console.log('Loaded additional channels from DB:', additional.length)
+          }
+        } else {
+          console.error('Failed to fetch channels:', await res.text())
+        }
+      } catch (error) {
+        console.error('Failed to load channel data from database:', error)
       }
-    } catch (error) {
-      console.error('Failed to load channel data:', error)
     }
+
+    loadChannelData()
   }, [])
 
   // Disconnect a specific additional channel (keeps primary intact)
-  const handleDisconnectAdditional = (channelId: string) => {
+  const handleDisconnectAdditional = async (channelId: string) => {
     if (!confirm('Disconnect this channel?')) return
     try {
-      const current = JSON.parse(localStorage.getItem('additional_youtube_channels') || '[]')
-      const updated = (current || []).filter((ch: any) => ch.id !== channelId)
-      localStorage.setItem('additional_youtube_channels', JSON.stringify(updated))
-      // remove any stored tokens for this channel
-      localStorage.removeItem(`youtube_access_token_${channelId}`)
-      localStorage.removeItem(`youtube_refresh_token_${channelId}`)
-      setAdditionalChannelsList(updated)
-      // If the removed channel was currently set as youtube_channel, clear it
+      // Delete from database
+      const deleteRes = await fetch(`/api/channels?channelId=${encodeURIComponent(channelId)}`, { method: 'DELETE' })
+      if (deleteRes.ok) {
+        // Update local state by removing the channel
+        setAdditionalChannelsList(prev => prev.filter(ch => ch.id !== channelId))
+        // remove any stored tokens for this channel
+        localStorage.removeItem(`youtube_access_token_${channelId}`)
+        localStorage.removeItem(`youtube_refresh_token_${channelId}`)
+        console.log('Successfully disconnected additional channel:', channelId)
+      } else {
+        console.error('Failed to delete channel from database')
+      }
+    } catch (dbErr) {
+      console.warn('Failed to delete channel from DB:', dbErr)
+    }
+
+    // If the removed channel was currently set as youtube_channel, clear it
+    try {
       const primary = localStorage.getItem('youtube_channel')
       if (primary) {
         const primaryObj = JSON.parse(primary)
@@ -179,49 +228,16 @@ export default function DashboardPage() {
       
       setLoadingVideo(true)
       try {
-        const accessToken = localStorage.getItem('youtube_access_token')
-        if (!accessToken) {
-          console.log('No access token found')
+        // Fetch videos server-side; server will use stored tokens or API key fallback
+        const response = await fetch(`/api/youtube/best-videos?channelId=${youtubeChannel.id}`)
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}))
+          console.error('Failed to fetch videos:', err)
           setLoadingVideo(false)
           return
         }
 
-        // Attach refresh token (if available) so server can auto-refresh and return a new access token if needed
-        const refreshTokenParam = localStorage.getItem(`youtube_refresh_token_${youtubeChannel.id}`) || localStorage.getItem('youtube_refresh_token') || ''
-        const response = await fetch(`/api/youtube/best-videos?channelId=${youtubeChannel.id}&accessToken=${accessToken}${refreshTokenParam ? `&refresh_token=${encodeURIComponent(refreshTokenParam)}` : ''}`)
-        
-        if (!response.ok) {
-          // Try to recover by attempting a client-side refresh using our refresh endpoint
-          const clientRefreshToken = localStorage.getItem(`youtube_refresh_token_${youtubeChannel.id}`) || localStorage.getItem('youtube_refresh_token')
-          if (clientRefreshToken) {
-            console.log('Attempting to refresh access token for dashboard latest video')
-            const refreshRes = await fetch('/api/youtube/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: clientRefreshToken }) })
-            if (refreshRes.ok) {
-              const refreshData = await refreshRes.json()
-              if (refreshData?.access_token) {
-                localStorage.setItem(`youtube_access_token_${youtubeChannel.id}`, refreshData.access_token)
-                localStorage.setItem('youtube_access_token', refreshData.access_token)
-                // retry
-                const retryRes = await fetch(`/api/youtube/best-videos?channelId=${youtubeChannel.id}&accessToken=${refreshData.access_token}`)
-                if (retryRes.ok) {
-                  const retryData = await retryRes.json()
-                  // persist server-provided new token as well if present
-                  if (retryData?.newAccessToken) {
-                    localStorage.setItem(`youtube_access_token_${youtubeChannel.id}`, retryData.newAccessToken)
-                    localStorage.setItem('youtube_access_token', retryData.newAccessToken)
-                  }
-                  // replace data for downstream
-                  data = retryData
-                } else {
-                  throw new Error('Failed to fetch videos after refresh')
-                }
-              }
-            }
-          }
-          // If still failing, bail out
-          if (!response.ok) throw new Error('Failed to fetch videos')
-        }
-        
         let data = await response.json()
         
         console.log('Fetched videos data:', data)
@@ -238,6 +254,8 @@ export default function DashboardPage() {
             viewCount: video.viewCount || 0,
             titleScore: video.titleScore || 67
           })
+          // Pre-generate tags locally for quick publish (hidden UI)
+          try { generateTagsLocally(video.title || '') } catch {}
 
           // Filter videos that don't have tags yet
           const videosNoTags = data.videos
@@ -286,57 +304,72 @@ export default function DashboardPage() {
     fetchLatestVideo()
   }, [youtubeChannel])
 
-  // Fetch real tag suggestions for a given title using competitor keywords + tag-suggest API
-  const fetchSuggestedTagsFromTitle = async (title: string) => {
-    if (!title) return
-    try {
-      // Step 1: get competitor titles and tags
-      const encoded = encodeURIComponent(title)
-      const kres = await fetch(`/api/youtube/keywords?query=${encoded}&maxResults=25`)
-      if (!kres.ok) throw new Error('Failed to fetch keywords')
-      const kdata = await kres.json()
-
-      const titles = kdata.titles || []
-      const allTags = kdata.allTags || []
-
-      if (titles.length === 0 && allTags.length === 0) {
-        // No real data available, fallback to previous generator but keep it as last resort
-        const fallback = generateTagsFallback(title)
-        setSuggestedTags(fallback)
-        return
-      }
-
-      // Step 2: call tag-suggest to score real tags
-      const tagRes = await fetch('/api/youtube/tag-suggest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titles: [...titles, ...allTags], maxResults: 20, minScore: 25 })
-      })
-
-      if (!tagRes.ok) throw new Error('Failed to score tags')
-      const tagData = await tagRes.json()
-      const scoredTags: any[] = tagData.tags || []
-
-      if (scoredTags.length === 0) {
-        const fallback = generateTagsFallback(title)
-        setSuggestedTags(fallback)
-        return
-      }
-
-      // Prioritize short (single-word) tags while keeping viralScore ordering
-      const sorted = scoredTags.slice().sort((a: any, b: any) => {
-        const aw = (a.tag || '').split(' ').length
-        const bw = (b.tag || '').split(' ').length
-        if (aw !== bw) return aw - bw
-        return (b.viralScore || 0) - (a.viralScore || 0)
-      })
-
-      setSuggestedTags(sorted.map((t: any) => ({ tag: t.tag, score: t.score, viralScore: t.viralScore, color: t.color, confidence: t.confidence })))
-    } catch (err) {
-      console.error('Failed to fetch suggested tags:', err)
-      // fallback
-      setSuggestedTags(generateTagsFallback(title))
+  // Local tag generator from video title - generates tags without API calls (saves quota)
+  const generateTagsLocally = (title: string) => {
+    if (!title) {
+      setSuggestedTags([])
+      return
     }
+
+    // Normalize title and extract candidate tags (1-3 word phrases)
+    const commonWords = new Set([
+      'the','a','an','and','or','but','in','on','at','to','for','of','with','is','are','am','be','been','being',
+      'have','has','had','do','does','did','will','would','could','should','can','may','might','must','this','that',
+      'these','those','video','shorts','how','what','why','when','where','who'
+    ])
+
+    const cleaned = title
+      .toLowerCase()
+      .replace(/[#@]/g, '')
+      .replace(/["'“”‘’()\[\]:;!?.,/\\]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    const words = cleaned.split(' ').filter(Boolean)
+    const candidates: string[] = []
+
+    // Single words
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i]
+      if (w.length > 2 && !commonWords.has(w)) candidates.push(w)
+    }
+
+    // 2-word phrases
+    for (let i = 0; i + 2 <= words.length; i++) {
+      const seq = words.slice(i, i + 2).filter(w => !commonWords.has(w)).join(' ')
+      if (seq.split(' ').length === 2) candidates.push(seq)
+    }
+
+    // 3-word phrases
+    for (let i = 0; i + 3 <= words.length; i++) {
+      const seq = words.slice(i, i + 3).filter(w => !commonWords.has(w)).join(' ')
+      if (seq.split(' ').length >= 2) candidates.push(seq)
+    }
+
+    // Unique + score + color
+    const seen = new Set<string>()
+    const colors = ['emerald','orange','blue','amber','purple','rose','cyan','indigo']
+    const final: any[] = []
+
+    for (const t of candidates) {
+      const tag = t.trim()
+      if (!tag || seen.has(tag)) continue
+      seen.add(tag)
+
+      const wordCount = tag.split(' ').length
+      const baseScore = wordCount === 1 ? 65 : wordCount === 2 ? 55 : 45
+      const randomBonus = Math.floor(Math.random() * 25)
+
+      final.push({
+        tag,
+        score: baseScore + randomBonus,
+        color: colors[final.length % colors.length]
+      })
+
+      if (final.length >= 20) break
+    }
+
+    setSuggestedTags(final)
   }
 
   // Local lightweight fallback generator (kept for offline cases) — simpler than old generator
@@ -428,73 +461,10 @@ export default function DashboardPage() {
       return
     }
 
-    let mounted = true
-    const fetchSuggested = async () => {
-      try {
-        const encodedTitle = encodeURIComponent(latestVideo.title)
-        
-        // Step 1: Fetch REAL YouTube videos matching this title/keyword
-        console.log('🔍 Fetching real YouTube videos for keyword:', latestVideo.title)
-        const keywordsRes = await fetch(`/api/youtube/keywords?query=${encodedTitle}&maxResults=25`)
-        
-        if (!keywordsRes.ok) {
-          throw new Error('Failed to fetch keywords from YouTube')
-        }
-
-        const keywordsData = await keywordsRes.json()
-        const realTitles = keywordsData.titles || []
-        const realTags = keywordsData.allTags || []
-        
-        console.log('✅ Found', realTitles.length, 'real videos. Extracting tags from their titles...')
-
-        if (realTitles.length === 0 && realTags.length === 0) {
-          console.warn('No real tags found, using fallback')
-          if (mounted) fetchSuggestedTagsFromTitle(latestVideo.title)
-          return
-        }
-
-        // Step 2: Send real titles to tag suggestion API for scoring
-        const tagRes = await fetch('/api/youtube/tag-suggest', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            titles: [...realTitles, ...realTags], // Combine titles and tags
-            maxResults: 20,
-            minScore: 25
-          })
-        })
-
-        if (!tagRes.ok) {
-          throw new Error('Failed to score tags')
-        }
-
-        const tagData = await tagRes.json()
-        const scoredTags: Array<any> = tagData.tags || []
-
-        console.log('🎯 Got', scoredTags.length, 'scored tags:', scoredTags.slice(0, 5).map((t: any) => t.tag).join(', '))
-
-        if (scoredTags.length > 0 && mounted) {
-          // Format with viral scores for display
-          setSuggestedTags(scoredTags.map((t: any) => ({
-            tag: t.tag,
-            score: t.score,
-            viralScore: t.viralScore,
-            color: t.color,
-            confidence: t.confidence
-          })))
-          return
-        }
-
-        // Fallback: Use API-based fallback generator
-        if (mounted) fetchSuggestedTagsFromTitle(latestVideo.title)
-      } catch (err) {
-        console.error('❌ Tag suggestion failed:', err)
-        if (mounted) fetchSuggestedTagsFromTitle(latestVideo.title)
-      }
-    }
-
-    fetchSuggested()
-    return () => { mounted = false }
+    // Generate tags locally from video title without using search.list API (saves quota)
+    console.log('🏷️ Generating tags locally from title:', latestVideo.title)
+    const tags = generateTagsFallback(latestVideo.title)
+    setSuggestedTags(tags)
   }, [latestVideo])
 
   // Close channel menu on outside clicks
@@ -517,7 +487,7 @@ export default function DashboardPage() {
     // Open the correct popup URL and request a popup response
     const popup = window.open('/api/youtube/auth?popup=true', 'youtube-auth', 'width=500,height=600')
 
-    const messageListener = (event: MessageEvent) => {
+    const messageListener = async (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return
 
       if (event.data.type === 'YOUTUBE_AUTH_SUCCESS') {
@@ -529,25 +499,44 @@ export default function DashboardPage() {
         const { channel, token, refreshToken } = event.data as any
 
         try {
-          const existing = JSON.parse(localStorage.getItem('additional_youtube_channels') || '[]')
-          const already = existing.some((ch: any) => ch.id === channel.id)
-          if (!already) {
-            const updated = [...existing, channel]
-            localStorage.setItem('additional_youtube_channels', JSON.stringify(updated))
-            if (token) localStorage.setItem(`youtube_access_token_${channel.id}`, token)
-            if (refreshToken) localStorage.setItem(`youtube_refresh_token_${channel.id}`, refreshToken)
-            setAdditionalChannelsList((list) => {
-              // Dedupe defensively
-              const exists = list.some((l) => l.id === channel.id)
-              return exists ? list : [...list, channel]
+          // Check if channel already connected via Supabase (will fetch on reload)
+          setAdditionalChannelsList((list) => {
+            // Dedupe defensively
+            const exists = list.some((l) => l.id === channel.id)
+            return exists ? list : [...list, channel]
+          })
+
+          // Store channel in database
+          console.log('📤 Sending channel to /api/channels:', {
+            channelId: channel.id,
+            title: channel.title,
+            description: channel.description
+          })
+          const storeRes = await fetch('/api/channels', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              channelId: channel.id,
+              title: channel.title,
+              description: channel.description,
+              thumbnail: channel.thumbnail,
+              subscriberCount: channel.subscriberCount,
+              videoCount: channel.videoCount,
+              viewCount: channel.viewCount,
+              isPrimary: false
             })
-            // Inform user and redirect to dashboard
-            alert(`Successfully connected ${channel.title}`)
-            router.push('/dashboard')
+          })
+          const storeData = await storeRes.json()
+          if (!storeRes.ok) {
+            console.error('❌ API Error:', storeRes.status, storeData)
+            alert('Failed to save channel: ' + (storeData.error || 'Unknown error'))
           } else {
-            alert(`${channel.title} is already connected`)
-            router.push('/dashboard')
+            console.log('✅ Channel stored in database:', storeData)
           }
+
+          // Inform user and redirect to dashboard
+          alert(`Successfully connected ${channel.title}`)
+          router.push('/dashboard')
         } catch (err) {
           console.error('Failed to save connected channel:', err)
           router.push('/dashboard')
@@ -634,7 +623,7 @@ export default function DashboardPage() {
             if (updated.length > 0) {
               const next = updated[0]
               setLatestVideo(next)
-              fetchSuggestedTagsFromTitle(next.title)
+              generateTagsLocally(next.title)
             }
           }, 1200)
 
@@ -688,7 +677,14 @@ export default function DashboardPage() {
   }
 
   const handleShowMore = () => {
-    setShowAllTags(!showAllTags)
+    const next = !showAllTags
+    setShowAllTags(next)
+    setCardExpanded(next)
+
+    // Focus the add-tag input when expanding so it's quick to add tags on mobile/desktop
+    if (next) {
+      setTimeout(() => addTagInputRef.current?.focus(), 120)
+    }
   }
 
   const formatNumber = (num: string | number): string => {
@@ -722,14 +718,31 @@ export default function DashboardPage() {
     const fetchAnalyticsSummary = async () => {
       if (!youtubeChannel) return
       try {
-        // Check for channel-scoped token first, then fallback to primary token
-        const token = localStorage.getItem(`youtube_access_token_${youtubeChannel.id}`) || localStorage.getItem('youtube_access_token')
-        if (!token) {
-          console.log('No access token for analytics')
-          return
+        // First try to fetch cached analytics from database
+        const cachedRes = await fetch(`/api/analytics?channelId=${youtubeChannel.id}`)
+        const cachedData = await cachedRes.json()
+
+        // Check if cache is fresh (less than 1 hour old)
+        if (cachedData?.data?.last_fetched) {
+          const lastFetch = new Date(cachedData.data.last_fetched).getTime()
+          const now = Date.now()
+          const ageHours = (now - lastFetch) / (1000 * 60 * 60)
+
+          if (ageHours < 1) {
+            // Cache is fresh, use it
+            console.log('✅ Using cached analytics from database')
+            setAnalyticsData((prev) => ({
+              ...prev,
+              views: Number(cachedData.data.total_views || youtubeChannel.viewCount || 0),
+              subscribers: Number(cachedData.data.total_subscribers || youtubeChannel.subscriberCount || 0),
+              watchTime: Number(cachedData.data.total_watch_time_hours || 0)
+            }))
+            return
+          }
         }
 
-        const res = await fetch(`/api/youtube/analytics/summary?channelId=${youtubeChannel.id}&access_token=${encodeURIComponent(token)}`)
+        // Cache is stale or missing, fetch fresh analytics from server (server will resolve tokens)
+        const res = await fetch(`/api/youtube/analytics/summary?channelId=${youtubeChannel.id}`)
         if (!res.ok) {
           console.warn('Analytics summary fetch failed', res.status)
           return
@@ -738,15 +751,35 @@ export default function DashboardPage() {
         const data = await res.json()
         const totalWatchMinutes = Number(data?.summary?.totalWatchMinutes || 0)
         const totalViews = Number(data?.summary?.totalViews || youtubeChannel.viewCount || 0)
+        const totalSubscribers = parseInt(youtubeChannel.subscriberCount || '0') || 0
+
+        // Store fresh analytics in database
+        await fetch('/api/analytics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            channelId: youtubeChannel.id,
+            totalViews,
+            totalSubscribers,
+            totalWatchTimeHours: Math.round(totalWatchMinutes / 60)
+          })
+        })
 
         setAnalyticsData((prev) => ({
           ...prev,
           views: totalViews,
-          subscribers: parseInt(youtubeChannel.subscriberCount || '0') || 0,
+          subscribers: totalSubscribers,
           watchTime: Math.round(totalWatchMinutes / 60) // convert minutes to hours
         }))
       } catch (err) {
         console.error('Failed to fetch analytics summary:', err)
+        // Fallback to channel stored stats
+        setAnalyticsData((prev) => ({
+          ...prev,
+          views: parseInt(youtubeChannel?.viewCount || '0') || 0,
+          subscribers: parseInt(youtubeChannel?.subscriberCount || '0') || 0,
+          watchTime: 0
+        }))
       }
     }
 
@@ -754,7 +787,7 @@ export default function DashboardPage() {
   }, [youtubeChannel])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
+    <div className="min-h-screen bg-slate-50">
       <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex">
@@ -770,6 +803,13 @@ export default function DashboardPage() {
         {/* Main Content */}
         <main className={`flex-1 pt-14 md:pt-16 p-4 md:p-8 pb-20 md:pb-8 transition-all duration-300 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'}`}>
           <div className="max-w-7xl mx-auto">
+            {loadingVideo && (
+              <div className="mb-4 px-2">
+                <div className="h-1 w-full rounded-full overflow-hidden bg-gray-200/60">
+                  <div className="h-1 w-full bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 opacity-80 animate-pulse" />
+                </div>
+              </div>
+            )}
             {/* Redesigned Welcome Section */}
             <div className="mb-8 mt-8 md:mt-10">
               {/* Upgrade Banner */}
@@ -798,104 +838,108 @@ export default function DashboardPage() {
 
                   {/* Menu */}
                   {showChannelMenu && (
-                    <div className="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 bg-white rounded-xl shadow-xl w-96 text-sm text-gray-800 overflow-hidden z-40">
+                    <div className="absolute top-full mt-3 left-1/2 transform -translate-x-1/2 bg-white rounded-3xl shadow-2xl w-[calc(100vw-2rem)] sm:w-full max-w-md text-gray-800 overflow-hidden z-40 animate-in fade-in slide-in-from-top-2 duration-300">
                       {/* Header */}
-                      <div className="flex items-center gap-3 px-4 py-3 bg-white">
-                        <div className="flex items-center gap-3">
-                          <img src={youtubeChannel?.thumbnail} alt={youtubeChannel?.title} className="w-12 h-12 rounded-full object-cover shadow-sm" />
-                          <div className="flex flex-col">
-                            <div className="text-sm font-bold truncate" title={youtubeChannel?.title}>{youtubeChannel?.title}</div>
-                            <div className="text-xs text-gray-500">Connected • <span className="font-medium text-gray-700">{formatNumber(youtubeChannel?.videoCount || 0)} videos</span></div>
+                      <div className="flex items-center gap-4 px-4 sm:px-6 py-4 bg-gradient-to-r from-indigo-50 to-pink-50 border-b border-gray-100">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="relative">
+                            <img src={youtubeChannel?.thumbnail} alt={youtubeChannel?.title} className="w-14 h-14 rounded-full object-cover shadow-lg ring-2 ring-white" />
+                            <span className="absolute -right-1 -bottom-1 bg-white rounded-full p-[2px] shadow-sm">
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-semibold">{uniqueChannelCount}</span>
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col min-w-0">
+                            <div className="text-sm sm:text-base font-bold truncate" title={youtubeChannel?.title}>{youtubeChannel?.title}</div>
+                            <div className="text-xs text-gray-500">Connected • <span className="font-semibold text-gray-800">{formatNumber(youtubeChannel?.videoCount || 0)} videos</span></div>
                           </div>
                         </div>
-                        <div className="ml-auto flex items-center gap-2">
-                          <span className="inline-flex items-center text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded-full">{uniqueChannelCount} {uniqueChannelCount === 1 ? 'channel' : 'channels'}</span>
+
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleDisconnectPrimary()}
-                            className="text-red-600 border border-red-100 px-2 py-1 rounded-md text-xs hover:bg-red-50 focus:outline-none"
+                            className="inline-flex items-center gap-2 text-sm text-red-600 bg-white border border-red-200 px-3 py-1 rounded-md hover:bg-red-50 focus:outline-none font-semibold transition-colors"
                             title="Disconnect primary channel"
                           >
-                            <div className="flex items-center gap-1">
-                              <X className="w-3 h-3" />
-                              <span>Disconnect</span>
-                            </div>
+                            <X className="w-3 h-3" />
+                            <span className="hidden sm:inline">Disconnect</span>
                           </button>
                         </div>
                       </div>
 
                       {/* Channels List */}
-                      <div className="divide-y divide-gray-100">
+                      <div className="px-3 py-3 max-h-64 sm:max-h-72 overflow-y-auto">
                         {visibleAdditionalChannels.length > 0 ? visibleAdditionalChannels.map((ch: YouTubeChannel) => (
-                          <button
-                            key={ch.id}
-                            onClick={() => {
-                              // Switch channel: set as main and attempt to set token if stored
-                              localStorage.setItem('youtube_channel', JSON.stringify(ch))
-                              const token = localStorage.getItem(`youtube_access_token_${ch.id}`) || null
-                              if (token) localStorage.setItem('youtube_access_token', token)
-                              setYoutubeChannel(ch)
-                              setShowChannelMenu(false)
-                            }}
-                            className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
-                          >
-                            <img src={ch.thumbnail} alt={ch.title} className="w-10 h-10 rounded-full object-cover" />
-                            <div className="flex-1 text-left">
+                          <div key={ch.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 transition">
+                            <img src={ch.thumbnail} alt={ch.title} className="w-10 h-10 rounded-full object-cover flex-shrink-0 shadow-sm" />
+                            <div className="flex-1 min-w-0">
                               <div className="text-sm font-semibold truncate">{ch.title}</div>
-                              <div className="text-xs text-gray-500">{formatNumber(ch.videoCount)} videos</div>
+                              <div className="text-xs text-gray-500">{formatNumber(ch.videoCount)} videos • {formatNumber(ch.subscriberCount)} subs</div>
                             </div>
-                            <div className="text-xs text-gray-400 mr-3">{formatNumber(ch.subscriberCount)} subs</div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  // Switch to this channel (refresh to ensure server state)
+                                  localStorage.setItem('youtube_channel', JSON.stringify(ch))
+                                  const token = localStorage.getItem(`youtube_access_token_${ch.id}`) || null
+                                  if (token) localStorage.setItem('youtube_access_token', token)
+                                  setYoutubeChannel(ch)
+                                  setShowChannelMenu(false)
+                                }}
+                                className="text-sm text-blue-600 px-3 py-1 rounded-md bg-white border border-blue-50 hover:bg-blue-50 font-semibold"
+                              >
+                                Use
+                              </button>
 
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleDisconnectAdditional(ch.id)
-                              }}
-                              className="text-red-600 text-xs px-2 py-1 rounded-md hover:bg-red-50 border border-red-50 focus:outline-none"
-                              title="Disconnect this channel"
-                            >
-                              Disconnect
-                            </button>
-                          </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDisconnectAdditional(ch.id)
+                                }}
+                                className="text-sm text-red-600 px-3 py-1 rounded-md bg-white border border-red-50 hover:bg-red-50 font-semibold"
+                                title="Disconnect this channel"
+                              >
+                                Disconnect
+                              </button>
+                            </div>
+                          </div>
                         )) : (
-                          <div className="px-4 py-4 text-sm text-gray-600">No other channels connected</div>
+                          <div className="flex items-center justify-center px-6 py-10 text-sm text-gray-500 font-medium bg-gray-50 rounded-xl">No other channels connected</div>
                         )}
                       </div>
 
                       {/* Footer actions */}
-                      <div className="px-4 py-3 bg-white">
-                        <div className="space-y-2">
+                      <div className="px-5 py-4 bg-white border-t border-gray-100">
+                        <div className="space-y-3">
                           <button
                             onClick={() => {
                               localStorage.setItem('oauth_return_page', 'sidebar')
                               setShowChannelMenu(false)
                               startYouTubeAuth()
                             }}
-                            className="w-full bg-blue-600 text-white rounded-full py-2.5 flex items-center justify-center gap-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400"
+                            className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-full py-3 px-6 flex items-center justify-center gap-3 shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400 font-semibold text-sm transition-all active:scale-95"
                           >
-                            <Plus className="w-4 h-4" />
-                            Add another channel
-                          </button>
-
-                          <button
-                            onClick={() => {
-                              if (!confirm('Disconnect channel?')) return
-                              localStorage.removeItem('youtube_channel')
-                              localStorage.removeItem('youtube_access_token')
-                              localStorage.removeItem('youtube_refresh_token')
-                              setYoutubeChannel(null)
-                              setShowChannelMenu(false)
-                            }}
-                            className="w-full border border-red-100 text-red-600 rounded-lg py-2 text-sm font-semibold hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-300"
-                          >
-                            <div className="flex items-center justify-center gap-2">
-                              <X className="w-4 h-4" />
-                              Disconnect
-                            </div>
+                            <Youtube className="w-4 sm:w-5 h-4 sm:h-5" />
+                            Connect Another Channel
                           </button>
                         </div>
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Show Connect Channel Card if no channel connected */}
+              {!youtubeChannel && (
+                <div className="flex justify-center mb-8 px-3">
+                  <Link href="/connect">
+                    <button className="inline-flex items-center gap-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-3 rounded-full shadow-lg transition-all duration-200">
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                      </svg>
+                      <span className="text-sm font-semibold">Connect Your YouTube Channel</span>
+                    </button>
+                  </Link>
                 </div>
               )}
 
@@ -911,8 +955,19 @@ export default function DashboardPage() {
               {/* Hero / Overview */}
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-6">
                 <div>
-                  <h1 className="text-2xl sm:text-3xl md:text-5xl font-extrabold text-gray-900 mb-2">🙏 Namaste, {firstName}!</h1>
-                  <p className="text-gray-600 text-sm sm:text-lg flex items-center gap-2"><span className="text-base">📈</span> Quick snapshot — YouTube growth & earnings.</p>
+                  <h1 className="text-3xl sm:text-4xl md:text-5xl leading-tight font-extrabold text-gray-900 mb-2">🙏 Namaste, {firstName}!</h1>
+
+                  <div className="mt-1 flex items-center gap-3">
+                    <div className="inline-flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full">
+                      <Sparkles className="w-4 h-4 text-amber-500" />
+                      <span className="text-sm sm:text-base text-gray-700">Quick snapshot — YouTube growth & earnings</span>
+                    </div>
+
+                    {/* Decorative rule on larger screens */}
+                    <div className="hidden sm:block flex-1">
+                      <span className="inline-block h-px bg-gradient-to-r from-blue-100 via-indigo-100 to-purple-100 ml-3 w-full"></span>
+                    </div>
+                  </div>
                 </div>
               </div>
               {/* Three main statistic cards (clean, spacious style) */}
@@ -921,12 +976,12 @@ export default function DashboardPage() {
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm text-gray-500">Total Views</p>
-                      <p className="text-2xl sm:text-3xl font-extrabold text-gray-900 mt-2">{formatNumber(analyticsData.views)}</p>
+                      <p className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2">{formatNumber(analyticsData.views)}</p>
                       <p className="text-xs text-gray-500 mt-2">Across connected channels</p>
                     </div>
                     <div className="ml-4">
-                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-violet-50 flex items-center justify-center text-violet-600 shadow-sm">
-                        <Sparkles className="w-5 h-5" />
+                      <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shadow-sm">
+                        <ViewsIcon className="w-6 h-6" />
                       </div>
                     </div>
                   </div>
@@ -936,12 +991,12 @@ export default function DashboardPage() {
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm text-gray-500">Total Subscribers</p>
-                      <p className="text-2xl sm:text-3xl font-extrabold text-gray-900 mt-2">{formatNumber(analyticsData.subscribers)}</p>
+                      <p className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2">{formatNumber(analyticsData.subscribers)}</p>
                       <p className="text-xs text-gray-500 mt-2">Across connected channels</p>
                     </div>
                     <div className="ml-4">
-                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-cyan-50 flex items-center justify-center text-cyan-600 shadow-sm">
-                        <Users className="w-5 h-5" />
+                      <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-lg bg-cyan-50 flex items-center justify-center text-cyan-600 shadow-sm">
+                        <SubscribersIcon className="w-6 h-6" />
                       </div>
                     </div>
                   </div>
@@ -951,12 +1006,12 @@ export default function DashboardPage() {
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm text-gray-500">Watch Time</p>
-                      <p className="text-2xl sm:text-3xl font-extrabold text-gray-900 mt-2">{formatNumber(analyticsData.watchTime)}h</p>
+                      <p className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2">{formatNumber(analyticsData.watchTime)}h</p>
                       <p className="text-xs text-gray-500 mt-2">Hours watched</p>
                     </div>
                     <div className="ml-4">
-                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600 shadow-sm">
-                        <MessageSquare className="w-5 h-5" />
+                      <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600 shadow-sm">
+                        <WatchTimeIcon className="w-6 h-6" />
                       </div>
                     </div>
                   </div>
@@ -966,7 +1021,7 @@ export default function DashboardPage() {
 
             {/* Add Missing Tags Section */}
             <div className="mb-8">
-              <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700/50">
+              <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 shadow-2xl ring-1 ring-slate-900/20 border border-slate-700/40 backdrop-blur-sm">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <h3 className="text-xl font-bold text-white">Add Missing Tags</h3>
@@ -990,160 +1045,50 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {latestVideo ? (
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start mb-4">
-                    {/* Thumbnail */}
-                    <div className="md:col-span-3">
-                      <div className="relative w-full h-32 rounded-lg overflow-hidden bg-gray-700">
-                        {latestVideo?.thumbnail ? (
-                          <Image 
-                            src={latestVideo.thumbnail} 
-                            alt="Video thumbnail" 
-                            fill 
-                            className="object-cover" 
-                            unoptimized 
-                            onError={(e: any) => { const target = e.target as HTMLImageElement; target.style.display = 'none' }} 
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-500">
-                            <Youtube className="w-12 h-12" />
-                          </div>
-                        )}
+                {loadingVideo ? (
+                  <div className={`transition-all duration-300 overflow-hidden ${cardExpanded ? 'max-h-300 p-6' : 'max-h-40 p-2'}`}>
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start mb-4">
+                      <div className="md:col-span-3">
+                        <div className="relative w-full h-32 rounded-lg overflow-hidden bg-gray-200 animate-pulse" />
                       </div>
-                    </div>
-
-                    {/* Tags Section */}
-                    <div className="md:col-span-9">
-                      <p className="text-white font-semibold mb-3 line-clamp-2">{latestVideo.title}</p>
-                      
-                      {suggestedTags.length > 0 ? (
-                        <div>
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {suggestedTags.slice(0, showAllTags ? 20 : 5).map((tag, index) => {
-                              const realIndex = suggestedTags.indexOf(tag)
-                              const colorMap: Record<string, {bg: string, border: string, text: string, textColor: string}> = {
-                                emerald: { bg: 'bg-emerald-900/40', border: 'border-emerald-700/50', text: 'text-emerald-400', textColor: 'text-emerald-200' },
-                                orange: { bg: 'bg-orange-900/40', border: 'border-orange-700/50', text: 'text-orange-400', textColor: 'text-orange-200' },
-                                blue: { bg: 'bg-blue-900/40', border: 'border-blue-700/50', text: 'text-blue-400', textColor: 'text-blue-200' },
-                                amber: { bg: 'bg-amber-900/40', border: 'border-amber-700/50', text: 'text-amber-400', textColor: 'text-amber-200' },
-                                purple: { bg: 'bg-purple-900/40', border: 'border-purple-700/50', text: 'text-purple-400', textColor: 'text-purple-200' },
-                                rose: { bg: 'bg-rose-900/40', border: 'border-rose-700/50', text: 'text-rose-400', textColor: 'text-rose-200' },
-                                cyan: { bg: 'bg-cyan-900/40', border: 'border-cyan-700/50', text: 'text-cyan-400', textColor: 'text-cyan-200' },
-                                indigo: { bg: 'bg-indigo-900/40', border: 'border-indigo-700/50', text: 'text-indigo-400', textColor: 'text-indigo-200' },
-                              }
-                              const colors = colorMap[tag.color] || colorMap.blue
-                              
-                              return (
-                                <div 
-                                  key={index} 
-                                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${colors.bg} border ${colors.border} rounded-full hover:scale-105 transition-transform`}
-                                  title={`Relevance: ${tag.score}, Viral Potential: ${tag.viralScore}, Confidence: ${tag.confidence}`}
-                                >
-                                  <span className={`${colors.text} font-bold text-sm`}>{tag.score}</span>
-                                  <span className={`${colors.textColor} text-sm`}>{tag.tag}</span>
-                                  {tag.viralScore && tag.viralScore > 60 && (
-                                    <span className={`${colors.text} text-xs font-bold`}>⚡</span>
-                                  )}
-                                  <X 
-                                    className={`w-4 h-4 ${colors.text} cursor-pointer hover:opacity-70`}
-                                    onClick={() => handleRemoveTag(realIndex)}
-                                  />
-                                </div>
-                              )
-                            })}
-                            {suggestedTags.length > 5 && !showAllTags && (
-                              <button onClick={handleShowMore} className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-700/60 hover:bg-slate-700 border border-slate-600 rounded-full transition-colors">
-                                <span className="text-slate-300 text-sm">+{suggestedTags.length - 5} more</span>
-                              </button>
-                            )}
-                          </div>
-
-                          {showAllTags && suggestedTags.length > 5 && (
-                            <button 
-                              onClick={handleShowMore}
-                              className="text-slate-400 hover:text-slate-300 text-sm font-medium flex items-center gap-1 transition-colors mb-3"
-                            >
-                              <ChevronDown className="w-4 h-4 transform rotate-180" />
-                              Show less
-                            </button>
-                          )}
-                          {!showAllTags && suggestedTags.length > 5 && (
-                            <button 
-                              onClick={handleShowMore}
-                              className="text-slate-400 hover:text-slate-300 text-sm font-medium flex items-center gap-1 transition-colors mb-3"
-                            >
-                              <ChevronDown className="w-4 h-4" />
-                              Show more
-                            </button>
-                          )}
-
-                          {/* Add Tag Input */}
-                          <div className="relative">
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                value={newTagInput}
-                                onChange={(e) => {
-                                  const val = e.target.value
-                                  setNewTagInput(val)
-
-                                  // Debounce suggestions
-                                  if (suggestionTimerRef.current) window.clearTimeout(suggestionTimerRef.current)
-                                  suggestionTimerRef.current = window.setTimeout(() => {
-                                    fetchInputSuggestions(val)
-                                  }, 300)
-                                }}
-                                onFocus={() => {
-                                  if (inputSuggestions.length > 0) setShowInputSuggestions(true)
-                                }}
-                                onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
-                                placeholder="Add new tag..."
-                                className="flex-1 px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 text-sm"
-                              />
-                              <button
-                                onClick={handleAddTag}
-                                disabled={!newTagInput.trim()}
-                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors text-sm"
-                              >
-                                + Add Tag
-                              </button>
-                            </div>
-
-                            {/* Input suggestion dropdown */}
-                            {showInputSuggestions && inputSuggestions.length > 0 && (
-                              <div className="absolute left-0 right-0 mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-lg p-2 z-50">
-                                {suggestionLoading ? (
-                                  <div className="py-2 text-slate-400 text-sm">Loading suggestions...</div>
-                                ) : (
-                                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                                    {inputSuggestions.map((sug, idx) => (
-                                      <button
-                                        key={idx}
-                                        onClick={() => handleAddSuggestedTag(sug.tag)}
-                                        className="w-full text-left px-3 py-2 hover:bg-slate-700 rounded-md text-sm"
-                                      >
-                                        <div className="flex items-center justify-between">
-                                          <div className="text-slate-200">{sug.tag}</div>
-                                          {sug.score && <div className="text-slate-400 text-xs">{sug.score}</div>}
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-wrap gap-2 mb-4 animate-pulse">
-                          {[0,1,2,3,4].map((i) => (
-                            <div key={i} className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-700/30 border border-slate-600 rounded-full">
-                              <span className="text-slate-400 font-semibold text-sm">—</span>
-                              <span className="text-slate-400 text-sm">loading...</span>
-                            </div>
+                      <div className="md:col-span-9">
+                        <div className="h-6 w-3/4 bg-gray-200 rounded mb-3 animate-pulse" />
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {[0,1,2,3,4].map(i => (
+                            <div key={i} className="h-8 w-20 bg-gray-200 rounded-full animate-pulse" />
                           ))}
                         </div>
-                      )}
+                        <div className="h-10 w-full bg-gray-200 rounded animate-pulse mt-4" />
+                      </div>
+                    </div>
+                  </div>
+                ) : latestVideo ? (
+                  <div className="transition-all duration-300 overflow-hidden">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
+                      {/* Thumbnail */}
+                      <div className="md:col-span-3">
+                        <div className="relative w-full h-32 md:h-40 rounded-lg overflow-hidden bg-gray-700">
+                          {latestVideo?.thumbnail ? (
+                            <Image 
+                              src={latestVideo.thumbnail} 
+                              alt="Video thumbnail" 
+                              fill 
+                              className="object-cover" 
+                              unoptimized 
+                              onError={(e: any) => { const target = e.target as HTMLImageElement; target.style.display = 'none' }} 
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-500">
+                              <Youtube className="w-12 h-12" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Details Section (no tags UI) */}
+                      <div className="md:col-span-9">
+                        <p className="text-white font-semibold mb-3 line-clamp-2">{latestVideo.title}</p>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -1152,22 +1097,13 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                <div className="mt-6 flex gap-3">
-                  <Button 
-                    onClick={() => setSuggestedTags([])}
-                    disabled={suggestedTags.length === 0 || isPublishing}
-                    variant="outline"
-                    className="flex-1 px-4 py-3 rounded-lg text-white border-white/10"
-                  >
-                    Remove all
-                  </Button>
-
+                <div className="mt-6">
                   <Button 
                     onClick={handlePublishTags}
-                    disabled={!latestVideo || suggestedTags.length === 0 || isPublishing}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg"
+                    disabled={!latestVideo || isPublishing}
+                    className="w-full bg-slate-700/60 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold py-3 rounded-lg border border-slate-600/50 hover:border-slate-600 transition-colors"
                   >
-                    {isPublishing ? 'Publishing...' : 'Publish tags'}
+                    {isPublishing ? 'Adding...' : 'Add Tags'}
                   </Button>
                 </div>
               </div>
@@ -1213,7 +1149,7 @@ export default function DashboardPage() {
                               onClick={() => {
                                 // Open this video in the tag editor
                                 setLatestVideo(video)
-                                fetchSuggestedTagsFromTitle(video.title)
+                                generateTagsLocally(video.title)
                                 setPublishSuccess(false)
                               }}
                               className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors"
@@ -1274,44 +1210,63 @@ export default function DashboardPage() {
               <div className="mb-8">
                 <h3 className="text-lg font-black text-gray-900 mb-4">Top Performing Videos</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                  {topVideos && topVideos.length > 0 ? (
-                    topVideos.map((v) => (
-                      <div key={v.id} className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100">
+                      {loadingVideo ? (
+                    // Loading skeletons for top performing videos
+                    [0,1,2].map((i) => (
+                      <div key={i} className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100 animate-pulse">
                         <div className="flex items-start gap-4">
-                          <div className="w-28 h-16 rounded-md overflow-hidden bg-gray-100 shrink-0">
-                            {v.thumbnail ? (
-                              <Image src={v.thumbnail} alt={v.title} width={224} height={128} className="object-cover" unoptimized />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-gray-400"><Play className="w-6 h-6" /></div>
-                            )}
-                          </div>
+                          <div className="w-28 h-16 rounded-md overflow-hidden bg-gray-200 shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 line-clamp-2">{v.title}</p>
-                            <div className="text-xs text-gray-500 mt-1">{`${Number(v.viewCount).toLocaleString()} views • ${new Date(v.publishedAt).toLocaleDateString()}`}</div>
+                            <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+                            <div className="h-3 bg-gray-200 rounded w-1/2 mb-2" />
                             <div className="mt-3 flex items-center gap-2">
-                              <span className="px-2 py-1 text-xs rounded-full bg-green-50 text-green-700">Top</span>
-                              <span className="px-2 py-1 text-xs rounded-full bg-indigo-50 text-indigo-700">Boost</span>
+                              <div className="h-6 w-10 bg-gray-200 rounded" />
+                              <div className="h-6 w-14 bg-gray-200 rounded" />
                             </div>
                           </div>
                         </div>
                       </div>
                     ))
                   ) : (
-                    // Fallback placeholders when no topVideos
-                    [0,1,2].map((i) => (
-                      <div key={i} className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                        <div className="flex items-start gap-4">
-                          <div className="w-28 h-16 rounded-md overflow-hidden bg-gray-100 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 line-clamp-2">—</p>
-                            <div className="text-xs text-gray-500 mt-1">— views • —</div>
-                            <div className="mt-3 flex items-center gap-2">
-                              <span className="px-2 py-1 text-xs rounded-full bg-white/6 text-white">—</span>
+                    topVideos && topVideos.length > 0 ? (
+                      topVideos.map((v) => (
+                        <div key={v.id} className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100">
+                          <div className="flex items-start gap-4">
+                            <div className="w-28 h-16 rounded-md overflow-hidden bg-gray-100 shrink-0">
+                              {v.thumbnail ? (
+                                <Image src={v.thumbnail} alt={v.title} width={224} height={128} className="object-cover" unoptimized />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-400"><Play className="w-6 h-6" /></div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-900 line-clamp-2">{v.title}</p>
+                              <div className="text-xs text-gray-500 mt-1">{`${Number(v.viewCount).toLocaleString()} views • ${new Date(v.publishedAt).toLocaleDateString()}`}</div>
+                              <div className="mt-3 flex items-center gap-2">
+                                <span className="px-2 py-1 text-xs rounded-full bg-green-50 text-green-700">Top</span>
+                                <span className="px-2 py-1 text-xs rounded-full bg-indigo-50 text-indigo-700">Boost</span>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      ))
+                    ) : (
+                      // Fallback placeholders when no topVideos
+                      [0,1,2].map((i) => (
+                        <div key={i} className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100">
+                          <div className="flex items-start gap-4">
+                            <div className="w-28 h-16 rounded-md overflow-hidden bg-gray-100 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-900 line-clamp-2">—</p>
+                              <div className="text-xs text-gray-500 mt-1">— views • —</div>
+                              <div className="mt-3 flex items-center gap-2">
+                                <span className="px-2 py-1 text-xs rounded-full bg-white/6 text-white">—</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )
                   )}
                 </div>
               </div>

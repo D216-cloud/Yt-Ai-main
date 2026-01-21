@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getServerSession } from 'next-auth'
+import { createServerSupabaseClient } from '@/lib/supabase'
+import { getUserTokens, getValidAccessToken, getValidAccessTokenForChannel } from '@/lib/googleTokens'
 
 // This route reads runtime request details (e.g. `req.url`) so it must run dynamically.
 export const dynamic = 'force-dynamic'
@@ -28,50 +31,47 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Channel ID is required unless using mine=true" }, { status: 400 })
     }
 
-    const apiKey = process.env.YOUTUBE_API_KEY
-    let accessToken = String(searchParams.get('access_token') || '') || undefined
-    const refreshTokenParam = String(searchParams.get('refresh_token') || '') || undefined
-    const useAuth = !!accessToken
-    if (!apiKey && !useAuth) {
-      return NextResponse.json({ error: "YouTube API key not configured and no access token provided" }, { status: 500 })
+    // Resolve an access token server-side for the requested channel (works across refresh)
+    let accessToken: string | null = null
+    let usingApiKey = false
+
+    if (channelId) {
+      accessToken = await getValidAccessTokenForChannel(channelId)
+    }
+
+    // If this is a 'mine=true' request, try session-based token
+    if (!accessToken && mineParam) {
+      const session = await getServerSession()
+      if (session?.user?.email) {
+        const supabase = createServerSupabaseClient()
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('id,email')
+          .eq('email', session.user.email)
+          .limit(1)
+          .single()
+        if (userRow?.id) {
+          accessToken = await getValidAccessToken(userRow.id)
+        }
+      }
+    }
+
+    // If still no access token, try API key (public videos only)
+    if (!accessToken && process.env.YOUTUBE_API_KEY) {
+      usingApiKey = true
+    }
+
+    if (!accessToken && !usingApiKey) {
+      return NextResponse.json({ error: 'No access token available. Please reconnect Google.' }, { status: 401 })
     }
 
     // If caller requested authenticated user's videos (mine=true), get user's channel first, then fetch from uploads playlist
     if (mineParam) {
-      if (!useAuth) {
-        return NextResponse.json({ error: 'Access token required for mine=true' }, { status: 401 })
-      }
 
       // First, get the authenticated user's channel to find their uploads playlist
-      let channelResponse = await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', {
+      const channelResponse = await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', {
         headers: { Authorization: `Bearer ${accessToken}` }
       })
-      
-      // If unauthorized and refresh_token provided, attempt to refresh and retry once
-      if (!channelResponse.ok && channelResponse.status === 401 && refreshTokenParam) {
-        try {
-          const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-              refresh_token: refreshTokenParam,
-              client_id: process.env.YOUTUBE_CLIENT_ID!,
-              client_secret: process.env.YOUTUBE_CLIENT_SECRET!,
-              grant_type: 'refresh_token'
-            })
-          })
-          const tokenData = await tokenResponse.json().catch(() => ({}))
-          if (tokenResponse.ok && tokenData.access_token) {
-            accessToken = tokenData.access_token
-            // retry
-            channelResponse = await fetch('https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true', {
-              headers: { Authorization: `Bearer ${accessToken}` }
-            })
-          }
-        } catch (refreshErr) {
-          console.warn('Server-side refresh failed for videos route:', refreshErr)
-        }
-      }
 
       if (!channelResponse.ok) {
         const err = await channelResponse.json().catch(() => ({}))
@@ -88,29 +88,7 @@ export async function GET(req: NextRequest) {
       // Now fetch videos from the uploads playlist
       const pageParam = pageToken ? `&pageToken=${pageToken}` : ''
       const initialUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=${initialMax}${pageParam}`
-      let videosResponse = await fetch(initialUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
-      // Retry videos fetch if unauthorized and we have a refreshed access token
-      if (!videosResponse.ok && videosResponse.status === 401 && refreshTokenParam) {
-        try {
-          const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-              refresh_token: refreshTokenParam,
-              client_id: process.env.YOUTUBE_CLIENT_ID!,
-              client_secret: process.env.YOUTUBE_CLIENT_SECRET!,
-              grant_type: 'refresh_token'
-            })
-          })
-          const tokenData = await tokenResponse.json().catch(() => ({}))
-          if (tokenResponse.ok && tokenData.access_token) {
-            accessToken = tokenData.access_token
-            videosResponse = await fetch(initialUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
-          }
-        } catch (refreshErr) {
-          console.warn('Server-side refresh failed while fetching playlist items:', refreshErr)
-        }
-      }
+      const videosResponse = await fetch(initialUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
       if (!videosResponse.ok) {
         const err = await videosResponse.json().catch(() => ({}))
         return NextResponse.json({ error: 'Failed to fetch videos from uploads playlist', details: err }, { status: videosResponse.status })
@@ -144,8 +122,8 @@ export async function GET(req: NextRequest) {
         const statsResponses: any[] = []
         for (let i = 0; i < uniqueIds.length; i += 50) {
           const batch = uniqueIds.slice(i, i + 50).join(',')
-          const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails,snippet,status&id=${batch}`
-          const statsResponse = await fetch(statsUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+          const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails,snippet,status&id=${batch}${usingApiKey ? `&key=${process.env.YOUTUBE_API_KEY}` : ''}`
+          const statsResponse = await fetch(statsUrl, usingApiKey ? {} : { headers: { Authorization: `Bearer ${accessToken}` } })
           if (statsResponse.ok) {
             const statsData = await statsResponse.json()
             statsResponses.push(...(statsData.items || []))
@@ -183,14 +161,8 @@ export async function GET(req: NextRequest) {
 
     // Determine uploads playlist for the given channel and fetch up to maxResults
     // First, retrieve the channel's contentDetails to find the uploads playlist
-    let channelRes
-    if (useAuth) {
-      channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      })
-    } else {
-      channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}&key=${apiKey}`)
-    }
+    const channelUrl = `https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}${usingApiKey ? `&key=${process.env.YOUTUBE_API_KEY}` : ''}`
+    const channelRes = await fetch(channelUrl, usingApiKey ? {} : { headers: { Authorization: `Bearer ${accessToken}` } })
     if (!channelRes.ok) {
       const err = await channelRes.json().catch(() => ({}))
       return NextResponse.json({ error: 'Failed to fetch channel details', details: err }, { status: channelRes.status })
@@ -203,29 +175,11 @@ export async function GET(req: NextRequest) {
     if (uploadsPlaylistId) {
       // If fetchAll requested, we'll handle pagination below; otherwise, request the requested maxResults
       const pageParam = pageToken ? `&pageToken=${pageToken}` : ''
-      if (useAuth) {
-        videosResponse = await fetch(
-          `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=${initialMax}${pageParam}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        )
-      } else {
-        videosResponse = await fetch(
-          `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=${initialMax}${pageParam}&key=${apiKey}`
-        )
-      }
+      const playlistUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=${initialMax}${pageParam}${usingApiKey ? `&key=${process.env.YOUTUBE_API_KEY}` : ''}`
+      videosResponse = await fetch(playlistUrl, usingApiKey ? {} : { headers: { Authorization: `Bearer ${accessToken}` } })
     } else {
-      // fallback: use search endpoint on the channel if uploads playlist can't be derived
-      const pageParam = pageToken ? `&pageToken=${pageToken}` : ''
-      if (useAuth) {
-        videosResponse = await fetch(
-          `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=${initialMax}${pageParam}&order=date&type=video`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        )
-      } else {
-        videosResponse = await fetch(
-          `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=${initialMax}${pageParam}&order=date&type=video&key=${apiKey}`
-        )
-      }
+      // No uploads playlist found — per project policy we do NOT use search.list. Return an error.
+      return NextResponse.json({ error: 'Could not derive uploads playlist for this channel. Reconnect channel or provide a channel with public uploads.' }, { status: 404 })
     }
 
     if (!videosResponse.ok) {
@@ -249,18 +203,8 @@ export async function GET(req: NextRequest) {
       // Cap to avoid unbounded fetches; maximum permitted pages default-> 10 (50 * 10 = 500 videos)
       const pageCap = 10
       while (nextPageToken && pagesFetched < pageCap) {
-        let pagedRes
-        if (uploadsPlaylistId) {
-          const pagedUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=50&pageToken=${nextPageToken}`
-          pagedRes = useAuth
-            ? await fetch(pagedUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
-            : await fetch(pagedUrl + `&key=${apiKey}`)
-        } else {
-          const pagedUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=50&pageToken=${nextPageToken}&order=date&type=video`
-          pagedRes = useAuth
-            ? await fetch(pagedUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
-            : await fetch(pagedUrl + `&key=${apiKey}`)
-        }
+        const pagedUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=50&pageToken=${nextPageToken}`
+        const pagedRes = await fetch(pagedUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
         if (!pagedRes.ok) break
         const pagedData = await pagedRes.json()
         if (Array.isArray(pagedData.items)) items.push(...pagedData.items)
@@ -290,13 +234,8 @@ export async function GET(req: NextRequest) {
       const statsResponses: any[] = []
       for (let i = 0; i < uniqueIds.length; i += 50) {
         const batch = uniqueIds.slice(i, i + 50).join(',')
-        let statsResponse
         const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails,snippet,status&id=${batch}`
-        if (useAuth) {
-          statsResponse = await fetch(statsUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
-        } else {
-          statsResponse = await fetch(statsUrl + `&key=${apiKey}`)
-        }
+        const statsResponse = await fetch(statsUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
         if (statsResponse.ok) {
           const statsData = await statsResponse.json()
           statsResponses.push(...(statsData.items || []))

@@ -1,131 +1,128 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { createServerSupabaseClient } from '@/lib/supabase'
+import { getValidAccessTokenForChannel } from '@/lib/youtubeAuth'
+
+function getStatusFromGoogleError(err: any): number | undefined {
+  // googleapis uses gaxios/axios under the hood; it may include response.status
+  if (!err) return undefined
+  const status = err?.code || err?.response?.status || err?.status
+  const num = typeof status === 'string' ? Number(status) : status
+  return Number.isFinite(num) ? num : undefined
+}
+
+async function fetchUploadsPlaylistId(youtube: any, channelId: string): Promise<string | null> {
+  const res = await youtube.channels.list({ part: ['contentDetails'], id: [channelId] })
+  const uploads = res?.data?.items?.[0]?.contentDetails?.relatedPlaylists?.uploads
+  return uploads || null
+}
 
 export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url)
-    const channelId = searchParams.get('channelId')
-    const accessToken = searchParams.get('accessToken')
+  // Validate input
+  const { searchParams } = new URL(req.url)
+  const channelId = searchParams.get('channelId')
 
-    if (!channelId || !accessToken) {
-      return NextResponse.json({ 
-        error: 'Channel ID and access token are required' 
-      }, { status: 400 })
-    }
+  if (!channelId) {
+    return NextResponse.json({ error: 'Channel ID is required' }, { status: 400 })
+  }
 
-    // Initialize OAuth2 client
+  // Authenticate session (server-side) to ensure caller is authorized
+  const session: any = await getServerSession(authOptions as any)
+  if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const supabase = createServerSupabaseClient()
+  const { data: userRow } = await supabase
+    .from('users')
+    .select('id,email')
+    .eq('email', session.user.email)
+    .limit(1)
+    .single()
+
+  if (!userRow?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Resolve token for channel (refresh if necessary)
+  const channelAccessToken = await getValidAccessTokenForChannel(channelId)
+
+  let youtube: any
+
+  if (channelAccessToken) {
     const oauth2Client = new google.auth.OAuth2(
       process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID,
       process.env.YOUTUBE_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET
     )
+    oauth2Client.setCredentials({ access_token: channelAccessToken })
+    youtube = google.youtube({ version: 'v3', auth: oauth2Client })
+  } else if (process.env.YOUTUBE_API_KEY) {
+    youtube = google.youtube({ version: 'v3', auth: process.env.YOUTUBE_API_KEY })
+  } else {
+    return NextResponse.json({ error: 'No access token or API key available to fetch videos.' }, { status: 401 })
+  }
 
-    oauth2Client.setCredentials({
-      access_token: accessToken,
-    })
+  try {
+    // 1) Get uploads playlist id via channels.list
+    let uploadsPlaylistId: string | null = null
 
-    const youtube = google.youtube({
-      version: 'v3',
-      auth: oauth2Client,
-    })
+    try {
+      uploadsPlaylistId = await fetchUploadsPlaylistId(youtube, channelId)
+    } catch (err: any) {
+      const status = getStatusFromGoogleError(err)
+      console.error('[best-videos] channels.list error:', err)
+      if (status === 401) return NextResponse.json({ error: 'Authentication error when resolving channel uploads playlist' }, { status: 401 })
+      if (status === 404) return NextResponse.json({ error: 'Channel not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Failed to resolve uploads playlist' }, { status: 500 })
+    }
 
-    // Get ALL channel's videos using pagination
-    let allVideos: any[] = []
-    let nextPageToken: string | undefined = undefined
+    if (!uploadsPlaylistId) {
+      // No uploads playlist present (channel may be invalid or empty). Return 404 to be explicit.
+      return NextResponse.json({ error: 'Uploads playlist not found for channel' }, { status: 404 })
+    }
+
+    // 2) Fetch playlist items with pagination
+    const maxPages = 10
+    let pageToken: string | undefined = undefined
     let pageCount = 0
-    const maxPages = 10 // Fetch up to 10 pages (500 videos max) to avoid timeout
+    const allPlaylistItems: any[] = []
 
-    // Helper: try a request and on auth failure attempt server-side refresh using provided refresh_token
-    const refreshTokenParam = new URL(req.url).searchParams.get('refresh_token') || undefined
-    let newAccessToken: string | null = null
-
-    const runSearch = async () => {
-      let attempt = 0
-      while (attempt < 2) {
-        try {
-          const searchResponse = await youtube.search.list({
-            part: ['snippet'],
-            channelId: channelId,
-            order: 'date', // Order by upload date (most recent first)
-            type: ['video'],
-            maxResults: 50, // Maximum allowed by YouTube API
-            pageToken: nextPageToken
-          })
-
-          if (searchResponse.data?.items && searchResponse.data.items.length > 0) {
-            allVideos.push(...searchResponse.data.items)
-          }
-
-          nextPageToken = searchResponse.data?.nextPageToken as string | undefined
-          return
-        } catch (err: any) {
-          console.warn('Search request failed, attempt:', attempt, 'error:', err?.message || err)
-          // If this looks like an auth error and we have a refresh token, try to refresh
-          if (attempt === 0 && refreshTokenParam && process.env.YOUTUBE_CLIENT_ID && process.env.YOUTUBE_CLIENT_SECRET) {
-            try {
-              const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({
-                  client_id: process.env.YOUTUBE_CLIENT_ID!,
-                  client_secret: process.env.YOUTUBE_CLIENT_SECRET!,
-                  refresh_token: refreshTokenParam,
-                  grant_type: 'refresh_token'
-                })
-              })
-              const tokenData = await tokenRes.json().catch(() => ({}))
-              if (tokenRes.ok && tokenData.access_token) {
-                oauth2Client.setCredentials({ access_token: tokenData.access_token })
-                // Save new token to return it to client so they can persist it
-                newAccessToken = tokenData.access_token
-                // retry
-                attempt += 1
-                continue
-              }
-            } catch (refreshErr) {
-              console.warn('Server-side refresh failed:', refreshErr)
-            }
-          }
-          // Not recoverable, rethrow
-          throw err
-        }
+    do {
+      try {
+        const plRes = await youtube.playlistItems.list({ part: ['snippet'], playlistId: uploadsPlaylistId, maxResults: 50, pageToken })
+        const items = plRes?.data?.items || []
+        allPlaylistItems.push(...items)
+        pageToken = plRes?.data?.nextPageToken as string | undefined
+        pageCount += 1
+      } catch (err: any) {
+        const status = getStatusFromGoogleError(err)
+        console.error('[best-videos] playlistItems.list error:', err)
+        if (status === 401) return NextResponse.json({ error: 'Authentication error when fetching playlist items' }, { status: 401 })
+        if (status === 404) return NextResponse.json({ error: 'Playlist not found' }, { status: 404 })
+        return NextResponse.json({ error: 'Failed fetching playlist items' }, { status: 500 })
       }
-    }
+    } while (pageToken && pageCount < maxPages)
 
-    await runSearch()
-
-    if (allVideos.length === 0) {
+    if (allPlaylistItems.length === 0) {
       return NextResponse.json({ videos: [] })
     }
 
-    // Get detailed video statistics
-    interface SearchItem {
-      id?: {
-        videoId?: string;
-      };
-    }
+    // Map playlist items to video IDs
+    const videoIds = allPlaylistItems.map(item => item.snippet?.resourceId?.videoId).filter(Boolean) as string[]
+    if (videoIds.length === 0) return NextResponse.json({ videos: [] })
 
-    const videoIds: string[] = allVideos
-      .map((item: SearchItem) => item.id?.videoId)
-      .filter((id): id is string => Boolean(id))
-
-    if (videoIds.length === 0) {
-      return NextResponse.json({ videos: [] })
-    }
-
-    // YouTube API allows max 50 IDs per request, so we need to batch
+    // 3) Fetch full video details in batches
     const batchSize = 50
-    let allVideoDetails: any[] = []
+    const allVideoDetails: any[] = []
 
     for (let i = 0; i < videoIds.length; i += batchSize) {
       const batch = videoIds.slice(i, i + batchSize)
-      
-      const videosResponse = await youtube.videos.list({
-        part: ['snippet', 'statistics'],
-        id: batch
-      })
-
-      if (videosResponse.data.items) {
-        allVideoDetails.push(...videosResponse.data.items)
+      try {
+        const videosResponse = await youtube.videos.list({ part: ['snippet', 'statistics'], id: batch })
+        if (videosResponse?.data?.items) allVideoDetails.push(...videosResponse.data.items)
+      } catch (err: any) {
+        const status = getStatusFromGoogleError(err)
+        console.error('[best-videos] videos.list error:', err)
+        if (status === 401) return NextResponse.json({ error: 'Authentication error when fetching video details' }, { status: 401 })
+        return NextResponse.json({ error: 'Failed to fetch video details' }, { status: 500 })
       }
     }
 
@@ -141,27 +138,9 @@ export async function GET(req: NextRequest) {
       tags: video.snippet?.tags || []
     }))
 
-    console.log(`Found ${videos.length} videos for channel ${channelId}`)
-    if (videos.length > 0) {
-      console.log('Latest video:', videos[0].title, videos[0].publishedAt)
-    }
-
-    // Already sorted by date (most recent first) from the search query
-
-    return NextResponse.json({ 
-      videos: videos, // Return all videos
-      totalFound: videos.length,
-      newAccessToken: newAccessToken || null
-    })
-
-  } catch (error: any) {
-    console.error('Error fetching channel videos:', error)
-    
-    // Return fallback empty response instead of error to not block the feature
-    return NextResponse.json({ 
-      videos: [],
-      error: 'Could not fetch channel videos',
-      fallback: true
-    })
+    return NextResponse.json({ videos, totalFound: videos.length })
+  } catch (err: any) {
+    console.error('[best-videos] unexpected error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

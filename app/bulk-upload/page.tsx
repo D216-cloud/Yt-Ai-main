@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { Home, User, GitCompare, Video, Upload, Play, LogOut, Menu, X, CheckCircle, Plus, List, Settings, Bell, ChevronDown, Youtube, Zap, Clock, Users, TrendingUp } from "lucide-react"
+import { Home, User, GitCompare, Video, Upload, Play, LogOut, Menu, X, CheckCircle, Plus, List, Settings, Bell, ChevronDown, Youtube, Zap, Clock, Users, TrendingUp, Sparkles, Folder, Lock, Crown } from "lucide-react"
 import { useRouter, usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { useState, useEffect, useRef, useMemo } from "react"
@@ -16,11 +16,18 @@ export default function BulkUploadPage() {
   const { data: session } = useSession()
   const [isLoading, setIsLoading] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [activePage, setActivePage] = useState('bulk-upload')
 
   const [allChannels, setAllChannels] = useState<any[]>([])
   const [selectedUploadChannel, setSelectedUploadChannel] = useState<any | null>(null)
   const [uploadType, setUploadType] = useState<'short' | 'long'>('long')
+  const [selectedCard, setSelectedCard] = useState<'shorts' | 'video' | 'smart'>('video')
+  const [showSmartModal, setShowSmartModal] = useState(false)
+  const [smartOption, setSmartOption] = useState<'cloud'|'device'>('device')
+  // premium state — in a real app this should come from the server/session
+  const [isPremium, setIsPremium] = useState(false)
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadData, setUploadData] = useState({ title: '', description: '', tags: '', category: '22', privacy: 'public', madeForKids: false, language: 'en', license: 'standard' })
   const [isUploading, setIsUploading] = useState(false)
@@ -399,10 +406,46 @@ export default function BulkUploadPage() {
   const [uploadSpeedMbps, setUploadSpeedMbps] = useState<number>(5) // used to estimate upload time
   const [showDetails, setShowDetails] = useState(false)
 
+  // Channel menu (dashboard-style)
+  const [showChannelMenu, setShowChannelMenu] = useState(false)
+  const channelMenuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const handleOutsideClick = (e: any) => {
+      if (channelMenuRef.current && !channelMenuRef.current.contains(e.target)) {
+        setShowChannelMenu(false)
+      }
+    }
+    window.addEventListener('click', handleOutsideClick)
+    return () => window.removeEventListener('click', handleOutsideClick)
+  }, [])
+
+  const handleUseChannel = (ch: any) => {
+    try { localStorage.setItem('youtube_channel', JSON.stringify(ch)) } catch (e) { }
+    setSelectedUploadChannel(ch)
+    setShowChannelMenu(false)
+  }
+
+  const handleDisconnectChannel = (id: string) => {
+    if (!confirm('Disconnect this channel?')) return
+    const remaining = allChannels.filter(c => c.id !== id)
+    setAllChannels(remaining)
+    if (selectedUploadChannel?.id === id) {
+      setSelectedUploadChannel(remaining[0] || null)
+      try { localStorage.removeItem('youtube_channel') } catch (e) { }
+    }
+    setShowChannelMenu(false)
+  }
+
+  const startYouTubeAuth = () => {
+    try { localStorage.setItem('oauth_return_page', 'bulk-upload') } catch (e) { }
+    window.location.href = '/connect'
+  }
+
   const navLinks = [
     { icon: Home, label: 'Dashboard', href: '/dashboard', id: 'dashboard' },
     { icon: GitCompare, label: 'Compare', href: '/compare', id: 'compare' },
-    { icon: Video, label: 'Content', href: '/content', id: 'content' },
+    { icon: Video, label: 'Videos', href: '/videos', id: 'videos' },
     { icon: Upload, label: 'Bulk Upload', href: '/bulk-upload', id: 'bulk-upload' },
   ]
 
@@ -413,21 +456,56 @@ export default function BulkUploadPage() {
   }
 
   useEffect(() => {
-    // load channels from localStorage (same shape as other pages expect)
-    const channels: any[] = []
-    const storedMain = localStorage.getItem('youtube_channel')
-    if (storedMain) {
-      try { channels.push(JSON.parse(storedMain)) } catch (e) { console.error(e) }
-    }
-    const storedAdditional = localStorage.getItem('additional_youtube_channels')
-    if (storedAdditional) {
+    // Prefer fetching channels from the server - falls back to localStorage
+    const loadChannels = async () => {
       try {
-        const extra = JSON.parse(storedAdditional)
-        extra.forEach((ch: any) => { if (!channels.find(c => c.id === ch.id)) channels.push(ch) })
-      } catch (e) { console.error(e) }
+        const res = await fetch('/api/channels')
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.channels && Array.isArray(data.channels) && data.channels.length > 0) {
+            const primary = data.channels.find((ch: any) => ch.is_primary) || data.channels[0]
+            const channels = data.channels.map((c: any) => ({
+              id: c.channel_id,
+              title: c.title,
+              thumbnail: c.thumbnail,
+              subscriberCount: c.subscriber_count?.toString() || '0',
+              videoCount: c.video_count?.toString() || '0',
+              viewCount: c.view_count?.toString() || '0',
+            }))
+            setAllChannels(channels)
+            setSelectedUploadChannel(primary ? {
+              id: primary.channel_id,
+              title: primary.title,
+              thumbnail: primary.thumbnail,
+              subscriberCount: primary.subscriber_count?.toString() || '0',
+              videoCount: primary.video_count?.toString() || '0',
+              viewCount: primary.view_count?.toString() || '0',
+            } : channels[0])
+            return
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch channels:', err)
+      }
+
+      // Fallback to localStorage if API call fails or returns nothing
+      const channels: any[] = []
+      const storedMain = localStorage.getItem('youtube_channel')
+      if (storedMain) {
+        try { channels.push(JSON.parse(storedMain)) } catch (e) { console.error(e) }
+      }
+      const storedAdditional = localStorage.getItem('additional_youtube_channels')
+      if (storedAdditional) {
+        try {
+          const extra = JSON.parse(storedAdditional)
+          extra.forEach((ch: any) => { if (!channels.find(c => c.id === ch.id)) channels.push(ch) })
+        } catch (e) { console.error(e) }
+      }
+      setAllChannels(channels)
+      if (channels.length > 0) setSelectedUploadChannel(channels[0])
     }
-    setAllChannels(channels)
-    if (channels.length > 0) setSelectedUploadChannel(channels[0])
+
+    loadChannels()
   }, [])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -552,6 +630,10 @@ export default function BulkUploadPage() {
     return `${remainingSeconds}s`
   }
 
+  function formatNumber(videoCount: any): import("react").ReactNode {
+    throw new Error("Function not implemented.")
+  }
+
   return (
     <div>
       {/* Mobile Header */}
@@ -637,51 +719,213 @@ export default function BulkUploadPage() {
       </header>
       <div className="flex">
         {/* Shared Sidebar */}
-        <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="bulk-upload" />
+        {!pathname.startsWith('/bulk-upload/upload') && (
+          <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="bulk-upload" isCollapsed={sidebarCollapsed} setIsCollapsed={setSidebarCollapsed} />
+        )}
 
         {/* Main content */}
-        <main className={`flex-1 pt-20 md:pt-20 md:ml-72 md:mr-24 pb-20 md:pb-0 p-4 md:p-8 md:pr-12`}>
-          <div className="max-w-5xl mx-auto">
-            {/* Hero removed per request (kept page layout intact) */}
+        <main className={`flex-1 pt-20 md:pt-20 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'} pb-20 md:pb-0 bg-slate-50 min-h-screen transition-all duration-300 ${sidebarOpen ? 'sm:translate-x-64 md:translate-x-0 scale-95 filter blur-sm' : 'translate-x-0 scale-100'}`}>
+          <div className="max-w-6xl mx-auto p-6">
+            {/* Channel selector + Upgrade Banner (dashboard-style) */}
+            {selectedUploadChannel ? (
+              <div className="flex justify-center mb-3 px-3 relative" ref={channelMenuRef}>
+                <div className="inline-flex items-center gap-2 bg-black/70 text-white px-3 py-1 rounded-full shadow-sm max-w-full truncate">
+                  <img src={selectedUploadChannel.thumbnail} alt={selectedUploadChannel.title} className="w-6 h-6 rounded-full object-cover" />
+                  <span className="text-sm font-medium truncate max-w-[160px]">{selectedUploadChannel.title}</span>
 
-            {/* Welcome & Smart Upload */}
-            <div className="mb-6 mt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h1 className="text-2xl md:text-3xl font-black text-gray-900 mb-1">Welcome back, {session?.user?.name?.split(' ')[0] || 'Creator'}! 👋</h1>
-                  <p className="text-gray-600">Manage smart uploads for your connected channel below.</p>
+                  {/* Connected channels count */}
+                  <span className="ml-2 inline-flex items-center text-xs bg-white/10 px-2 py-0.5 rounded-full">
+                    <span className="font-semibold mr-1">{allChannels.length}</span>
+                    <span className="text-xs">{allChannels.length === 1 ? 'channel' : 'channels'}</span>
+                  </span>
+
+                  <button
+                    aria-haspopup="menu"
+                    aria-expanded={showChannelMenu}
+                    onClick={(e) => { e.stopPropagation(); setShowChannelMenu((s: boolean) => !s) }}
+                    className="ml-2 flex items-center justify-center w-7 h-7 rounded-full bg-black/30 hover:bg-white/10 transition"
+                    title="Channel actions"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
                 </div>
-              </div>
 
-              <div className="mb-4 max-w-4xl mx-auto">
-                <ChannelSummary
-                  channel={selectedUploadChannel}
-                  wide={true}
-                  analyticsData={{
-                    views: selectedUploadChannel ? parseInt(selectedUploadChannel.viewCount || '0') : 0,
-                    subscribers: selectedUploadChannel ? parseInt(selectedUploadChannel.subscriberCount || '0') : 0,
-                    watchTime: 0,
-                  }}
-                />
-                <p className="text-sm text-gray-600 mt-3">Hello — are you ready? Start a Smart Upload for <span className="font-semibold">{selectedUploadChannel?.title || 'your channel'}</span>.</p>
+                {/* Menu */}
+                {showChannelMenu && (
+                  <div className="absolute top-full mt-3 left-1/2 transform -translate-x-1/2 bg-white rounded-3xl shadow-2xl w-[calc(100vw-2rem)] sm:w-full max-w-md text-gray-800 overflow-hidden z-40 animate-in fade-in slide-in-from-top-2 duration-300">
+                    {/* Header */}
+                    <div className="flex items-center gap-4 px-4 sm:px-6 py-4 bg-gradient-to-r from-indigo-50 to-pink-50 border-b border-gray-100">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className="relative">
+                          <img src={selectedUploadChannel?.thumbnail} alt={selectedUploadChannel?.title} className="w-14 h-14 rounded-full object-cover shadow-lg ring-2 ring-white" />
+                          <span className="absolute -right-1 -bottom-1 bg-white rounded-full p-[2px] shadow-sm">
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-semibold">{allChannels.length}</span>
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col min-w-0">
+                          <div className="text-sm sm:text-base font-bold truncate" title={selectedUploadChannel?.title}>{selectedUploadChannel?.title}</div>
+                          <div className="text-xs text-gray-500">Connected • <span className="font-semibold text-gray-800">{formatNumber(selectedUploadChannel?.videoCount || 0)} videos</span></div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            if (confirm('Disconnect your primary channel?')) {
+                              handleDisconnectChannel(selectedUploadChannel.id)
+                            }
+                          }}
+                          className="inline-flex items-center gap-2 text-sm text-red-600 bg-white border border-red-200 px-3 py-1 rounded-md hover:bg-red-50 focus:outline-none font-semibold transition-colors"
+                          title="Disconnect primary channel"
+                        >
+                          <X className="w-3 h-3" />
+                          <span className="hidden sm:inline">Disconnect</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Channels List */}
+                    <div className="px-3 py-3 max-h-64 sm:max-h-72 overflow-y-auto">
+                      {allChannels.filter((c: any) => c.id !== selectedUploadChannel.id).length > 0 ? (
+                        allChannels.filter((c: any) => c.id !== selectedUploadChannel.id).map((ch: any) => (
+                          <button key={ch.id} onClick={() => handleUseChannel(ch)} className="w-full text-left px-4 sm:px-6 py-3 sm:py-4 hover:bg-blue-50 flex items-center gap-2 sm:gap-3 transition-colors">
+                            <img src={ch.thumbnail} alt={ch.title} className="w-9 sm:w-11 h-9 sm:h-11 rounded-full object-cover flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs sm:text-sm font-semibold truncate">{ch.title}</div>
+                              <div className="text-xs text-gray-500">{formatNumber(ch.videoCount)} videos</div>
+                            </div>
+                            <div className="text-xs text-gray-500 flex-shrink-0">{formatNumber(ch.subscriberCount)}</div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 sm:px-6 py-5 text-xs sm:text-sm text-gray-600 font-medium text-center bg-gray-50">No other channels connected</div>
+                      )}
+                    </div>
+
+                    {/* Footer actions */}
+                    <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-t border-gray-100">
+                      <div className="space-y-2 sm:space-y-3">
+                        <button
+                          onClick={() => { localStorage.setItem('oauth_return_page', 'bulk-upload'); setShowChannelMenu(false); startYouTubeAuth() }}
+                          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-full py-2.5 sm:py-3 flex items-center justify-center gap-2 shadow-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400 font-semibold text-xs sm:text-sm transition-all active:scale-95"
+                        >
+                          <Youtube className="w-4 sm:w-5 h-4 sm:h-5" />
+                          Connect Another Channel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex justify-center mb-8 px-3">
+                <Link href="/connect">
+                  <button className="inline-flex items-center gap-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-3 rounded-full shadow-lg transition-all duration-200">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                    <span className="text-sm font-semibold">Connect Your YouTube Channel</span>
+                  </button>
+                </Link>
+              </div>
+            )}
+
+            <div className="flex justify-center mb-6 px-3">
+              <div className="inline-flex items-center gap-2 rounded-full bg-yellow-50 border border-yellow-100 px-3 py-1 text-xs sm:px-4 sm:py-2 sm:text-sm text-yellow-800 shadow-sm max-w-full overflow-hidden">
+                <Sparkles className="w-4 h-4 text-yellow-600" />
+                <span className="font-medium truncate">You're on Free Plan</span>
+                <span className="text-gray-700 hidden md:inline">Unlock unlimited access to all features and get paid.</span>
+                <Link href="/pricing" className="text-blue-600 font-semibold underline ml-2">Upgrade now</Link>
               </div>
             </div>
 
-            <div className="mb-6">
-              <div className="bg-white rounded-2xl border border-gray-200 p-6 text-center">
-                <h3 className="text-xl font-black text-gray-900 mb-2">Smart Upload</h3>
-                <p className="text-sm text-gray-600 mb-4">Start a single, smart upload for the selected channel</p>
-                <div className="flex items-center justify-center">
-                  <button
-                    onClick={() => router.push('/bulk-upload/upload')}
-                    className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl shadow-lg hover:shadow-xl transition"
+            {/* Main content grid */}
+            <div className="grid grid-cols-1 gap-6 mb-8 mt-16">
+              {/* Upload Options Cards */}
+              <div className="max-w-4xl mx-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  {/* Shorts Upload Card */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedCard('shorts')}
+                    className={`relative rounded-3xl p-6 transition-all transform will-change-auto cursor-pointer group bg-white/40 backdrop-blur-sm ${selectedCard === 'shorts' ? 'border-2 border-blue-400 shadow-2xl bg-gradient-to-br from-white to-blue-50 hover:-translate-y-2' : 'border border-gray-200 hover:shadow-lg hover:-translate-y-1'}`}>
+
+                    <div className="flex flex-col items-center text-center">
+                      <div className={`w-16 h-16 rounded-xl flex items-center justify-center mb-4 ${selectedCard === 'shorts' ? 'bg-gradient-to-br from-blue-100 to-blue-200 text-blue-800 shadow-inner scale-105' : 'bg-gray-100 text-gray-700 group-hover:scale-105'} transition-transform`}> 
+                        <Video className={`w-8 h-8 ${selectedCard === 'shorts' ? 'text-white' : 'text-gray-600' }`} />
+                      </div>
+                      <h3 className="font-semibold text-gray-900 mb-1">Shorts Upload</h3>
+                      <p className="text-sm text-gray-600">Upload short-form vertical videos for YouTube Shorts</p>
+
+                      <div className="mt-3 text-xs text-gray-500">
+                        <div>• Fast processing</div>
+                        <div>• Auto-trim for best moments</div>
+                      </div>
+                    </div>
+
+                    {selectedCard === 'shorts' && (
+                      <div className="absolute top-4 right-4">
+                        <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center ring-2 ring-white shadow-lg">
+                          <CheckCircle className="w-4 h-4 text-white" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Video Upload Card */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedCard('video')}
+                    className={`relative rounded-3xl p-6 transition-all transform cursor-pointer group bg-white/40 backdrop-blur-sm ${selectedCard === 'video' ? 'border-2 border-blue-400 shadow-2xl bg-gradient-to-br from-white to-blue-50 hover:-translate-y-2' : 'border border-gray-200 hover:shadow-lg hover:-translate-y-1'}`}>
+
+                    <div className="flex flex-col items-center text-center">
+                      <div className={`w-16 h-16 rounded-xl flex items-center justify-center mb-4 ${selectedCard === 'video' ? 'bg-gradient-to-br from-indigo-100 to-blue-200 text-indigo-700 shadow-inner scale-105' : 'bg-gray-100 text-gray-700 group-hover:scale-105'} transition-transform`}>
+                        <Upload className={`w-8 h-8 ${selectedCard === 'video' ? 'text-white' : 'text-gray-600'}`} />
+                      </div>
+                      <h3 className="font-semibold text-gray-900 mb-1">Video Upload</h3>
+                      <div className="text-xs text-indigo-700 font-medium mb-2">AI titles & descriptions</div>
+                      <p className="text-sm text-gray-600">Upload regular videos with full customization</p>
+
+                      <div className="mt-3 text-xs text-gray-500">
+                        <div>• Full metadata control</div>
+                        <div>• Scheduled publish</div>
+                      </div>
+                    </div>
+
+                    {selectedCard === 'video' && (
+                      <div className="absolute top-4 right-4">
+                        <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center ring-2 ring-white shadow-lg">
+                          <CheckCircle className="w-4 h-4 text-white" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+
+                </div>
+                
+                {/* Choose Button */}
+                <div className="flex justify-center mt-6">
+                  <button 
+                    onClick={() => {
+                      if (selectedCard === 'smart') {
+                        if (isPremium) setShowSmartModal(true)
+                        else setShowUpgradeModal(true)
+                      } else {
+                        router.push(`/bulk-upload/upload?type=${selectedCard}`)
+                      }
+                    }}
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-12 py-4 rounded-2xl font-semibold text-lg shadow-2xl hover:shadow-2xl transition-all duration-200 transform hover:scale-105 ring-1 ring-blue-50"
                   >
-                    <Upload className="w-4 h-4" />
-                    Start New Upload
+                    Choose
                   </button>
                 </div>
               </div>
             </div>
+
+
           </div>
         </main>
       </div>
@@ -763,13 +1007,13 @@ export default function BulkUploadPage() {
                       </div>
 
                       <label className="block text-sm font-medium mb-1">Title <span className="text-xs text-gray-400">(required)</span></label>
-                      <input type="text" value={uploadData.title} onChange={(e) => setUploadData({ ...uploadData, title: e.target.value })} className="w-full px-4 py-3 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <input type="text" value={uploadData.title} onChange={(e) => setUploadData({ ...uploadData, title: e.target.value })} className="w-full px-4 py-3 border rounded-2xl mb-4 bg-white/80 shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all" />
 
                       <label className="block text-sm font-medium mb-1">Description</label>
-                      <textarea value={uploadData.description} onChange={(e) => setUploadData({ ...uploadData, description: e.target.value })} rows={5} className="w-full px-4 py-3 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <textarea value={uploadData.description} onChange={(e) => setUploadData({ ...uploadData, description: e.target.value })} rows={5} className="w-full px-4 py-3 border rounded-2xl mb-4 bg-white/80 shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all" />
 
                       <label className="block text-sm font-medium mb-1">Tags (comma separated)</label>
-                      <input type="text" value={uploadData.tags} onChange={(e) => setUploadData({ ...uploadData, tags: e.target.value })} className="w-full px-3 py-2 border rounded-md mb-3" placeholder="tag1,tag2" />
+                      <input type="text" value={uploadData.tags} onChange={(e) => setUploadData({ ...uploadData, tags: e.target.value })} className="w-full px-4 py-3 border rounded-2xl mb-3 bg-white/80 shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all" placeholder="tag1,tag2" />
 
                       <label className="block text-sm font-medium mb-2">Suggested hashtags</label>
                       <div className="flex flex-wrap gap-2 mb-4">
@@ -816,7 +1060,7 @@ export default function BulkUploadPage() {
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mt-3">
                         <div>
                           <label className="block text-sm font-medium mb-1">Language</label>
-                          <select value={uploadData.language} onChange={(e) => setUploadData({ ...uploadData, language: e.target.value })} className="w-full px-3 py-2 border rounded-md">
+                          <select value={uploadData.language} onChange={(e) => setUploadData({ ...uploadData, language: e.target.value })} className="w-full px-4 py-3 border rounded-2xl bg-white/80 shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all">
                             <option value="en">English</option>
                             <option value="es">Spanish</option>
                             <option value="hi">Hindi</option>
@@ -827,7 +1071,7 @@ export default function BulkUploadPage() {
 
                         <div>
                           <label className="block text-sm font-medium mb-1">License</label>
-                          <select value={uploadData.license} onChange={(e) => setUploadData({ ...uploadData, license: e.target.value })} className="w-full px-3 py-2 border rounded-md">
+                          <select value={uploadData.license} onChange={(e) => setUploadData({ ...uploadData, license: e.target.value })} className="w-full px-4 py-3 border rounded-2xl bg-white/80 shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all">
                             <option value="standard">Standard YouTube License</option>
                             <option value="creative">Creative Commons</option>
                           </select>
@@ -1002,11 +1246,11 @@ export default function BulkUploadPage() {
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
                           <label className="block text-sm font-medium mb-1">Title</label>
-                          <input value={editingBulkData.title} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, title: e.target.value }))} className="w-full px-3 py-2 border rounded-md" />
+                          <input value={editingBulkData.title} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, title: e.target.value }))} className="w-full px-4 py-3 border rounded-2xl bg-white/80 shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1">Category</label>
-                          <select value={editingBulkData.category} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, category: e.target.value }))} className="w-full px-3 py-2 border rounded-md">
+                          <select value={editingBulkData.category} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, category: e.target.value }))} className="w-full px-4 py-3 border rounded-2xl bg-white/80 shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all">
                             <option value="22">People & Blogs</option>
                             <option value="1">Film & Animation</option>
                             <option value="2">Autos & Vehicles</option>
@@ -1019,11 +1263,11 @@ export default function BulkUploadPage() {
                         </div>
                         <div className="sm:col-span-2">
                           <label className="block text-sm font-medium mb-1">Description</label>
-                          <textarea value={editingBulkData.description} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, description: e.target.value }))} rows={4} className="w-full px-3 py-2 border rounded-md" />
+                          <textarea value={editingBulkData.description} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, description: e.target.value }))} rows={4} className="w-full px-4 py-3 border rounded-2xl bg-white/80 shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1">Tags (comma separated)</label>
-                          <input value={editingBulkData.tags} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, tags: e.target.value }))} className="w-full px-3 py-2 border rounded-md" />
+                          <input value={editingBulkData.tags} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, tags: e.target.value }))} className="w-full px-4 py-3 border rounded-2xl bg-white/80 shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all" />
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1">Made for kids</label>
@@ -1034,7 +1278,7 @@ export default function BulkUploadPage() {
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1">Language</label>
-                          <select value={editingBulkData.language} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, language: e.target.value }))} className="w-full px-3 py-2 border rounded-md">
+                          <select value={editingBulkData.language} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, language: e.target.value }))} className="w-full px-4 py-3 border rounded-2xl bg-white/80 shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all">
                             <option value="en">English</option>
                             <option value="es">Spanish</option>
                             <option value="hi">Hindi</option>
@@ -1044,7 +1288,7 @@ export default function BulkUploadPage() {
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1">License</label>
-                          <select value={editingBulkData.license} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, license: e.target.value }))} className="w-full px-3 py-2 border rounded-md">
+                          <select value={editingBulkData.license} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, license: e.target.value }))} className="w-full px-4 py-3 border rounded-2xl bg-white/80 shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all">
                             <option value="standard">Standard YouTube License</option>
                             <option value="creative">Creative Commons</option>
                           </select>
@@ -1052,7 +1296,7 @@ export default function BulkUploadPage() {
 
                         <div className="sm:col-span-2">
                           <label className="block text-sm font-medium mb-1">Privacy</label>
-                          <select value={editingBulkData.privacy} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, privacy: e.target.value }))} className="w-full px-3 py-2 border rounded-md mb-2">
+                          <select value={editingBulkData.privacy} onChange={(e) => setEditingBulkData((s: any) => ({ ...s, privacy: e.target.value }))} className="w-full px-4 py-3 border rounded-2xl bg-white/80 shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all mb-2">
                             <option value="public">Public</option>
                             <option value="unlisted">Unlisted</option>
                             <option value="private">Private</option>
@@ -1092,6 +1336,73 @@ export default function BulkUploadPage() {
                     setBulkFiles([])
                   })()
               }} className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-500 text-white rounded">Add {bulkFiles.length > 0 ? `(${Math.min(bulkFiles.length, 60)})` : ''} to Bulk List</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Smart Upload Card Modal (opens only for Smart Upload selection) */}
+      {showSmartModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowSmartModal(false)}></div>
+
+          <div className="relative z-60">
+            <div className="bg-white rounded-3xl shadow-2xl w-[320px] sm:w-[420px] p-6 mx-4">
+              <div className="flex flex-col items-center">
+                <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mb-4">
+                  <Folder className="w-6 h-6 text-gray-500" />
+                </div>
+
+                <h3 className="text-lg font-semibold mb-1">Smart Upload</h3>
+                <p className="text-sm text-gray-500 mb-6 text-center">Your AI-powered upload options. Choose where to save the output.</p>
+
+                <div className="grid grid-cols-2 gap-3 w-full mb-6">
+                  <button onClick={() => setSmartOption('cloud')} className={`py-3 px-3 rounded-lg border text-sm text-left w-full ${smartOption === 'cloud' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white'}`}>
+                    <div className="font-semibold">App Cloud</div>
+                    <div className="text-xs text-gray-500">Save to your Vidiomex cloud</div>
+                  </button>
+
+                  <button onClick={() => setSmartOption('device')} className={`py-3 px-3 rounded-lg border text-sm text-left w-full ${smartOption === 'device' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white'}`}>
+                    <div className="font-semibold">My Device</div>
+                    <div className="text-xs text-gray-500">Download to your computer</div>
+                  </button>
+                </div>
+
+                <button onClick={() => { /* TODO: implement download/cloud save */ setShowSmartModal(false) }} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold mb-3">Continue</button>
+
+                <button onClick={() => setShowSmartModal(false)} className="text-sm text-gray-500">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upgrade Modal for Premium-only features (Smart Upload) */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowUpgradeModal(false)} />
+          <div className="relative z-60">
+            <div className="bg-white rounded-3xl shadow-2xl w-[320px] sm:w-[480px] p-6 mx-4">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-amber-50 rounded-lg">
+                  <Crown className="w-6 h-6 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">Smart Upload is a Premium feature</h3>
+                  <p className="text-sm text-gray-600 mt-1">Unlock AI-driven uploads: auto titles, tags, thumbnails, and optimal publish times.</p>
+                  <ul className="mt-3 text-sm text-gray-700 space-y-1">
+                    <li>• Auto-generated titles & thumbnails</li>
+                    <li>• Automatic tags & categories</li>
+                    <li>• Scheduling at optimal times</li>
+                    <li>• Priority processing & faster uploads</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center justify-end gap-3">
+                <button onClick={() => setShowUpgradeModal(false)} className="px-4 py-2 border rounded">Maybe later</button>
+                <Link href="/pricing" className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg font-semibold">Upgrade to Premium</Link>
+              </div>
             </div>
           </div>
         </div>

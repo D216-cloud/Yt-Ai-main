@@ -1,9 +1,8 @@
 import NextAuth, { NextAuthOptions } from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
-import connectDB from "@/lib/mongodb"
-import User from "@/models/User"
 import bcrypt from "bcryptjs"
+import { createServerSupabaseClient } from "@/lib/supabase"
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -29,27 +28,37 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Please enter email and password")
         }
 
-        await connectDB()
+        try {
+          const supabase = createServerSupabaseClient()
 
-        // Find user by email
-        const user = await User.findOne({ email: credentials.email })
+          // Find user by email in Supabase users table
+          const { data: user, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', credentials.email.toLowerCase())
+            .limit(1)
+            .single()
 
-        if (!user || !user.password) {
-          throw new Error("Invalid email or password")
-        }
+          if (error || !user || !user.password) {
+            throw new Error("Invalid email or password")
+          }
 
-        // Check password
-        const isPasswordValid = await bcrypt.compare(credentials.password, user.password)
+          // Check password (bcrypt hash stored in users.password)
+          const isPasswordValid = await bcrypt.compare(credentials.password, user.password)
 
-        if (!isPasswordValid) {
-          throw new Error("Invalid email or password")
-        }
+          if (!isPasswordValid) {
+            throw new Error("Invalid email or password")
+          }
 
-        return {
-          id: user._id.toString(),
-          email: user.email,
-          name: user.name,
-          image: user.image,
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+          }
+        } catch (err) {
+          console.error('Credentials authorize error:', err)
+          throw new Error('Invalid email or password')
         }
       },
     }),
@@ -62,56 +71,58 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ user, account }) {
-      if (account?.provider === "google") {
-        try {
-          await connectDB()
-          
-          // Check if user exists
-          const existingUser = await User.findOne({ email: user.email })
-          
-          if (!existingUser) {
-            // Create new user with Google data
-            await User.create({
-              name: user.name,
-              email: user.email,
-              image: user.image,
-              provider: "google",
-              emailVerified: new Date(),
-            })
-            console.log("✅ New Google user created:", user.email)
-          } else {
-            console.log("✅ Existing Google user found:", user.email)
-          }
-        } catch (error) {
-          console.error("❌ Error in signIn callback:", error)
+      // Upsert user into Supabase users table (for Google sign-ins)
+      try {
+        const supabase = createServerSupabaseClient()
+
+        const payload: any = {
+          email: user.email,
+          name: user.name,
+          image: (user as any).image || null,
+        }
+
+        if (account?.provider === 'google') {
+          payload.provider = 'google'
+          payload.email_verified = new Date()
+        }
+
+        const { data, error } = await supabase
+          .from('users')
+          .upsert(payload, { onConflict: 'email' })
+          .select('id,email')
+          .limit(1)
+          .single()
+
+        if (error) {
+          console.error('Error upserting user to Supabase:', error)
           return false
         }
+
+        console.log('✅ Supabase user upserted:', data?.email)
+      } catch (error) {
+        console.error('❌ Error in signIn callback:', error)
+        return false
       }
+
       return true
     },
     async redirect({ url, baseUrl }) {
-      console.log("🔄 Redirect callback - URL:", url, "BaseURL:", baseUrl)
-      
       // If the URL includes /connect, use it
       if (url.includes("/connect")) {
-        console.log("✅ Redirecting to /connect")
         return `${baseUrl}/connect`
       }
-      
+
       // If url starts with baseUrl, return it as-is
       if (url.startsWith(baseUrl)) {
-        console.log("✅ Using provided URL:", url)
         return url
       }
-      
+
       // If it's a relative path, append to baseUrl
       if (url.startsWith("/")) {
-        console.log("✅ Appending path to baseUrl:", url)
         return `${baseUrl}${url}`
       }
-      
+
       // Default to /connect
-      console.log("✅ Default redirect to /connect")
       return `${baseUrl}/connect`
     },
     async jwt({ token, user, account }) {

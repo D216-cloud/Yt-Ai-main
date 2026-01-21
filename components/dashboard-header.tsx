@@ -81,7 +81,7 @@ export default function DashboardHeader({ sidebarOpen, setSidebarOpen }: Dashboa
                                 <p className="text-sm font-semibold text-gray-900">{session?.user?.name || "Creator"}</p>
                             </div>
                             <div className="relative">
-                                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+                                <div className="w-9 h-9 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
                                     <span className="text-white text-sm font-bold">
                                         {session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || "U"}
                                     </span>
@@ -97,7 +97,7 @@ export default function DashboardHeader({ sidebarOpen, setSidebarOpen }: Dashboa
                                 {/* Header with Avatar - Subtle bg */}
                                 <div className="p-5 bg-gradient-to-b from-gray-50/50 to-white border-b border-gray-100">
                                     <div className="flex items-center gap-3 mb-3">
-                                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-md shrink-0">
+                                        <div className="w-14 h-14 rounded-full bg-linear-to-br from-blue-400 to-blue-600 flex items-center justify-center shadow-md shrink-0">
                                             <span className="text-white text-lg font-bold">
                                                 {session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || "U"}
                                             </span>

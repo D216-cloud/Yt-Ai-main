@@ -91,38 +91,53 @@ export default function TitleSearchPage() {
     ? videos.filter(v => isShortDuration(v.duration))
     : videos.filter(v => !isShortDuration(v.duration))
 
+  // Load YouTube channel data from database
   useEffect(() => {
-    try {
-      if (typeof window === 'undefined') return
-      
-      const stored = localStorage.getItem('youtube_channel')
-      if (stored) {
-        const channel = JSON.parse(stored)
-        setYoutubeChannel(channel)
-        return
-      }
+    const loadChannelData = async () => {
+      try {
+        const res = await fetch('/api/channels')
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.channels && Array.isArray(data.channels)) {
+            const primary = data.channels.find((ch: any) => ch.is_primary)
+            if (primary) {
+              const main = {
+                id: primary.channel_id,
+                title: primary.title,
+                description: primary.description,
+                thumbnail: primary.thumbnail,
+                subscriberCount: primary.subscriber_count?.toString() || '0',
+                videoCount: primary.video_count?.toString() || '0',
+                viewCount: primary.view_count?.toString() || '0',
+              }
+              setYoutubeChannel(main as YouTubeChannel)
+              console.log('Loaded primary channel from DB:', main.title)
+            }
 
-      const additionalStored = localStorage.getItem('additional_youtube_channels')
-      if (additionalStored) {
-        try {
-          const parsed = JSON.parse(additionalStored) || []
-          setAdditionalChannelsList(parsed)
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            // Fallback: use first additional channel as active
-            const first = parsed[0]
-            setYoutubeChannel(first)
-            localStorage.setItem('youtube_channel', JSON.stringify(first))
-            localStorage.setItem('active_youtube_channel_id', first.id)
-            const tokenForFirst = localStorage.getItem(`youtube_access_token_${first.id}`) || null
-            if (tokenForFirst) localStorage.setItem('youtube_access_token', tokenForFirst)
+            // Load additional channels
+            const additional = data.channels
+              .filter((ch: any) => !ch.is_primary)
+              .map((ch: any) => ({
+                id: ch.channel_id,
+                title: ch.title,
+                description: ch.description,
+                thumbnail: ch.thumbnail,
+                subscriberCount: ch.subscriber_count?.toString() || '0',
+                videoCount: ch.video_count?.toString() || '0',
+                viewCount: ch.view_count?.toString() || '0',
+              }))
+            setAdditionalChannelsList(additional)
+            console.log('Loaded additional channels from DB:', additional.length)
           }
-        } catch (err) {
-          console.error('Failed to parse additional channels:', err)
+        } else {
+          console.error('Failed to fetch channels:', await res.text())
         }
+      } catch (error) {
+        console.error('Failed to load channel data from database:', error)
       }
-    } catch (error) {
-      console.error('Failed to load channel data:', error)
     }
+
+    loadChannelData()
   }, [])
 
   useEffect(() => {
@@ -144,14 +159,34 @@ export default function TitleSearchPage() {
     return n.toString()
   }
 
-  // Utility: resolve access token (channel-scoped fallback)
-  const getResolvedAccessToken = (): string | null => {
+  // Utility: resolve access token (channel-scoped fallback + server fallback)
+  const getResolvedAccessToken = async (): Promise<string | null> => {
     if (typeof window === 'undefined') return null
     try {
+      // Try localStorage first (channel-specific or global)
       const byId = youtubeChannel?.id ? (localStorage.getItem(`youtube_access_token_${youtubeChannel.id}`) || localStorage.getItem(`youtube_token_${youtubeChannel.id}`)) : null
       const global = localStorage.getItem('youtube_access_token')
-      const token = byId || global
-      // Persist channel-scoped token to the global key for compatibility so subsequent calls see it
+      let token = byId || global
+
+      // If no token in localStorage, try server (Supabase)
+      if (!token && youtubeChannel?.id) {
+        try {
+          const tokenRes = await fetch(`/api/tokens?channelId=${youtubeChannel.id}`)
+          if (tokenRes.ok) {
+            const tokenData = await tokenRes.json()
+            token = tokenData?.data?.access_token || null
+            // Persist for client convenience
+            if (token) {
+              localStorage.setItem(`youtube_access_token_${youtubeChannel.id}`, token)
+              localStorage.setItem('youtube_access_token', token)
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to fetch token from server:', err)
+        }
+      }
+
+      // Persist channel-scoped token to the global key for compatibility
       if (token && byId && !global) {
         localStorage.setItem('youtube_access_token', byId)
       }
@@ -205,39 +240,22 @@ export default function TitleSearchPage() {
     try {
       if (typeof window === 'undefined') return
       
-      // Get access token (try channel-scoped tokens first)
-      let accessToken = getResolvedAccessToken()
-      
-      if (!accessToken) {
-        // If a channel is connected but token missing, give a clearer message
-        if (youtubeChannel) {
-          setVideosError("Connected channel found but access token missing. Reconnect via Settings > Connect YouTube to re-authorize.")
-        } else {
-          setVideosError("Please connect your YouTube channel first. Go to Settings > Connect YouTube to authorize access.")
-        }
+      // Fetch videos server-side; server will use stored tokens or API-key fallback
+      if (!youtubeChannel?.id) {
+        setVideosError("Please connect your YouTube channel first. Go to Settings > Connect YouTube to authorize access.")
         setIsLoadingVideos(false)
         return
       }
 
-      // Use same endpoint as content page with mine=true and access token
-      let url = `/api/youtube/videos?mine=true&fetchAll=false&maxResults=50&access_token=${accessToken}${pageToken ? `&pageToken=${pageToken}` : ''}`
-      let response = await fetch(url)
-
-      // If unauthorized, try refresh + retry once
-      if (!response.ok && response.status === 401) {
-        const newToken = await attemptRefreshToken()
-        if (newToken) {
-          accessToken = newToken
-          url = `/api/youtube/videos?mine=true&fetchAll=false&maxResults=50&access_token=${accessToken}${pageToken ? `&pageToken=${pageToken}` : ''}`
-          response = await fetch(url)
-        }
-      }
+      const url = `/api/youtube/videos?channelId=${encodeURIComponent(youtubeChannel.id)}&fetchAll=false&maxResults=${maxResults}${pageToken ? `&pageToken=${pageToken}` : ''}`
+      const response = await fetch(url)
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        // If we got 401 and refresh attempt didn't help, give clearer guidance
         if (response.status === 401) {
           setVideosError('Authentication failed when fetching your channel. Please re-authorize the channel via Settings > Connect YouTube.')
+        } else if (response.status === 404) {
+          setVideosError(errorData.error || 'No uploads playlist found for this channel')
         } else {
           setVideosError(errorData.error || 'Failed to fetch videos')
         }
@@ -245,13 +263,13 @@ export default function TitleSearchPage() {
       }
 
       const data = await response.json()
-      
+
       if (pageToken) {
         setVideos(prev => [...prev, ...data.videos])
       } else {
         setVideos(data.videos)
       }
-      
+
       setNextPageToken(data.nextPageToken)
       setShowAnalyzer(true)
     } catch (err: any) {
@@ -270,64 +288,29 @@ export default function TitleSearchPage() {
     try {
       if (typeof window === 'undefined') return
       
-      // Get access token (try channel-scoped tokens first)
-      let accessToken = getResolvedAccessToken()
-      
-      if (!accessToken) {
-        if (youtubeChannel) {
-          setVideosError("Connected channel found but access token missing. Reconnect via Settings > Connect YouTube to re-authorize.")
+      if (!youtubeChannel?.id) {
+        setVideosError("Please connect your YouTube channel first. Go to Settings > Connect YouTube to authorize access.")
+        setIsLoadingVideos(false)
+        return
+      }
+
+      // Ask server to fetch all videos for this channel (server handles pagination and auth)
+      const url = `/api/youtube/videos?channelId=${encodeURIComponent(youtubeChannel.id)}&fetchAll=true&maxResults=50`
+      const response = await fetch(url)
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        if (response.status === 401) {
+          setVideosError('Authentication failed when fetching your channel. Please re-authorize the channel via Settings > Connect YouTube.')
         } else {
-          setVideosError("Please connect your YouTube channel first. Go to Settings > Connect YouTube to authorize access.")
+          setVideosError(err.error || 'Failed to fetch videos')
         }
         setIsLoadingVideos(false)
         return
       }
 
-      // If initial try fails with 401 we'll attempt a refresh and retry
-      let allVideos: Video[] = []
-      let pageToken: string | undefined = undefined
-      let pageCount = 0
-      const pageLimit = 100 // Fetch up to 100 pages (5000+ videos max)
-
-      do {
-        // Use same endpoint as content page with mine=true to get all videos
-        let url = `/api/youtube/videos?mine=true&fetchAll=false&maxResults=50&access_token=${accessToken}${pageToken ? `&pageToken=${pageToken}` : ''}`
-        
-        let response = await fetch(url)
-        // Try refresh once on 401
-        if (!response.ok && response.status === 401) {
-          const newToken = await attemptRefreshToken()
-          if (newToken) {
-            accessToken = newToken
-            url = `/api/youtube/videos?mine=true&fetchAll=false&maxResults=50&access_token=${accessToken}${pageToken ? `&pageToken=${pageToken}` : ''}`
-            response = await fetch(url)
-          }
-        }
-
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({}))
-          if (response.status === 401) {
-            setVideosError('Authentication failed when fetching your channel. Please re-authorize the channel via Settings > Connect YouTube.')
-          } else {
-            setVideosError(err.error || 'Failed to fetch videos')
-          }
-          throw new Error(err.error || 'Failed to fetch videos')
-        }
-
-        const data = await response.json()
-        if (data.videos && data.videos.length > 0) {
-          allVideos = [...allVideos, ...data.videos]
-        }
-        pageToken = data.nextPageToken
-        pageCount += 1
-
-        if (pageCount >= pageLimit) {
-          console.warn(`⚠️ Reached page limit of ${pageLimit} pages (${allVideos.length} videos)`)
-          break
-        }
-      } while (pageToken)
-
-      setVideos(allVideos)
+      const data = await response.json()
+      setVideos(data.videos || [])
       setNextPageToken(null)
       setShowAnalyzer(true)
     } catch (err: any) {
@@ -354,9 +337,12 @@ export default function TitleSearchPage() {
 
   // Keep token availability in sync when channel or additional channels change
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const token = getResolvedAccessToken()
-    setAccessTokenAvailable(!!token)
+    const checkToken = async () => {
+      if (typeof window === 'undefined') return
+      const token = await getResolvedAccessToken()
+      setAccessTokenAvailable(!!token)
+    }
+    checkToken()
   }, [youtubeChannel, additionalChannelsList])
 
   // Featured video logic removed — we no longer compute or display latest/top videos here
@@ -387,7 +373,7 @@ export default function TitleSearchPage() {
   }, [youtubeChannel, accessTokenAvailable])
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-linear-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
+    <div className="min-h-screen overflow-x-hidden bg-slate-50">
       <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex">
@@ -426,6 +412,60 @@ export default function TitleSearchPage() {
                       <ChevronDown className="w-4 h-4" />
                     </button>
                   </div>
+
+                  {/* Channel Menu Dropdown */}
+                  {showChannelMenu && (
+                    <div className="absolute top-full mt-3 left-1/2 transform -translate-x-1/2 bg-white rounded-2xl shadow-2xl w-[calc(100vw-2rem)] sm:w-full max-w-md text-gray-800 overflow-hidden z-40 animate-in fade-in slide-in-from-top-2 duration-300">
+                      {/* Header */}
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 sm:py-4 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-100">
+                        <div className="flex items-center gap-3 sm:gap-4 flex-1 w-full">
+                          <img src={youtubeChannel?.thumbnail} alt={youtubeChannel?.title} className="w-12 sm:w-14 h-12 sm:h-14 rounded-full object-cover shadow-md flex-shrink-0" />
+                          <div className="flex flex-col min-w-0">
+                            <div className="text-sm sm:text-base font-bold truncate" title={youtubeChannel?.title}>{youtubeChannel?.title}</div>
+                            <div className="text-xs sm:text-sm text-gray-600">Connected • <span className="font-semibold text-gray-800">{formatNumber(youtubeChannel?.videoCount || 0)} videos</span></div>
+                          </div>
+                        </div>
+                        <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+                          <span className="inline-flex items-center text-xs font-semibold bg-blue-100 text-blue-700 px-2 sm:px-3 py-1 rounded-full whitespace-nowrap">{uniqueChannelCount}</span>
+                        </div>
+                      </div>
+
+                      {/* Channels List */}
+                      <div className="divide-y divide-gray-100 max-h-64 sm:max-h-72 overflow-y-auto">
+                        {visibleAdditionalChannels.length > 0 ? visibleAdditionalChannels.map((ch: YouTubeChannel) => (
+                          <button
+                            key={ch.id}
+                            onClick={() => {
+                              // Switch channel: reload from database
+                              window.location.reload()
+                            }}
+                            className="w-full text-left px-4 sm:px-6 py-3 sm:py-4 hover:bg-blue-50 flex items-center gap-2 sm:gap-3 transition-colors"
+                          >
+                            <img src={ch.thumbnail} alt={ch.title} className="w-9 sm:w-11 h-9 sm:h-11 rounded-full object-cover flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs sm:text-sm font-semibold truncate">{ch.title}</div>
+                              <div className="text-xs text-gray-500">{formatNumber(ch.videoCount)} videos</div>
+                            </div>
+                            <div className="text-xs text-gray-500 flex-shrink-0">{formatNumber(ch.subscriberCount)}</div>
+                          </button>
+                        )) : (
+                          <div className="px-4 sm:px-6 py-5 text-xs sm:text-sm text-gray-600 font-medium text-center bg-gray-50">No other channels connected</div>
+                        )}
+                      </div>
+
+                      {/* Footer actions */}
+                      <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-t border-gray-100">
+                        <div className="space-y-2 sm:space-y-3">
+                          <Link href="/connect">
+                            <button className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-full py-2.5 sm:py-3 flex items-center justify-center gap-2 shadow-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400 font-semibold text-xs sm:text-sm transition-all active:scale-95">
+                              <Youtube className="w-4 sm:w-5 h-4 sm:h-5" />
+                              Connect Another Channel
+                            </button>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

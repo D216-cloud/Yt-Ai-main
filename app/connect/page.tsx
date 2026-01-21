@@ -65,16 +65,31 @@ export default function ConnectPage() {
     }
   }, [status, youtubeChannel, isAnalyzing, isRedirecting, router])
 
-  const loadMainChannel = () => {
+  const loadMainChannel = async () => {
     try {
-      const stored = localStorage.getItem('youtube_channel')
-      if (stored) {
-        const channel = JSON.parse(stored)
-        setYoutubeChannel(channel)
-        console.log('Loaded main channel from storage:', channel.title)
+      // Fetch from database instead of localStorage
+      const res = await fetch('/api/channels')
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.channels && Array.isArray(data.channels)) {
+          const primary = data.channels.find((ch: any) => ch.is_primary)
+          if (primary) {
+            const main = {
+              id: primary.channel_id,
+              title: primary.title,
+              description: primary.description,
+              thumbnail: primary.thumbnail,
+              subscriberCount: primary.subscriber_count?.toString() || '0',
+              videoCount: primary.video_count?.toString() || '0',
+              viewCount: primary.view_count?.toString() || '0',
+            }
+            setYoutubeChannel(main as YouTubeChannel)
+            console.log('Loaded main channel from database:', main.title)
+          }
+        }
       }
 
-      // Also load the token
+      // Also load the token (keep in localStorage for security)
       const token = localStorage.getItem('youtube_access_token')
       if (token) {
         setYoutubeToken(token)
@@ -85,12 +100,10 @@ export default function ConnectPage() {
   }
 
   const cleanupTempData = () => {
-    // Debug: Check what's in localStorage
+    // Debug: Check what's in localStorage (only tokens and activities)
     console.log('=== localStorage Debug ===')
-    console.log('Main channel:', localStorage.getItem('youtube_channel') ? 'EXISTS' : 'MISSING')
     console.log('Access token:', localStorage.getItem('youtube_access_token') ? 'EXISTS' : 'MISSING')
     console.log('Temp token:', localStorage.getItem('temp_youtube_access_token') ? 'EXISTS (SHOULD BE CLEANED)' : 'NONE')
-    console.log('Additional channels:', localStorage.getItem('additional_youtube_channels') ? 'EXISTS' : 'NONE')
     console.log('Recent activities:', localStorage.getItem('youtube_recent_activities') ? 'EXISTS' : 'NONE')
     console.log('========================')
 
@@ -129,12 +142,49 @@ export default function ConnectPage() {
     }
   }
 
-  const loadAdditionalChannels = () => {
+  const loadAdditionalChannels = async () => {
     try {
-      const stored = localStorage.getItem('additional_youtube_channels')
-      if (stored) {
-        setAdditionalChannels(JSON.parse(stored))
+      // Fetch from server
+      try {
+        const res = await fetch('/api/channels')
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.channels && Array.isArray(data.channels)) {
+            // Map to expected structure (no localStorage storage)
+            const channels = data.channels.map((c: any) => ({
+              id: c.channel_id,
+              title: c.title,
+              description: c.description,
+              thumbnail: c.thumbnail,
+              subscriberCount: c.subscriber_count?.toString() || '0',
+              videoCount: c.video_count?.toString() || '0',
+              viewCount: c.view_count?.toString() || '0',
+            }))
+            setAdditionalChannels(channels)
+
+            // If there is a primary channel returned by server, make sure main is set
+            const primary = data.channels.find((ch: any) => ch.is_primary)
+            if (primary) {
+              const main = {
+                id: primary.channel_id,
+                title: primary.title,
+                description: primary.description,
+                thumbnail: primary.thumbnail,
+                subscriberCount: primary.subscriber_count?.toString() || '0',
+                videoCount: primary.video_count?.toString() || '0',
+                viewCount: primary.view_count?.toString() || '0',
+              }
+              setYoutubeChannel(main as YouTubeChannel)
+            }
+
+            return
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch channels from server', err)
       }
+
+      // No localStorage fallback - only use database
     } catch (error) {
       console.error('Failed to load additional channels:', error)
     }
@@ -210,24 +260,11 @@ export default function ConnectPage() {
       console.log("Received YouTube token from OAuth flow")
       setYoutubeToken(token)
 
-      // Check where the OAuth was initiated from
-      const returnPage = localStorage.getItem("oauth_return_page")
-
-      if (returnPage === "content") {
-        // For additional channels, we'll store the token with channel ID after fetching
-        // Store temporarily for now
-        localStorage.setItem("temp_youtube_access_token", token)
-        localStorage.setItem("temp_token_timestamp", Date.now().toString())
-        if (refreshToken) {
-          localStorage.setItem("temp_youtube_refresh_token", refreshToken)
-        }
-      } else {
-        // Main channel - store as usual
-        localStorage.setItem("youtube_access_token", token)
-        if (refreshToken) {
-          localStorage.setItem("youtube_refresh_token", refreshToken)
-        }
+      // Store token in Supabase instead of localStorage (will be stored after channel fetch)
+      if (refreshToken) {
+        sessionStorage.setItem("temp_refresh_token", refreshToken)
       }
+      sessionStorage.setItem("temp_access_token", token)
 
       // Fetch channel data
       fetchYouTubeChannel(token)
@@ -277,107 +314,280 @@ export default function ConnectPage() {
             if (!isMainChannel && !alreadyAdded) {
               // Add new channel to additional channels
               additionalChannels.push(newChannel)
-              localStorage.setItem("additional_youtube_channels", JSON.stringify(additionalChannels))
-
-              // Store channel-specific token
-              const tempToken = localStorage.getItem("temp_youtube_access_token")
-              const tempRefreshToken = localStorage.getItem("temp_youtube_refresh_token")
-
-              if (tempToken) {
-                localStorage.setItem(`youtube_access_token_${newChannel.id}`, tempToken)
-                localStorage.removeItem("temp_youtube_access_token")
-              }
-              if (tempRefreshToken) {
-                localStorage.setItem(`youtube_refresh_token_${newChannel.id}`, tempRefreshToken)
-                localStorage.removeItem("temp_youtube_refresh_token")
-              }
-              localStorage.removeItem("temp_token_timestamp")
 
               console.log("Added new channel with its own token:", newChannel.title)
               addActivity('connect', newChannel.title, newChannel.id, 'Additional channel connected via OAuth')
+              
+              // Get temp tokens from sessionStorage
+              const tempToken = sessionStorage.getItem("temp_access_token")
+              const tempRefreshToken = sessionStorage.getItem("temp_refresh_token")
+              
+              // Store token in Supabase for additional channel
+              if (tempToken) {
+                try {
+                  const tokenRes = await fetch('/api/tokens', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      channelId: newChannel.id,
+                      accessToken: tempToken,
+                      refreshToken: tempRefreshToken || null,
+                      expiresAt: new Date(Date.now() + 3600 * 1000).toISOString()
+                    })
+                  })
+                  const tokenData = await tokenRes.json()
+                  console.log('✅ Token stored in Supabase for additional channel:', tokenData)
+
+                    // Trigger on-demand sync so videos appear immediately
+                    try {
+                      const syncRes = await fetch(`/api/videos?channelId=${encodeURIComponent(newChannel.id)}`, { method: 'POST' })
+                      const syncData = await syncRes.json()
+                      console.log('🔄 On-demand sync for additional channel:', syncData)
+                    } catch (syncErr) {
+                      console.warn('⚠️ On-demand sync failed for additional channel:', syncErr)
+                    }
+
+                  // Persist channel to DB for this user as an additional channel
+                  try {
+                    const storeRes = await fetch('/api/channels', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        channelId: newChannel.id,
+                        title: newChannel.title,
+                        description: newChannel.description,
+                        thumbnail: newChannel.thumbnail,
+                        subscriberCount: newChannel.subscriberCount,
+                        videoCount: newChannel.videoCount,
+                        viewCount: newChannel.viewCount,
+                        isPrimary: false
+                      })
+                    });
+                    const storeData = await storeRes.json();
+                    console.log('✅ DB store additional channel response:', storeData);
+
+                    // Store analytics immediately for additional channel
+                    try {
+                      const analyticsRes = await fetch('/api/analytics', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          channelId: newChannel.id,
+                          totalViews: parseInt(newChannel.viewCount) || 0,
+                          totalSubscribers: parseInt(newChannel.subscriberCount) || 0,
+                          totalWatchTimeHours: 0
+                        })
+                      });
+                      const analyticsData = await analyticsRes.json();
+                      console.log('✅ Analytics stored for additional channel:', analyticsData);
+                    } catch (analyticsErr) {
+                      console.error('⚠️ Failed to store analytics for additional channel:', analyticsErr);
+                    }
+                  } catch (dbErr) {
+                    console.error('❌ Failed to store additional channel in DB:', dbErr);
+                  }
+                } catch (tokenErr) {
+                  console.error('❌ Failed to store token for additional channel:', tokenErr);
+                }
+                
+                // Clean up temp tokens
+                sessionStorage.removeItem("temp_access_token");
+                sessionStorage.removeItem("temp_refresh_token");
+              }
+
             } else if (isMainChannel) {
-              console.log("Channel is already the main channel:", newChannel.title)
+              console.log("Channel is already the main channel:", newChannel.title);
               // Clean up temp tokens
-              localStorage.removeItem("temp_youtube_access_token")
-              localStorage.removeItem("temp_youtube_refresh_token")
-              localStorage.removeItem("temp_token_timestamp")
+              sessionStorage.removeItem("temp_access_token");
+              sessionStorage.removeItem("temp_refresh_token");
             } else {
-              console.log("Channel already added:", newChannel.title)
+              console.log("Channel already added:", newChannel.title);
               // Clean up temp tokens
-              localStorage.removeItem("temp_youtube_access_token")
-              localStorage.removeItem("temp_youtube_refresh_token")
-              localStorage.removeItem("temp_token_timestamp")
+              sessionStorage.removeItem("temp_access_token");
+              sessionStorage.removeItem("temp_refresh_token");
             }
           } else {
             // No main channel yet, set this as main
-            setYoutubeChannel(newChannel)
-            localStorage.setItem("youtube_channel", JSON.stringify(newChannel))
+            setYoutubeChannel(newChannel);
+            
+            // Get temp tokens from sessionStorage
+            const tempToken = sessionStorage.getItem("temp_access_token");
+            const tempRefreshToken = sessionStorage.getItem("temp_refresh_token");
 
-            // Use temp token as main token
-            const tempToken = localStorage.getItem("temp_youtube_access_token")
-            const tempRefreshToken = localStorage.getItem("temp_youtube_refresh_token")
+            console.log("Set as main channel:", newChannel.title);
 
+            // Store token in Supabase for primary channel
             if (tempToken) {
-              localStorage.setItem("youtube_access_token", tempToken)
-              localStorage.removeItem("temp_youtube_access_token")
-            }
-            if (tempRefreshToken) {
-              localStorage.setItem("youtube_refresh_token", tempRefreshToken)
-              localStorage.removeItem("temp_youtube_refresh_token")
+              try {
+                const tokenRes = await fetch('/api/tokens', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    channelId: newChannel.id,
+                    accessToken: tempToken,
+                    refreshToken: tempRefreshToken || null,
+                    expiresAt: new Date(Date.now() + 3600 * 1000).toISOString() // 1 hour expiry
+                  })
+                });
+                const tokenData = await tokenRes.json();
+                console.log('✅ Token stored in Supabase:', tokenData);
+
+                // Trigger on-demand sync so videos appear immediately
+                try {
+                  const syncRes = await fetch(`/api/videos?channelId=${encodeURIComponent(newChannel.id)}`, { method: 'POST' });
+                  const syncData = await syncRes.json();
+                  console.log('🔄 On-demand sync for main channel:', syncData);
+                } catch (syncErr) {
+                  console.warn('⚠️ On-demand sync failed for main channel:', syncErr);
+                }
+              } catch (tokenErr) {
+                console.error('❌ Failed to store token:', tokenErr);
+              }
+
+              // Clean up temp tokens
+              sessionStorage.removeItem("temp_access_token");
+              sessionStorage.removeItem("temp_refresh_token");
             }
 
-            console.log("Set as main channel:", newChannel.title)
+            // Persist channel to DB as primary
+            try {
+              const storeRes = await fetch('/api/channels', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  channelId: newChannel.id,
+                  title: newChannel.title,
+                  description: newChannel.description,
+                  thumbnail: newChannel.thumbnail,
+                  subscriberCount: newChannel.subscriberCount,
+                  videoCount: newChannel.videoCount,
+                  viewCount: newChannel.viewCount,
+                  isPrimary: true
+                })
+              });
+              const storeData = await storeRes.json();
+              console.log('✅ DB store primary channel response:', storeData);
+            } catch (dbErr) {
+              console.error('❌ Failed to store primary channel in DB:', dbErr);
+            }
           }
         } else {
           // Dashboard or first time - set as main channel
-          setYoutubeChannel(newChannel)
-          localStorage.setItem("youtube_channel", JSON.stringify(newChannel))
-          console.log("Successfully fetched main channel:", newChannel.title)
-          addActivity('connect', newChannel.title, newChannel.id, 'Main channel connected successfully')
+          setYoutubeChannel(newChannel);
+          console.log("Successfully fetched main channel:", newChannel.title);
+          addActivity('connect', newChannel.title, newChannel.id, 'Main channel connected successfully');
+
+          // Get temp tokens from sessionStorage
+          const tempToken = sessionStorage.getItem("temp_access_token");
+          const tempRefreshToken = sessionStorage.getItem("temp_refresh_token");
+
+          // Store token in Supabase for main channel
+          if (tempToken) {
+            try {
+              const tokenRes = await fetch('/api/tokens', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  channelId: newChannel.id,
+                  accessToken: tempToken,
+                  refreshToken: tempRefreshToken || null,
+                  expiresAt: new Date(Date.now() + 3600 * 1000).toISOString()
+                })
+              });
+              const tokenData = await tokenRes.json();
+              console.log('✅ Token stored in Supabase for main channel:', tokenData);
+            } catch (tokenErr) {
+              console.error('❌ Failed to store token for main channel:', tokenErr);
+            }
+
+            // Clean up temp tokens
+            sessionStorage.removeItem("temp_access_token");
+            sessionStorage.removeItem("temp_refresh_token");
+          }
+
+          // Save to database as primary channel
+          try {
+            const storeRes = await fetch('/api/channels', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                channelId: newChannel.id,
+                title: newChannel.title,
+                description: newChannel.description,
+                thumbnail: newChannel.thumbnail,
+                subscriberCount: newChannel.subscriberCount,
+                videoCount: newChannel.videoCount,
+                viewCount: newChannel.viewCount,
+                isPrimary: true
+              })
+            })
+            const storeData = await storeRes.json()
+            console.log('✅ DB store primary channel response:', storeData)
+
+            // Store analytics immediately when channel is connected
+            try {
+              const analyticsRes = await fetch('/api/analytics', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  channelId: newChannel.id,
+                  totalViews: parseInt(newChannel.viewCount) || 0,
+                  totalSubscribers: parseInt(newChannel.subscriberCount) || 0,
+                  totalWatchTimeHours: 0
+                })
+              });
+              const analyticsData = await analyticsRes.json();
+              console.log('✅ Analytics stored for channel:', analyticsData);
+            } catch (analyticsErr) {
+              console.error('⚠️ Failed to store analytics:', analyticsErr);
+            }
+          } catch (dbErr) {
+            console.error('❌ Failed to store primary channel in DB:', dbErr);
+          }
         }
 
         // Load additional channels and activities after update
-        loadAdditionalChannels()
-        loadRecentActivities()
+        loadAdditionalChannels();
+        loadRecentActivities();
 
         // Clear oauth return page marker to avoid accidental additional-channel logic later
         try { localStorage.removeItem('oauth_return_page') } catch (e) { /* ignore */ }
 
         // New flow: show analyzing screen instead of immediate redirect
-        setIsAnalyzing(true)
-        setAnalysisDone(false)
+        setIsAnalyzing(true);
+        setAnalysisDone(false);
 
         // Simulate analysis work for 3 seconds, then mark done
         setTimeout(() => {
-          setIsAnalyzing(false)
-          setAnalysisDone(true)
-        }, 3000)
+          setIsAnalyzing(false);
+          setAnalysisDone(true);
+        }, 3000);
       } else {
-        console.error("Failed to fetch channel:", data.error)
-        setError(data.error || "Failed to fetch channel data")
+        console.error("Failed to fetch channel:", data.error);
+        setError(data.error || "Failed to fetch channel data");
         // Clear stored tokens if they're invalid
-        localStorage.removeItem("youtube_access_token")
-        localStorage.removeItem("youtube_refresh_token")
-        localStorage.removeItem("youtube_channel")
+        localStorage.removeItem("youtube_access_token");
+        localStorage.removeItem("youtube_refresh_token");
+        localStorage.removeItem("youtube_channel");
       }
-    } catch (error: any) {
-      console.error("Error fetching YouTube channel:", error)
-      setError("Network error. Please try again.")
+    } catch (error) {
+      console.error("Error fetching YouTube channel:", error);
+      setError("Network error. Please try again.");
       // Clear stored tokens on error
-      localStorage.removeItem("youtube_access_token")
-      localStorage.removeItem("youtube_refresh_token")
-      localStorage.removeItem("youtube_channel")
+      localStorage.removeItem("youtube_access_token");
+      localStorage.removeItem("youtube_refresh_token");
+      localStorage.removeItem("youtube_channel");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
   const handleConnectWithGoogle = () => {
     // Trigger the start animation to replace IQ logo with user's logo
-    setIsStartingAuth(true)
-    setIsAuthLoading(true)
-    setError(null)
-    console.log("Initiating Google OAuth flow - showing start animation")
+    setIsStartingAuth(true);
+    setIsAuthLoading(true);
+    setError(null);
+    console.log("Initiating Google OAuth flow - showing start animation");
 
     // Use same-tab redirect for the connect page (shows Google account selection in current tab)
     setTimeout(() => {
@@ -416,11 +626,21 @@ export default function ConnectPage() {
     }
   }
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     console.log("Disconnecting YouTube channel")
 
     if (youtubeChannel) {
       addActivity('disconnect', youtubeChannel.title, youtubeChannel.id, 'Channel disconnected')
+    }
+
+    // Try to delete from DB as well
+    try {
+      if (youtubeChannel) {
+        await fetch(`/api/channels?channelId=${encodeURIComponent(youtubeChannel.id)}`, { method: 'DELETE' })
+        console.log('Requested channel deletion on server')
+      }
+    } catch (err) {
+      console.warn('Failed to delete channel on server', err)
     }
 
     // Clear all YouTube related data

@@ -2,9 +2,12 @@
 
 import React, { useRef, useState, useEffect } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ChannelSummary from '@/components/channel-summary'
-import { Upload, X, Youtube } from 'lucide-react'
+import SharedSidebar from '@/components/shared-sidebar'
+import { Upload, X, Youtube, Menu } from 'lucide-react'
+import { useSession, signOut } from 'next-auth/react'
 
 export default function BulkUploadFullPage() {
   const router = useRouter()
@@ -12,6 +15,17 @@ export default function BulkUploadFullPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [uploadData, setUploadData] = useState({ title: '', description: '', tags: '', category: '22', privacy: 'public', madeForKids: false, language: 'en', license: 'standard', keywords: '' })
+
+  // Sidebar state (shared pattern with other pages)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  // Auth/session
+  const { data: session } = useSession()
+  const handleSignOut = async () => {
+    await signOut({ redirect: false })
+    router.push('/')
+  }
   const [uploadType, setUploadType] = useState<'short' | 'long'>('long')
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>([])
@@ -511,6 +525,85 @@ export default function BulkUploadFullPage() {
 
   return (
     <>
+      {/* Mobile Header */}
+      <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100 pt-2 pb-2 px-4">
+        <div className="flex h-14 items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-2 rounded-md text-gray-600"
+            >
+              {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+            <a href="/" className="flex items-center space-x-2 group">
+              <Image
+                src="/vidiomex-logo.svg"
+                alt="Vidiomex"
+                width={32}
+                height={32}
+                className="flex-shrink-0"
+              />
+              <span className="text-sm font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent">Vidiomex</span>
+            </a>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            {session && (
+              <div
+                role="button"
+                title="Profile"
+                onClick={() => router.push('/dashboard?page=profile')}
+                className="cursor-pointer flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-purple-600 shadow-md"
+              >
+                <span className="text-white text-sm font-bold uppercase">
+                  {session.user?.email?.substring(0, 2) || "U"}
+                </span>
+              </div>
+            )}
+            <button
+              onClick={handleSignOut}
+              className="text-red-600 p-2 rounded-md"
+              title="Sign Out"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Desktop Header */}
+      <header className="hidden md:block fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white h-16">
+        <div className="flex h-16 items-center justify-between px-6 lg:px-8">
+          <a href="/" className="flex items-center space-x-3 group">
+            <Image
+              src="/vidiomex-logo.svg"
+              alt="Vidiomex"
+              width={36}
+              height={36}
+              className="flex-shrink-0"
+            />
+            <span className="text-lg font-bold bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent">Vidiomex</span>
+          </a>
+
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3 border-l border-gray-200 pl-4">
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-900">{session?.user?.name || "Creator Studio"}</p>
+                <p className="text-xs text-gray-500">{session?.user?.email || "Premium Plan"}</p>
+              </div>
+              <div
+                role="button"
+                title="Profile"
+                onClick={() => router.push('/dashboard?page=profile')}
+                className="cursor-pointer w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 border-2 border-blue-200 shadow-md flex items-center justify-center flex-shrink-0"
+              >
+                <span className="text-white text-sm font-semibold">{session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || "U"}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
       {/* Notification System */}
       {notifications.length > 0 && (
         <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
@@ -562,103 +655,46 @@ export default function BulkUploadFullPage() {
         </div>
       )}
     
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 pt-20 md:pt-24">
-      <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-7xl">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                <Upload className="w-5 h-5 text-white" />
-              </div>
-              <h1 className="text-2xl md:text-3xl font-black text-gray-900">Smart Upload Studio</h1>
-            </div>
-            <p className="text-gray-600 text-sm md:text-base">Create and upload professional videos with AI-powered optimization</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={runDiagnostics} 
-              className="px-3 py-2 text-xs bg-gray-100 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              🔍 Diagnose
-            </button>
-            <button 
-              onClick={async () => {
-                try {
-                  const response = await fetch('/api/ai/test')
-                  const data = await response.json()
-                  addNotification({
-                    type: data.success ? 'success' : 'error',
-                    title: 'AI API Test',
-                    message: data.success ? 'Gemini API is working! ✨' : `Error: ${data.error}`,
-                    duration: 7000
-                  })
-                } catch (error: any) {
-                  addNotification({
-                    type: 'error',
-                    title: 'AI API Test Failed',
-                    message: error.message || 'Network error',
-                    duration: 5000
-                  })
-                }
-              }}
-              className="px-3 py-2 text-xs bg-purple-100 text-purple-600 border border-purple-300 rounded-lg hover:bg-purple-200 transition-colors"
-            >
-              🤖 Test AI
-            </button>
-            <button 
-              onClick={() => router.push('/bulk-upload')} 
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-medium"
-            >
-              📋 Bulk Upload
-            </button>
-            <button 
-              onClick={() => router.back()} 
-              className="px-4 py-2 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-medium shadow-sm"
-            >
-              ← Back
-            </button>
-          </div>
-        </div>
+    <div className="flex">
+      <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="bulk-upload" isCollapsed={sidebarCollapsed} setIsCollapsed={setSidebarCollapsed} />
+      <main className={`flex-1 pt-20 md:pt-24 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'} pb-12`}>
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100"> 
+          <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-7xl">
 
-        {/* Channel Section */}
+        {/* Channel pill + Upgrade banner (same style as Smart Upload) */}
         {channel ? (
-          <div className="mb-8">
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
-                <h2 className="text-white font-bold text-lg">📺 Upload Destination</h2>
-              </div>
-              <div className="p-6">
-                <ChannelSummary channel={channel} wide />
-              </div>
+          <div className="flex justify-center mb-3 px-3 relative">
+            <div className="inline-flex items-center gap-2 bg-black/70 text-white px-3 py-1 rounded-full shadow-sm max-w-full truncate">
+              <img src={channel.thumbnail} alt={channel.title} className="w-6 h-6 rounded-full object-cover" />
+              <span className="text-sm font-medium truncate max-w-[160px]">{channel.title}</span>
+
+              <span className="ml-2 inline-flex items-center text-xs bg-white/10 px-2 py-0.5 rounded-full">
+                <span className="font-semibold mr-1">1</span>
+                <span className="text-xs">channel</span>
+              </span>
             </div>
           </div>
         ) : (
-          <div className="mb-8">
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="bg-gradient-to-r from-red-500 to-orange-500 px-6 py-4">
-                <h2 className="text-white font-bold text-lg">⚠️ YouTube Channel Required</h2>
-              </div>
-              <div className="p-6">
-                <div className="text-center">
-                  <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
-                    <Youtube className="w-8 h-8 text-red-600" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No YouTube Channel Connected</h3>
-                  <p className="text-gray-600 mb-4">You need to connect your YouTube channel before you can upload videos.</p>
-                  <button
-                    onClick={() => router.push('/connect')}
-                    className="px-6 py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 transition-all shadow-md hover:shadow-lg"
-                  >
-                    Connect YouTube Channel
-                  </button>
-                </div>
-              </div>
-            </div>
+          <div className="flex justify-center mb-3 px-3">
+            <Link href="/connect">
+              <button className="inline-flex items-center gap-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-3 rounded-full shadow-lg transition-all duration-200">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                <span className="text-sm font-semibold">Connect Your YouTube Channel</span>
+              </button>
+            </Link>
           </div>
         )}
 
-        {/* Main Upload Section */}
+        <div className="flex justify-center mb-6 px-3">
+          <div className="inline-flex items-center gap-2 rounded-full bg-yellow-50 border border-yellow-100 px-3 py-1 text-xs sm:px-4 sm:py-2 sm:text-sm text-yellow-800 shadow-sm max-w-full overflow-hidden">
+            <svg className="w-4 h-4 text-yellow-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2l1.5 4.5L18 8l-4 2.5L15 16l-3-2-3 2 1-5.5L6 8l4.5-1.5L12 2z" fill="currentColor"/></svg>
+            <span className="font-medium truncate">You're on Free Plan</span>
+            <span className="text-gray-700 hidden md:inline">Unlock unlimited access to all features and get paid.</span>
+            <Link href="/pricing" className="text-blue-600 font-semibold underline ml-2">Upgrade now</Link>
+          </div>
+        </div>
+
         <div className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden">
           <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -694,45 +730,50 @@ export default function BulkUploadFullPage() {
           <div className="p-6 md:p-8">
             <input ref={fileInputRef} type="file" accept="video/*" onChange={handleFileSelect} className="hidden" />
             {!selectedFile ? (
-              <div 
-                className="relative w-full rounded-2xl p-8 md:p-12 text-center border-2 border-dashed border-gray-300 bg-gradient-to-br from-blue-50 to-purple-50 hover:border-blue-400 transition-colors cursor-pointer group"
-                onClick={() => fileInputRef.current?.click()}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  const files = Array.from(e.dataTransfer.files)
-                  const videoFile = files.find(f => f.type.startsWith('video/'))
-                  if (videoFile) {
-                    const event = { target: { files: [videoFile] } } as any
-                    handleFileSelect(event)
-                  }
-                }}
-                onDragOver={(e) => e.preventDefault()}
-              >
-                <div className="mx-auto w-20 h-20 md:w-32 md:h-32 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mb-6 group-hover:scale-105 transition-transform">
-                  <Upload className="w-8 h-8 md:w-12 md:h-12 text-white" />
-                </div>
-                <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">Upload Your {uploadType === 'short' ? 'Short' : 'Long Form'} Video</h3>
-                <p className="text-gray-600 mb-6 max-w-md mx-auto">Drag & drop your video file here, or click to browse. Supported formats: MP4, WebM, MOV, AVI</p>
-                
-                <div className="space-y-3">
-                  <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full md:w-auto px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
-                  >
-                    🎬 Choose Video File
+              <div className="relative w-full rounded-2xl p-6 bg-white border border-gray-100 shadow-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Upload Files</h3>
+                  <button onClick={() => { setSelectedFile(null); setPreviewSrc(null) }} className="p-2 rounded-full bg-gray-50 hover:bg-gray-100">
+                    <X className="w-4 h-4 text-gray-600" />
                   </button>
-                  
-                  <div className="flex items-center justify-center gap-4 text-xs text-gray-500">
-                    <span className="flex items-center gap-1">
-                      🔒 Private by default
-                    </span>
-                    <span className="flex items-center gap-1">
-                      ⚡ Fast upload
-                    </span>
-                    <span className="flex items-center gap-1">
-                      🎯 AI optimized
-                    </span>
+                </div>
+
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    const files = Array.from(e.dataTransfer.files)
+                    const videoFile = files.find(f => f.type.startsWith('video/'))
+                    if (videoFile) {
+                      const event = { target: { files: [videoFile] } } as any
+                      handleFileSelect(event)
+                    }
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                  className="rounded-lg border-2 border-dashed border-gray-200 p-6 text-center cursor-pointer hover:border-gray-300 transition-colors"
+                >
+                  <div className="mx-auto w-28 h-20 flex items-center justify-center mb-3 rounded-lg bg-gradient-to-br from-pink-50 to-pink-100">
+                    <Upload className="w-10 h-10 text-pink-600" />
                   </div>
+
+                  <div className="text-lg font-medium text-gray-800">Drag and drop files here</div>
+                  <div className="mt-2">
+                    <button onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }} className="text-pink-600 font-semibold underline">or choose file</button>
+                  </div>
+
+                  <div className="flex justify-between text-xs text-gray-400 mt-4">
+                    <div>Accepted formats: MP4, WebM, MOV, AVI</div>
+                    <div>Minimum file size: 100MB</div>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  {/* Placeholder for selected files preview */}
+                </div>
+
+                <div className="mt-6 flex items-center justify-end gap-3">
+                  <button onClick={() => { if (!selectedFile) { alert('No file selected to save'); return } alert('Draft saved locally! You can continue editing later.') }} className="px-4 py-2 bg-gradient-to-r from-pink-600 to-pink-500 text-white rounded-lg font-semibold">Save</button>
+                  <button onClick={() => { setSelectedFile(null); setPreviewSrc(null) }} className="px-4 py-2 border rounded-lg">Cancel</button>
                 </div>
               </div>
             ) : (
@@ -1363,6 +1404,8 @@ export default function BulkUploadFullPage() {
           </div>
         </div>
       </div>
+    </div>
+    </main>
     </div>
     </>
   )

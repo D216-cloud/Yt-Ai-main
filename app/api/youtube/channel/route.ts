@@ -38,11 +38,9 @@ export async function GET(req: NextRequest) {
       }
 
       const channelData = await channelResponse.json()
-
       if (!channelData.items || channelData.items.length === 0) {
         return NextResponse.json({ error: "No channel found" }, { status: 404 })
       }
-
       const channel = channelData.items[0]
 
       return NextResponse.json({
@@ -57,6 +55,13 @@ export async function GET(req: NextRequest) {
           videoCount: channel.statistics.videoCount,
           viewCount: channel.statistics.viewCount,
           publishedAt: channel.snippet.publishedAt,
+          // Additional metadata
+          country: channel.snippet.country || null,
+          keywords: channel.snippet.keywords || [],
+          defaultLanguage: channel.snippet.defaultLanguage || null,
+          uploads: channel.contentDetails?.relatedPlaylists?.uploads || null,
+          hiddenSubscriberCount: channel.statistics.hiddenSubscriberCount || false,
+          videoPrivacyStatus: channel.brandingSettings?.channel?.trackingAnalyticsAccountId || null,
         },
       })
     }
@@ -110,6 +115,13 @@ export async function GET(req: NextRequest) {
           videoCount: channel.statistics.videoCount,
           viewCount: channel.statistics.viewCount,
           publishedAt: channel.snippet.publishedAt,
+          // Additional metadata
+          country: channel.snippet.country || null,
+          keywords: channel.snippet.keywords || [],
+          defaultLanguage: channel.snippet.defaultLanguage || null,
+          uploads: channel.contentDetails?.relatedPlaylists?.uploads || null,
+          hiddenSubscriberCount: channel.statistics.hiddenSubscriberCount || false,
+          videoPrivacyStatus: channel.brandingSettings?.channel?.trackingAnalyticsAccountId || null,
         },
       })
     }
