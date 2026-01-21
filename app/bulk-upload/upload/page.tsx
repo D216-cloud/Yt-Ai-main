@@ -13,6 +13,7 @@ export default function BulkUploadFullPage() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [uploadData, setUploadData] = useState({ title: '', description: '', tags: '', category: '22', privacy: 'public', madeForKids: false, language: 'en', license: 'standard', keywords: '' })
 
@@ -247,36 +248,33 @@ export default function BulkUploadFullPage() {
     setNotifications([])
   }
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement> | any) => {
+    const files: File[] = Array.from(e.target.files || [])
+    if (!files || files.length === 0) return
+
     const validTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo']
-    if (!validTypes.includes(file.type)) {
-      addNotification({
-        type: 'error',
-        title: 'Invalid File Type',
-        message: 'Please select a video file (MP4, WebM, MOV, or AVI)'
-      })
+    const accepted = files.filter(f => validTypes.includes(f.type))
+    if (accepted.length === 0) {
+      addNotification({ type: 'error', title: 'Invalid File Type', message: 'Please select a video file (MP4, WebM, MOV, or AVI)' })
       return
     }
-    
-    // Check file size (max 2GB for most platforms)
+
+    // Check file sizes (max 2GB each)
     const maxSize = 2 * 1024 * 1024 * 1024 // 2GB
-    if (file.size > maxSize) {
-      addNotification({
-        type: 'error',
-        title: 'File Too Large',
-        message: 'Video file must be smaller than 2GB. Please compress your video.'
-      })
+    const tooLarge = accepted.find(f => f.size > maxSize)
+    if (tooLarge) {
+      addNotification({ type: 'error', title: 'File Too Large', message: `The file ${tooLarge.name} is larger than 2GB. Please compress your video.` })
       return
     }
-    
-    setSelectedFile(file)
-    setUploadData((s) => ({ ...s, title: file.name.replace(/\.[^/.]+$/, '') }))
-    
+
+    // append selected files
+    setSelectedFiles(prev => [...prev, ...accepted])
+    const first = accepted[0]
+    setSelectedFile(first)
+    setUploadData((s) => ({ ...s, title: first.name.replace(/\.[^/.]+$/, '') }))
+
     try {
-      const url = URL.createObjectURL(file)
+      const url = URL.createObjectURL(first)
       setPreviewSrc(url)
       addNotification({
         type: 'success',
@@ -768,7 +766,24 @@ export default function BulkUploadFullPage() {
                 </div>
 
                 <div className="mt-4">
-                  {/* Placeholder for selected files preview */}
+                  {selectedFiles.length > 0 && (
+                    <div className="space-y-3">
+                      {selectedFiles.map((f, i) => (
+                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded-md px-4 py-3 border border-gray-100">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-md bg-white border border-gray-200 flex items-center justify-center">
+                              <svg className="w-5 h-5 text-pink-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19 2H5a2 2 0 0 0-2 2v16l4-4h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-gray-800 truncate">{f.name}</div>
+                              <div className="text-xs text-gray-500">{Math.max(1, Math.round(f.size/1024))} KB • Uploaded</div>
+                            </div>
+                          </div>
+                          <button onClick={() => setSelectedFiles(prev => prev.filter((_, idx) => idx !== i))} className="text-gray-400 hover:text-gray-600">×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-6 flex items-center justify-end gap-3">

@@ -17,7 +17,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Find user in Supabase
-    const supabase = createServerSupabaseClient()
+    let supabase
+    try {
+      supabase = createServerSupabaseClient()
+    } catch (err: any) {
+      console.error('Supabase client init failed:', err?.message || err)
+      return NextResponse.json({ error: 'Server misconfigured. Please set SUPABASE_SERVICE_ROLE_KEY.' }, { status: 500 })
+    }
+
     const { data: user, error: dbErr } = await supabase
       .from('users')
       .select('*')

@@ -29,7 +29,13 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          const supabase = createServerSupabaseClient()
+          let supabase
+          try {
+            supabase = createServerSupabaseClient()
+          } catch (err: any) {
+            console.error('Supabase client init failed (authorize):', err?.message || err)
+            throw new Error('Server configuration error')
+          }
 
           // Find user by email in Supabase users table
           const { data: user, error } = await supabase
@@ -73,7 +79,13 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       // Upsert user into Supabase users table (for Google sign-ins)
       try {
-        const supabase = createServerSupabaseClient()
+        let supabase
+        try {
+          supabase = createServerSupabaseClient()
+        } catch (err: any) {
+          console.error('Supabase client init failed (signIn callback):', err?.message || err)
+          return false
+        }
 
         const payload: any = {
           email: user.email,
