@@ -3,8 +3,13 @@ import bcrypt from "bcryptjs"
 import { createServerSupabaseClient } from "@/lib/supabase"
 
 export async function GET(req: NextRequest) {
-  // Redirect GET requests to the signup page
-  return NextResponse.redirect(new URL("/signup", req.url))
+  // Redirect GET requests to the signup page (avoid using req.url during build-time)
+  try {
+    return NextResponse.redirect('/signup')
+  } catch (err) {
+    // Fallback safe response
+    return NextResponse.json({ message: 'Redirect to signup' })
+  }
 }
 
 export async function POST(req: NextRequest) {
