@@ -74,6 +74,17 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: "/signup",
+    error: "/auth/error"
+  },
+  events: {
+    async error(message) {
+      // Log NextAuth internal errors (useful for debugging provider callback failures)
+      console.error('NextAuth event error:', message)
+    },
+    async signIn(message) {
+      // Log sign in provider details for debugging (do NOT log secrets)
+      try { console.log('NextAuth signIn event:', { user: (message as any).user?.email, account: (message as any).account?.provider }) } catch (e) { console.log('signIn event', e) }
+    }
   },
   callbacks: {
     async signIn({ user, account }) {
@@ -107,13 +118,14 @@ export const authOptions: NextAuthOptions = {
 
         if (error) {
           console.error('Error upserting user to Supabase:', error)
-          return false
+          // Do not block sign-in because of a DB upsert failure in production — allow OAuth sign-in
+        } else {
+          console.log('✅ Supabase user upserted:', data?.email)
         }
-
-        console.log('✅ Supabase user upserted:', data?.email)
       } catch (error) {
-        console.error('❌ Error in signIn callback:', error)
-        return false
+        console.error('❌ Error in signIn callback (upsert error):', error)
+        // Allow sign-in to proceed even if DB upsert fails — return true so providers don't block user login
+        return true
       }
 
       return true
