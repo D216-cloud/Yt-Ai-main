@@ -944,11 +944,13 @@ export default function DashboardPage() {
               )}
 
               <div className="flex justify-center mb-6 px-3">
-                <div className="inline-flex items-center gap-2 rounded-full bg-yellow-50 border border-yellow-100 px-3 py-1 text-xs sm:px-4 sm:py-2 sm:text-sm text-yellow-800 shadow-sm max-w-full overflow-hidden">
-                  <Sparkles className="w-4 h-4 text-yellow-600" />
-                  <span className="font-medium truncate">You're on Free Plan</span>
-                  <span className="text-gray-700 hidden md:inline">Unlock unlimited access to all features and get paid.</span>
-                  <Link href="/pricing" className="text-blue-600 font-semibold underline ml-2">Upgrade now</Link>
+                <div className="inline-flex items-center gap-3 rounded-full bg-white/5 border border-gray-100 px-4 py-2 text-sm text-gray-700 shadow-sm max-w-full overflow-hidden">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold">Plan: Free</span>
+                    <span className="text-gray-500 hidden sm:inline">• Limited features</span>
+                  </div>
+                  <Link href="/settings" className="ml-3 hidden sm:inline-flex items-center px-3 py-1 rounded-full bg-gray-50 text-gray-800 text-sm font-semibold">Manage plan</Link>
                 </div>
               </div>
 
@@ -957,22 +959,26 @@ export default function DashboardPage() {
                 <div>
                   <h1 className="text-3xl sm:text-4xl md:text-5xl leading-tight font-extrabold text-gray-900 mb-2">🙏 Namaste, {firstName}!</h1>
 
-                  <div className="mt-1 flex items-center gap-3">
+                  <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-3">
                     <div className="inline-flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full">
                       <Sparkles className="w-4 h-4 text-amber-500" />
                       <span className="text-sm sm:text-base text-gray-700">Quick snapshot — YouTube growth & earnings</span>
                     </div>
 
-                    {/* Decorative rule on larger screens */}
-                    <div className="hidden sm:block flex-1">
+                    <div className="flex-1 hidden sm:block">
                       <span className="inline-block h-px bg-gradient-to-r from-blue-100 via-indigo-100 to-purple-100 ml-3 w-full"></span>
+                    </div>
+
+                    <div className="mt-3 sm:mt-0 flex flex-col sm:flex-row sm:items-center sm:gap-3 w-full sm:w-auto">
+                      <Link href="/analytics" className="w-full sm:w-auto inline-flex items-center justify-center bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-3 rounded-lg font-semibold shadow-sm text-sm text-center">View analytics</Link>
+                      <Link href="/channels" className="w-full sm:w-auto inline-flex items-center justify-center border border-gray-200 bg-white px-4 py-3 rounded-lg font-semibold text-sm text-center">Manage channels</Link>
                     </div>
                   </div>
                 </div>
               </div>
               {/* Three main statistic cards (clean, spacious style) */}
               <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-sm">
+                <div className="bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-lg">
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm text-gray-500">Total Views</p>
@@ -987,7 +993,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-sm">
+                <div className="bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-lg">
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm text-gray-500">Total Subscribers</p>
@@ -1002,7 +1008,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-gray-100 p-4 sm:p-6 shadow-sm col-span-2 sm:col-span-1">
+                <div className="bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-lg col-span-2 sm:col-span-1">
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="text-sm text-gray-500">Watch Time</p>

@@ -471,11 +471,13 @@ export default function TitleSearchPage() {
 
               {/* Upgrade Banner */}
               <div className="flex justify-center mb-3 px-3">
-                <div className="inline-flex items-center gap-2 rounded-full bg-yellow-50 border border-yellow-100 px-3 py-1 text-xs sm:px-4 sm:py-2 sm:text-sm text-yellow-800 shadow-sm max-w-full overflow-hidden">
-                  <Sparkles className="w-4 h-4 text-yellow-600" />
-                  <span className="font-medium truncate">You're on Free Plan</span>
-                  <span className="text-gray-700 hidden md:inline">Unlock unlimited access to all features and get paid.</span>
-                  <Link href="/pricing" className="text-blue-600 font-semibold underline ml-2">Upgrade now</Link>
+                <div className="inline-flex items-center gap-3 rounded-full bg-white/5 border border-gray-100 px-4 py-2 text-sm text-gray-700 shadow-sm max-w-full overflow-hidden">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold">Plan: Free</span>
+                    <span className="text-gray-500 hidden sm:inline">• Limited features</span>
+                  </div>
+                  <Link href="/settings" className="ml-3 hidden sm:inline-flex items-center px-3 py-1 rounded-full bg-gray-50 text-gray-800 text-sm font-semibold">Manage plan</Link>
                 </div>
               </div>
 

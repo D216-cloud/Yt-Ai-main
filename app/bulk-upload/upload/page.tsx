@@ -3,18 +3,23 @@
 import React, { useRef, useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import ChannelSummary from '@/components/channel-summary'
 import SharedSidebar from '@/components/shared-sidebar'
-import { Upload, X, Youtube, Menu } from 'lucide-react'
+import { Upload, X, Youtube, Menu, Video } from 'lucide-react'
 import { useSession, signOut } from 'next-auth/react'
 
 export default function BulkUploadFullPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const typeParam = searchParams?.get('type') || ''
+  const pageBackgroundClass = typeParam === 'video' ? 'bg-slate-50' : 'bg-gradient-to-br from-gray-50 to-gray-100'
+
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
+  const [dropActive, setDropActive] = useState(false)
   const [uploadData, setUploadData] = useState({ title: '', description: '', tags: '', category: '22', privacy: 'public', madeForKids: false, language: 'en', license: 'standard', keywords: '' })
 
   // Sidebar state (shared pattern with other pages)
@@ -279,7 +284,7 @@ export default function BulkUploadFullPage() {
       addNotification({
         type: 'success',
         title: 'File Selected',
-        message: `"${file.name}" is ready for upload (${(file.size / (1024 * 1024)).toFixed(1)} MB)`
+        message: `"${first.name}" is ready for upload (${(first.size / (1024 * 1024)).toFixed(1)} MB)`
       })
     } catch (e) { 
       setPreviewSrc(null)
@@ -655,9 +660,9 @@ export default function BulkUploadFullPage() {
     
     <div className="flex">
       <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="bulk-upload" isCollapsed={sidebarCollapsed} setIsCollapsed={setSidebarCollapsed} />
-      <main className={`flex-1 pt-20 md:pt-24 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'} pb-12`}>
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100"> 
-          <div className="container mx-auto px-4 md:px-6 lg:px-8 max-w-7xl">
+      <main className={`flex-1 pt-20 md:pt-24 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'} pb-12 ${pageBackgroundClass} min-h-screen transition-all overflow-x-hidden`}>
+        <div>
+          <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 md:px-6 lg:px-8">
 
         {/* Channel pill + Upgrade banner (same style as Smart Upload) */}
         {channel ? (
@@ -685,61 +690,37 @@ export default function BulkUploadFullPage() {
         )}
 
         <div className="flex justify-center mb-6 px-3">
-          <div className="inline-flex items-center gap-2 rounded-full bg-yellow-50 border border-yellow-100 px-3 py-1 text-xs sm:px-4 sm:py-2 sm:text-sm text-yellow-800 shadow-sm max-w-full overflow-hidden">
-            <svg className="w-4 h-4 text-yellow-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2l1.5 4.5L18 8l-4 2.5L15 16l-3-2-3 2 1-5.5L6 8l4.5-1.5L12 2z" fill="currentColor"/></svg>
-            <span className="font-medium truncate">You're on Free Plan</span>
-            <span className="text-gray-700 hidden md:inline">Unlock unlimited access to all features and get paid.</span>
-            <Link href="/pricing" className="text-blue-600 font-semibold underline ml-2">Upgrade now</Link>
+          <div className="inline-flex items-center gap-3 rounded-full bg-white/5 border border-gray-100 px-4 py-2 text-sm text-gray-700 shadow-sm max-w-full overflow-hidden">
+            <svg className="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2l1.5 4.5L18 8l-4 2.5L15 16l-3-2-3 2 1-5.5L6 8l4.5-1.5L12 2z" fill="currentColor"/></svg>
+            <div className="flex items-center gap-3">
+              <span className="font-semibold">Plan: Free</span>
+              <span className="text-gray-500 hidden md:inline">• Limited features</span>
+            </div>
+            <Link href="/settings" className="ml-3 hidden md:inline-flex items-center px-3 py-1 rounded-full bg-gray-50 text-gray-800 text-sm font-semibold">Manage plan</Link>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden">
-          <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <h2 className="text-white font-bold text-xl">🎬 Video Upload</h2>
-              <div className="flex items-center gap-2">
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg px-3 py-1">
-                  <span className="text-white text-sm font-medium">Upload Type:</span>
-                </div>
-                <button 
-                  onClick={() => setUploadType('long')} 
-                  className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                    uploadType === 'long' 
-                      ? 'bg-white text-emerald-600 shadow-md' 
-                      : 'bg-white/20 text-white hover:bg-white/30'
-                  }`}
-                >
-                  📹 Long Form
-                </button>
-                <button 
-                  onClick={() => setUploadType('short')} 
-                  className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                    uploadType === 'short' 
-                      ? 'bg-white text-emerald-600 shadow-md' 
-                      : 'bg-white/20 text-white hover:bg-white/30'
-                  }`}
-                >
-                  🩳 Short Form
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-6 md:p-8">
+        <div className="pb-8">
             <input ref={fileInputRef} type="file" accept="video/*" onChange={handleFileSelect} className="hidden" />
             {!selectedFile ? (
-              <div className="relative w-full rounded-2xl p-6 bg-white border border-gray-100 shadow-lg">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">Upload Files</h3>
-                  <button onClick={() => { setSelectedFile(null); setPreviewSrc(null) }} className="p-2 rounded-full bg-gray-50 hover:bg-gray-100">
-                    <X className="w-4 h-4 text-gray-600" />
-                  </button>
+              <div className="rounded-3xl bg-white p-5 sm:p-6 md:p-12 shadow-[0_40px_80px_rgba(8,15,52,0.06)] border border-gray-100 w-full sm:max-w-3xl sm:mx-auto">
+                <div className="flex items-center justify-start sm:justify-center mb-3">
+                  <div className="inline-flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full shadow-md text-xs md:text-sm">
+                    <svg width="18" height="12" viewBox="0 0 22 14" fill="none" xmlns="http://www.w3.org/2000/svg" className="block">
+                      <path d="M21.6 1.3a2.7 2.7 0 0 0-1.9-1.9C17.7-0.1 11 0 11 0s-6.7-0.1-8.7.4A2.7 2.7 0 0 0 .4 2.3C0.1 4.3 0 7 0 7s0 2.7.4 4.7a2.7 2.7 0 0 0 1.9 1.9c2 0.5 8.7.5 8.7.5s6.7 0 8.7-.5a2.7 2.7 0 0 0 1.9-1.9C22 9.7 22 7 22 7s0-2.7-.4-4.7z" fill="white"/>
+                      <path d="M9 9V5l4 2-4 2z" fill="#E21F26"/>
+                    </svg>
+                    <span className="text-sm font-semibold">YouTube</span>
+                  </div>
                 </div>
+                <h2 className="text-left sm:text-center text-xl md:text-2xl font-semibold mb-2">Upload your video</h2>
+                <p className="text-left sm:text-center text-xs md:text-sm text-gray-500 mb-4 md:mb-6">Files: MP4, MOV, WebM, or AVI — recommended ≥ 100MB</p>
 
                 <div
                   onClick={() => fileInputRef.current?.click()}
                   onDrop={(e) => {
                     e.preventDefault()
+                    setDropActive(false)
                     const files = Array.from(e.dataTransfer.files)
                     const videoFile = files.find(f => f.type.startsWith('video/'))
                     if (videoFile) {
@@ -747,51 +728,120 @@ export default function BulkUploadFullPage() {
                       handleFileSelect(event)
                     }
                   }}
-                  onDragOver={(e) => e.preventDefault()}
-                  className="rounded-lg border-2 border-dashed border-gray-200 p-6 text-center cursor-pointer hover:border-gray-300 transition-colors"
+                  onDragOver={(e) => { e.preventDefault(); setDropActive(true) }}
+                  onDragLeave={() => setDropActive(false)}
+                  className={`w-full rounded-2xl border-2 ${dropActive ? 'border-emerald-300 bg-emerald-50 ring-2 ring-emerald-100' : 'border-dashed border-gray-200 bg-slate-50'} p-5 sm:p-6 md:p-10 flex flex-col md:flex-row md:items-center gap-4 md:gap-8 md:justify-between transition-all cursor-pointer hover:border-gray-300 hover:bg-slate-100`}
                 >
-                  <div className="mx-auto w-28 h-20 flex items-center justify-center mb-3 rounded-lg bg-gradient-to-br from-pink-50 to-pink-100">
-                    <Upload className="w-10 h-10 text-pink-600" />
-                  </div>
-
-                  <div className="text-lg font-medium text-gray-800">Drag and drop files here</div>
-                  <div className="mt-2">
-                    <button onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }} className="text-pink-600 font-semibold underline">or choose file</button>
-                  </div>
-
-                  <div className="flex justify-between text-xs text-gray-400 mt-4">
-                    <div>Accepted formats: MP4, WebM, MOV, AVI</div>
-                    <div>Minimum file size: 100MB</div>
-                  </div>
-                </div>
-
-                <div className="mt-4">
-                  {selectedFiles.length > 0 && (
-                    <div className="space-y-3">
-                      {selectedFiles.map((f, i) => (
-                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded-md px-4 py-3 border border-gray-100">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-md bg-white border border-gray-200 flex items-center justify-center">
-                              <svg className="w-5 h-5 text-pink-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19 2H5a2 2 0 0 0-2 2v16l4-4h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                            </div>
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-gray-800 truncate">{f.name}</div>
-                              <div className="text-xs text-gray-500">{Math.max(1, Math.round(f.size/1024))} KB • Uploaded</div>
-                            </div>
-                          </div>
-                          <button onClick={() => setSelectedFiles(prev => prev.filter((_, idx) => idx !== i))} className="text-gray-400 hover:text-gray-600">×</button>
-                        </div>
-                      ))}
+                  <div className="flex items-start gap-4 sm:gap-6">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-28 md:h-28 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+                      <Video className="w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 text-emerald-600" />
                     </div>
-                  )}
+                    <div className="text-left min-w-0">
+                      <div className="text-base sm:text-lg font-medium text-gray-800">Drag & drop video here</div>
+                      <div className="text-sm text-gray-500 mt-1">Or <button onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }} className="text-emerald-700 underline underline-offset-2">select a file</button></div>
+
+                      <div className="mt-3 md:hidden flex flex-wrap gap-2 text-xs text-gray-600">
+                        <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-1">MP4 / MOV / WebM / AVI</span>
+                        <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-1">Min 100MB</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}
+                        className="mt-4 md:hidden w-full inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition-colors"
+                      >
+                        Choose video
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="hidden md:block text-right text-xs text-gray-400 mt-4 md:mt-0">
+                    <div>Accepted: MP4, WebM, MOV, AVI</div>
+                    <div>Minimum: 100MB</div>
+                  </div>
                 </div>
 
-                <div className="mt-6 flex items-center justify-end gap-3">
-                  <button onClick={() => { if (!selectedFile) { alert('No file selected to save'); return } alert('Draft saved locally! You can continue editing later.') }} className="px-4 py-2 bg-gradient-to-r from-pink-600 to-pink-500 text-white rounded-lg font-semibold">Save</button>
-                  <button onClick={() => { setSelectedFile(null); setPreviewSrc(null) }} className="px-4 py-2 border rounded-lg">Cancel</button>
-                </div>
+                {selectedFile && previewSrc && (
+                  <div className="mt-6 rounded-lg overflow-hidden bg-gray-900 w-full aspect-video max-w-3xl mx-auto">
+                    <video src={previewSrc} className="w-full h-full object-cover" controls preload="metadata" />
+                  </div>
+                )}
+
               </div>
-            ) : (
+              ) : (
+                // Show uploaded video cards after upload
+                <div className="space-y-6 w-full sm:max-w-3xl sm:mx-auto">
+                  {/* Video Card Preview */}
+                  <div className="rounded-3xl bg-white p-5 sm:p-6 md:p-12 shadow-[0_40px_80px_rgba(8,15,52,0.06)] w-full">
+                    <div className="text-left sm:text-center mb-6">
+                      <h2 className="text-2xl font-semibold mb-1">Video Uploaded Successfully</h2>
+                      <p className="text-sm text-gray-500">Configure your video details below</p>
+                    </div>
+
+                    {/* Video Info Card */}
+                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2" />
+                          </svg>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-gray-900 truncate">{selectedFile.name}</div>
+                          <div className="text-xs text-gray-500">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB • {uploadType === 'short' ? 'Short Form' : 'Long Form'}</div>
+                        </div>
+                        <button 
+                          onClick={() => { setSelectedFile(null); setPreviewSrc(null) }} 
+                          className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      
+                      {previewSrc && (
+                        <div className="mt-4 rounded-lg overflow-hidden bg-gray-900 aspect-video">
+                          <video 
+                            src={previewSrc} 
+                            className="w-full h-full object-cover" 
+                            controls 
+                            preload="metadata"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quick Actions */}
+                    <div className="flex flex-col sm:flex-row gap-3 justify-start sm:justify-center">
+                      <button 
+                        onClick={() => { setSelectedFile(null); setPreviewSrc(null) }} 
+                        className="w-full sm:w-auto px-4 py-3 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium"
+                      >
+                        Clear
+                      </button>
+
+                      <button 
+                        onClick={() => fileInputRef.current?.click()} 
+                        className="w-full sm:w-auto px-4 py-3 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium"
+                      >
+                        Change Video
+                      </button>
+
+                      <button 
+                        onClick={() => alert('Video ready! Fill out details below to upload.')} 
+                        className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg hover:from-emerald-600 hover:to-emerald-700 font-medium"
+                      >
+                        Continue Setup
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+        </div>
+
+          {/* Video Configuration Form - Only show when video is selected */}
+          {selectedFile && (
+            <div className="pb-8">
               <div className="space-y-8">
                 {/* Video Preview & Quick Actions */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -1415,12 +1465,11 @@ export default function BulkUploadFullPage() {
                   </div>
                 </div>
               </div>
-            )}
+            </div>
+          )}
           </div>
         </div>
-      </div>
-    </div>
-    </main>
+      </main>
     </div>
     </>
   )

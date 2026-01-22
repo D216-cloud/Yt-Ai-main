@@ -108,14 +108,13 @@ export default function DashboardHeader({ sidebarOpen, setSidebarOpen }: Dashboa
                                         </div>
                                     </div>
 
-                                    {/* Upgrade Profile Button */}
-                                    <button className="w-full flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-cyan-400 via-teal-500 to-teal-600 text-white rounded-full hover:from-cyan-500 hover:via-teal-600 hover:to-teal-700 transition-all shadow-md font-semibold">
+                                    {/* Account Button (removed upgrade pricing CTA) */}
+                                    <Link href="/profile" className="w-full flex items-center justify-between px-4 py-2.5 bg-white/5 text-gray-900 rounded-full hover:bg-gray-50 transition-all shadow-sm font-semibold">
                                         <div className="flex items-center gap-2">
                                             <Zap className="w-4 h-4" />
-                                            <span className="text-sm">Upgrade profile</span>
+                                            <span className="text-sm">Account</span>
                                         </div>
-                                        <span className="text-xs bg-white/30 px-2 py-1 rounded-full font-semibold">PRO</span>
-                                    </button>
+                                    </Link>
                                 </div>
 
                                 {/* Menu Items */}
