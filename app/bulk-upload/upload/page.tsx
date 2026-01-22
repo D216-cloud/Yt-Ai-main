@@ -827,10 +827,22 @@ export default function BulkUploadFullPage() {
                       </button>
 
                       <button 
-                        onClick={() => alert('Video ready! Fill out details below to upload.')} 
+                        onClick={() => {
+                          // Store video data in sessionStorage for the next page
+                          const videoDataToPass = {
+                            fileName: selectedFile.name,
+                            fileSize: selectedFile.size,
+                            previewSrc: previewSrc,
+                            file: selectedFile,
+                            uploadType: uploadType,
+                            formData: uploadData
+                          }
+                          sessionStorage.setItem('uploadVideoData', JSON.stringify(videoDataToPass))
+                          router.push('/bulk-upload/configure')
+                        }} 
                         className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg hover:from-emerald-600 hover:to-emerald-700 font-medium"
                       >
-                        Continue Setup
+                        Next
                       </button>
                     </div>
                   </div>
@@ -1467,9 +1479,9 @@ export default function BulkUploadFullPage() {
               </div>
             </div>
           )}
-          </div>
         </div>
-      </main>
+      </div>
+    </main>
     </div>
     </>
   )
