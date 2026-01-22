@@ -8,6 +8,8 @@ export async function GET(req: NextRequest) {
   const nextAuthUrl = process.env.NEXTAUTH_URL || process.env.CLIENT_URL || ''
   let nextAuthHost = ''
   try { if (nextAuthUrl) nextAuthHost = new URL(nextAuthUrl).host } catch (e) { nextAuthHost = nextAuthUrl }
+  const youtubeAuthUri = `${nextAuthUrl || "http://localhost:3000"}/api/youtube/auth`
+  const googleAuthCallback = `${nextAuthUrl || "http://localhost:3000"}/api/auth/callback/google`
 
   return NextResponse.json({
     success: true,
@@ -17,7 +19,8 @@ export async function GET(req: NextRequest) {
       apiKey: apiKey ? "Set" : "Missing",
       NEXTAUTH_URL: nextAuthUrl || "Not configured",
       NEXTAUTH_HOST: nextAuthHost || null,
-      redirectUri: `${nextAuthUrl || "http://localhost:3000"}/api/youtube/auth`
+      redirectUri: youtubeAuthUri,
+      googleAuthCallback
     },
     message: clientId && clientSecret ? "Configuration looks good!" : "Missing required credentials"
   })

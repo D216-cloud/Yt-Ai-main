@@ -39,10 +39,19 @@ export default function AuthErrorPage() {
             <div className="bg-gray-700 p-3 rounded">
               <div className="text-sm">NEXTAUTH_URL: <span className="font-medium">{config.NEXTAUTH_URL}</span></div>
               <div className="text-sm">NEXTAUTH_HOST: <span className="font-medium">{config.NEXTAUTH_HOST || '—'}</span></div>
-              <div className="text-sm">Redirect URI: <span className="font-medium">{config.redirectUri}</span></div>
+              <div className="text-sm">YouTube Redirect: <span className="font-medium">{config.redirectUri}</span></div>
+              <div className="text-sm">Google OAuth Callback: <span className="font-medium">{config.googleAuthCallback}</span></div>
             </div>
             <div className="mt-3 flex gap-2">
-              <button onClick={copyRedirect} className="px-3 py-2 bg-blue-600 rounded">{copied ? 'Copied!' : 'Copy redirect URI'}</button>
+              <button onClick={() => {
+                try {
+                  navigator.clipboard.writeText(config.googleAuthCallback)
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 2500)
+                } catch (e) {
+                  alert('Copy failed; please copy manually: ' + config.googleAuthCallback)
+                }
+              }} className="px-3 py-2 bg-blue-600 rounded">{copied ? 'Copied!' : 'Copy Google Callback'}</button>
               <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="px-3 py-2 border rounded">Open Google Console</a>
             </div>
           </div>
