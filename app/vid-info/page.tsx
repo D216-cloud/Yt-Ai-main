@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import SharedSidebar from "@/components/shared-sidebar"
 import DashboardHeader from "@/components/dashboard-header"
 import { Input } from "@/components/ui/input"
