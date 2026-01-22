@@ -52,14 +52,6 @@ export function Header() {
           {!isAuthPage && (
             <nav className="absolute inset-x-0 flex items-center justify-center pointer-events-none">
               <div className="pointer-events-auto hidden md:flex items-center gap-6 md:translate-x-6">
-                <PillNav items={[
-                  { href: "#", label: "Get Started" },
-                  { href: "#", label: "Create strategy" },
-                  { href: "#pricing", label: "Pricing" },
-                  { href: "#contact", label: "Contact" },
-                  { href: "#", label: "Solution" },
-                  { href: "#", label: "E-Commerce" },
-                ]} />
               </div>
             </nav>
           )}
