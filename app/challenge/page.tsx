@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Sparkles, Youtube, Monitor, Smartphone, Calendar, Clock } from 'lucide-react'
+import { ChevronDown, Sparkles, Youtube, Monitor, Smartphone, Calendar, Clock, Eye, Heart, MessageCircle } from 'lucide-react' 
 import SharedSidebar from '@/components/shared-sidebar'
 import DashboardHeader from '@/components/dashboard-header'
 
@@ -78,6 +78,16 @@ export default function ChallengePage() {
     const totalUploads = Math.max(1, Math.floor((months * 30) / daysBetween))
     if (typeof window === 'undefined') return Math.min(10, totalUploads)
     return window.innerWidth < 640 ? Math.min(5, totalUploads) : Math.min(10, totalUploads)
+  }, [customDurationEnabled, customMonths, selectedDuration, frequencyMode, frequencyDaysCustom, selectedFrequency])
+
+  // Toggle to view the full schedule list
+  const [showFullSchedule, setShowFullSchedule] = useState(false)
+
+  // Total uploads derived from plan (used for View more and full expansion)
+  const totalUploads = useMemo(() => {
+    const months = customDurationEnabled ? customMonths : selectedDuration
+    const daysBetween = frequencyMode === 'everyNDays' ? frequencyDaysCustom : selectedFrequency || 1
+    return Math.max(1, Math.floor((months * 30) / daysBetween))
   }, [customDurationEnabled, customMonths, selectedDuration, frequencyMode, frequencyDaysCustom, selectedFrequency])
 
   const visibleAdditionalChannels = useMemo(() => {
@@ -514,16 +524,16 @@ export default function ChallengePage() {
                     </div>
                     <h3 className="text-xl font-extrabold text-gray-900 mb-2">Start your challenge today</h3>
                     <p className="text-gray-600 mb-6">Create a focused upload routine and measure progress with a clean, professional challenge flow.</p>
-                    <div className="flex items-center justify-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
                       <button
                         onClick={() => setStep('setup')}
-                        className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-full font-semibold shadow-sm transition-all duration-150"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-full font-semibold shadow-sm transition-all duration-150"
                       >
                         Start Challenge
                       </button>
                       <button
                         onClick={() => setStep('setup')}
-                        className="inline-flex items-center justify-center gap-2 border border-gray-200 bg-white px-5 py-2 rounded-full text-gray-700 font-semibold hover:bg-gray-50 transition"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-gray-200 bg-white px-5 py-3 rounded-full text-gray-700 font-semibold hover:bg-gray-50 transition"
                       >
                         Customize
                       </button>
@@ -655,10 +665,10 @@ export default function ChallengePage() {
                         </div>
                       </div>
 
-                      <div className="flex justify-end gap-3">
+                      <div className="flex flex-col sm:flex-row sm:justify-end gap-3 w-full">
                         <button
                           onClick={() => setStep('start')}
-                          className="px-6 py-3 rounded-full border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-all"
+                          className="w-full sm:w-auto px-6 py-3 rounded-full border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-all"
                         >
                           Back
                         </button>
@@ -693,7 +703,7 @@ export default function ChallengePage() {
                             setChallengeStartDate(new Date())
                             setStep('videoType')
                           }}
-                          className="px-8 py-3 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg transition-all"
+                          className="w-full sm:w-auto px-8 py-3 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg transition-all"
                         >
                           Start Challenge
                         </button>
@@ -760,16 +770,18 @@ export default function ChallengePage() {
               {step === 'progress' && selectedVideoType && challengeStartDate && (
                 <div className="space-y-6">
                   <div className="rounded-3xl bg-white border border-gray-100 shadow-[0_30px_60px_rgba(8,15,52,0.06)] p-8">
-                    <div className="flex items-start justify-between gap-4 mb-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:justify-between gap-4 mb-6">
                       <div>
                         <h3 className="text-2xl font-extrabold text-gray-900 mb-1">Your Challenge Progress</h3>
                         <p className="text-gray-600">Track your upload consistency and growth metrics</p>
                       </div>
-                      <div className="text-right">
-                        <div className="text-sm font-semibold text-gray-500">Format & Progress</div>
-                        <div className="text-lg font-bold text-gray-900">{selectedVideoType === 'long' ? '16:9 Long Video' : '9:16 Shorts'}</div>
-                        <div className="mt-1 text-sm text-gray-600">Day {Math.max(0, Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24))) + 1} of {selectedDuration * 30}</div>
-                        <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">Active</div>
+
+                      <div className="flex flex-col sm:items-end items-start gap-2 mt-3 sm:mt-0">
+                        <div className="flex items-center gap-3">
+                          <div className="text-sm text-gray-600">Day {Math.max(0, Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24))) + 1} of {selectedDuration * 30}</div>
+                        </div>
+
+                        <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">Active</div>
                       </div>
                     </div>
 
@@ -795,75 +807,156 @@ export default function ChallengePage() {
                       </div>
                     </div>
 
-                    {/* Video Aspect Ratio Display */}
+                    {/* Compact progress stats */}
                     <div className="mb-6">
-                      <div className={`mx-auto max-w-sm rounded-xl overflow-hidden border-4 border-gray-200 ${selectedVideoType === 'long' ? 'aspect-video' : 'aspect-[9/16]'}`}>
-                        <div className="w-full h-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-gray-700 mb-1">{selectedVideoType === 'long' ? '16:9' : '9:16'}</div>
-                            <div className="text-sm text-gray-600">Video Format</div>
-                          </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                        <div className="bg-white border border-gray-100 rounded-xl p-3">
+                          <div className="text-xs text-gray-500">Next upload</div>
+                          <div className="text-base font-semibold text-gray-900 mt-1">{new Date(challengeStartDate.getTime() + (Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1) * selectedFrequency * 24 * 60 * 60 * 1000).toLocaleDateString()}</div>
+                        </div>
+
+                        <div className="bg-white border border-gray-100 rounded-xl p-3">
+                          <div className="text-xs text-gray-500">Days Elapsed</div>
+                          <div className="text-base font-semibold text-gray-900 mt-1">{Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24))}</div>
+                        </div>
+
+                        <div className="bg-white border border-gray-100 rounded-xl p-3">
+                          <div className="text-xs text-gray-500">Total videos</div>
+                          <div className="text-base font-semibold text-gray-900 mt-1">{Math.floor((selectedDuration * 30) / selectedFrequency)}</div>
+                        </div>
+
+                        <div className="bg-white border border-gray-100 rounded-xl p-3">
+                          <div className="text-xs text-gray-500">Status</div>
+                          <div className="text-base font-semibold text-green-600 mt-1">Active</div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Metrics Placeholders */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-white border border-gray-200 rounded-xl p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                          <div className="text-sm font-semibold text-gray-700">Views</div>
+                    {/* Metrics Placeholders — improved with icons and mobile-friendly layout */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
+                        <Eye className="w-5 h-5 text-gray-500 shrink-0" />
+                        <div>
+                          <div className="text-xs text-gray-500">Views</div>
+                          <div className="text-2xl font-bold text-gray-900">--</div>
                         </div>
-                        <div className="text-2xl font-bold text-gray-900">--</div>
-                        <div className="text-xs text-gray-500 mt-1">Total views this challenge</div>
                       </div>
-                      <div className="bg-white border border-gray-200 rounded-xl p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          <div className="text-sm font-semibold text-gray-700">Likes</div>
+
+                      <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
+                        <Heart className="w-5 h-5 text-gray-500 shrink-0" />
+                        <div>
+                          <div className="text-xs text-gray-500">Likes</div>
+                          <div className="text-2xl font-bold text-gray-900">--</div>
                         </div>
-                        <div className="text-2xl font-bold text-gray-900">--</div>
-                        <div className="text-xs text-gray-500 mt-1">Total likes this challenge</div>
                       </div>
-                      <div className="bg-white border border-gray-200 rounded-xl p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          <div className="text-sm font-semibold text-gray-700">Comments</div>
+
+                      <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
+                        <MessageCircle className="w-5 h-5 text-gray-500 shrink-0" />
+                        <div>
+                          <div className="text-xs text-gray-500">Comments</div>
+                          <div className="text-2xl font-bold text-gray-900">--</div>
                         </div>
-                        <div className="text-2xl font-bold text-gray-900">--</div>
-                        <div className="text-xs text-gray-500 mt-1">Total comments this challenge</div>
                       </div>
-                    </div>
+                    </div> 
                   </div>
 
                   {/* Upload Schedule */}
                   <div className="rounded-3xl bg-white border border-gray-100 shadow-[0_30px_60px_rgba(8,15,52,0.06)] p-8">
                     <h4 className="text-xl font-extrabold text-gray-900 mb-4">Upload Schedule</h4>
-                    <div className="space-y-3">
-                      {Array.from({ length: scheduleCount }, (_, i) => {
+
+                    {/* Real-time video cards — previews show selected format (16:9 or 9:16) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {Array.from({ length: (showFullSchedule ? totalUploads : scheduleCount) }, (_, i) => {
                         const uploadDate = new Date(challengeStartDate.getTime() + i * selectedFrequency * 24 * 60 * 60 * 1000)
                         const isPast = uploadDate < new Date()
                         const isToday = uploadDate.toDateString() === new Date().toDateString()
+
+                        const primaryClass = selectedVideoType === 'long' ? 'aspect-video' : 'aspect-[9/16]'
+                        const altLabel = selectedVideoType === 'long' ? '9:16' : '16:9'
+
                         return (
-                          <div key={i} className={`flex items-center justify-between p-4 rounded-xl border ${isToday ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white'}`}>
-                            <div className="flex items-center gap-3">
-                              <div className={`w-3 h-3 rounded-full ${isPast ? 'bg-green-500' : isToday ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
-                              <div>
-                                <div className="font-semibold text-gray-900">Day {i * selectedFrequency + 1} of {selectedDuration * 30}</div>
-                                <div className="text-sm text-gray-600">{uploadDate.toLocaleDateString()}</div>
+                          <div key={i} className={`rounded-2xl border border-gray-100 bg-white p-4 shadow-sm ${isToday ? 'ring-2 ring-blue-100' : ''}`}>
+                            <div className="flex flex-col h-full">
+                              <div className="mb-3">
+                                <div className={`w-full overflow-hidden rounded-xl border-2 border-gray-100 ${primaryClass}`}>
+                                  <div className="w-full h-full bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
+                                    <div className="text-gray-700 font-bold text-lg">{selectedVideoType === 'long' ? '16:9' : '9:16'}</div>
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                            <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              isPast ? 'bg-green-100 text-green-700' : 
-                              isToday ? 'bg-blue-100 text-blue-700' : 
-                              'bg-gray-100 text-gray-600'
-                            }`}>
-                              {isPast ? 'Uploaded' : isToday ? 'Today' : 'Upcoming'}
+
+                              <div className="flex-1">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div>
+                                    <div className="text-sm font-semibold text-gray-900">Day {i * selectedFrequency + 1} of {selectedDuration * 30}</div>
+                                    <div className="text-xs text-gray-500 mt-1">{uploadDate.toLocaleDateString()}</div>
+                                  </div>
+
+                                  <div className="text-right">
+                                    <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${isPast ? 'bg-green-100 text-green-700' : isToday ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                                      {isPast ? 'Uploaded' : isToday ? 'Today' : 'Upcoming'}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                                  <div className="bg-gray-50 rounded-lg p-2">
+                                    <div className="text-xs text-gray-500">Views</div>
+                                    <div className="font-semibold text-gray-900">--</div>
+                                  </div>
+                                  <div className="bg-gray-50 rounded-lg p-2">
+                                    <div className="text-xs text-gray-500">Likes</div>
+                                    <div className="font-semibold text-gray-900">--</div>
+                                  </div>
+                                  <div className="bg-gray-50 rounded-lg p-2">
+                                    <div className="text-xs text-gray-500">Comments</div>
+                                    <div className="font-semibold text-gray-900">--</div>
+                                  </div>
+                                </div>
+
+                                <div className="mt-3 flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-20 overflow-hidden rounded-md border border-gray-100 ${selectedVideoType === 'long' ? 'aspect-[9/16]' : 'aspect-video'}`}>
+                                      <div className="w-full h-full bg-gray-50 flex items-center justify-center text-sm text-gray-500">{altLabel}</div>
+                                    </div>
+                                    <div className="text-sm text-gray-500">Alternate preview</div>
+                                  </div>
+
+                                  <div>
+                                    <button
+                                      onClick={() => {
+                                        if (isToday) return
+                                        const adj = new Date(challengeStartDate.getTime())
+                                        if (uploadDate > new Date()) {
+                                          const delta = Math.floor((new Date().getTime() - uploadDate.getTime()) / (1000 * 60 * 60 * 24))
+                                          adj.setDate(adj.getDate() + delta)
+                                          setChallengeStartDate(adj)
+                                        }
+                                      }}
+                                      className="w-full sm:w-auto px-4 py-2 rounded-full border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 font-semibold"
+                                    >
+                                      {isPast ? 'Revert' : 'Mark as Uploaded'}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         )
                       })}
                     </div>
+
+                    {/* View more / show less */}
+                    {totalUploads > scheduleCount && (
+                      <div className="mt-4 text-right">
+                        <button
+                          onClick={() => setShowFullSchedule((s) => !s)}
+                          className="inline-flex items-center justify-center px-4 py-2 rounded-full border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 w-full sm:w-auto"
+                        >
+                          {showFullSchedule ? 'Show less' : `View more (${totalUploads - scheduleCount} more)`}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
