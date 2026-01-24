@@ -9,6 +9,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Play, ChevronRight, Lock, Loader2, Youtube, CheckCircle, User, LogOut, RefreshCw, AlertCircle, X, Sparkles } from "lucide-react"
 import { Header } from "@/components/header"
+import Image from "next/image"
 
 interface YouTubeChannel {
   id: string
@@ -58,12 +59,11 @@ export default function ConnectPage() {
 
   // Auto-redirect to dashboard if already connected
   useEffect(() => {
-    // If the user is authenticated and already has a connected channel, redirect to dashboard
-    // but do not redirect while we are performing an analysis step
-    if (status === 'authenticated' && youtubeChannel && !isAnalyzing && !isRedirecting) {
+    // Redirect only when explicitly requested (isRedirecting becomes true)
+    if (status === 'authenticated' && youtubeChannel && isRedirecting) {
       router.push('/dashboard')
     }
-  }, [status, youtubeChannel, isAnalyzing, isRedirecting, router])
+  }, [status, youtubeChannel, isRedirecting, router])
 
   const loadMainChannel = async () => {
     try {
@@ -278,6 +278,16 @@ export default function ConnectPage() {
       }
     }
   }, [status, searchParams])
+
+  // When analysis completes, briefly show success then start redirect countdown
+  useEffect(() => {
+    if (analysisDone) {
+      // Give the user a moment to see the success state before redirecting
+      setTimeout(() => {
+        setIsRedirecting(true)
+      }, 1400)
+    }
+  }, [analysisDone])
 
   const fetchYouTubeChannel = async (accessToken: string) => {
     try {
@@ -553,7 +563,15 @@ export default function ConnectPage() {
         // Clear oauth return page marker to avoid accidental additional-channel logic later
         try { localStorage.removeItem('oauth_return_page') } catch (e) { /* ignore */ }
 
-        // New flow: show analyzing screen instead of immediate redirect
+        // New flow: save token + channel, then show analyzing screen instead of immediate redirect
+        try {
+          // Persist token and channel locally so UI survives reloads
+          localStorage.setItem('youtube_access_token', accessToken)
+          localStorage.setItem('youtube_channel', JSON.stringify(newChannel))
+        } catch (e) {
+          console.warn('Could not persist token/channel locally', e)
+        }
+
         setIsAnalyzing(true);
         setAnalysisDone(false);
 
@@ -659,166 +677,122 @@ export default function ConnectPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div>
       {/* Use shared Header component */}
       <Header />
 
+      <div>
+        <main className={`flex-1 pt-20 md:pt-20 pb-20 bg-slate-50 min-h-screen`}>
+          <div className="min-h-[70vh] flex items-center justify-center px-6 py-16">
+            <div className="relative w-full max-w-4xl">
+              <div className="rounded-3xl bg-white p-8 shadow-[0_30px_60px_rgba(8,15,52,0.06)]">
+                <h2 className="text-center text-xl font-semibold mb-1">Connect your YouTube channel</h2>
+                <p className="text-center text-xs text-gray-400 mb-6">Follow the steps below to connect and analyze your channel.</p>
 
+                <style>{`
+                  @keyframes scan { 0% { transform: translateX(-120%);} 100% { transform: translateX(120%);} }
+                  .scan-inner { animation: scan 1.6s linear infinite; background: linear-gradient(90deg, rgba(99,102,241,0) 0%, rgba(99,102,241,0.25) 50%, rgba(99,102,241,0) 100%); }
+                  .pulse-scale { transform-origin: center; animation: pulse-scale 850ms cubic-bezier(.2,.9,.3,1) forwards; }
+                  @keyframes pulse-scale { 0% { transform: scale(0.6); opacity: 0 } 60% { transform: scale(1.08); opacity: 1 } 100% { transform: scale(1); opacity: 1 } }
+                `}</style>
 
-      {/* Main Content - Centered Card */}
-      <div className={`relative flex-1 flex items-center justify-center overflow-hidden pt-20 md:pt-20 py-12 px-4 ${!youtubeChannel ? 'bg-gradient-to-b from-sky-900 via-blue-600 to-sky-200 text-white' : 'bg-gradient-to-b from-gray-50 to-white text-gray-900'}`}>
-        {/* Centered Container */}
-        <div className="relative z-10 w-full max-w-2xl mx-auto">
-          {/* Decorative gradient background */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full blur-3xl opacity-30 -z-10" />
-
-
-
-          <div className="text-center relative z-10">
-            {/* Not connected — hero-style welcome */}
-            {!youtubeChannel && !isLoading && !isAuthLoading ? (
-              <div className="min-h-[64vh] flex flex-col items-center justify-center gap-6 text-center text-white">
-                <div className="inline-flex items-center gap-3 bg-black/50 px-3 py-1 rounded-full">
-                  <div className="flex -space-x-1">
-                    <span className="w-6 h-6 rounded-full bg-white/20 border border-white/10 flex items-center justify-center text-xs font-bold">A</span>
-                    <span className="w-6 h-6 rounded-full bg-white/20 border border-white/10 flex items-center justify-center text-xs font-bold">B</span>
-                    <span className="w-6 h-6 rounded-full bg-white/20 border border-white/10 flex items-center justify-center text-xs font-bold">C</span>
-                  </div>
-                  <span className="text-sm font-medium">Used by 20M+</span>
-                </div>
-
-                <div className="flex items-center gap-6">
-                  <div className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-500 ${isStartingAuth ? 'bg-white/90 ring-4 ring-white shadow-lg' : 'bg-white/10'}`}>
-                    {isStartingAuth ? (
-                      session?.user?.image ? (
-                        <img src={session.user.image} alt={session.user.name || 'Me'} className="w-16 h-16 rounded-full object-cover" />
+                <div className="flex flex-col md:flex-row gap-4">
+                  {/* Card 1 - Account */}
+                  <div className="flex-1 p-4 rounded-xl border bg-white flex items-center gap-4 shadow-sm md:flex-col md:items-center md:text-center">
+                    <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center mb-0 md:mb-3">
+                      {youtubeChannel ? (
+                        <img src={youtubeChannel.thumbnail} alt={youtubeChannel.title} className="w-12 h-12 rounded-full object-cover" />
                       ) : (
-                        <span className="text-black font-bold text-lg">{session?.user?.name ? session.user.name[0].toUpperCase() : 'M'}</span>
-                      )
-                    ) : (
-                      <div className="text-white font-black text-lg">IQ</div>
-                    )}
-                  </div>
-
-                  <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center text-red-600">
-                    <Youtube className="w-8 h-8" />
-                  </div>
-                </div>
-
-                <h1 className="text-3xl md:text-4xl font-extrabold text-white">Unlock your feed</h1>
-                <p className="text-white/80 max-w-xl mx-auto">Connect your channel to see real insights, titles, and growth opportunities powered by vidiq</p>
-
-                <div className="w-full max-w-md">
-                  <Button onClick={handleConnectWithGoogle} className="w-full bg-white text-black py-4 rounded-full shadow-lg flex items-center justify-center gap-3">
-                    <Youtube className="w-5 h-5" />
-                    <span className="font-semibold">Connect YouTube Channel</span>
-                  </Button>
-                  <button onClick={() => router.push('/dashboard')} className="mt-3 block text-white/80">Skip for now</button>
-                </div>
-              </div>
-            ) : (
-              /* Analyzing / Connected states */
-              <div className="min-h-[56vh] flex flex-col items-center justify-center gap-6">
-                <h2 className="text-2xl font-bold text-gray-900">Analyzing your channel</h2>
-                <p className="text-gray-600">Spotting what's ready to take off</p>
-
-                <div className="w-full max-w-md h-44 bg-gray-100 rounded-2xl overflow-hidden flex items-center justify-center relative">
-                  {/* Thumbnail strip */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    {youtubeChannel ? (
-                      <img src={youtubeChannel.thumbnail} alt={youtubeChannel.title} className="w-36 h-36 rounded-md object-cover shadow-lg" />
-                    ) : (
-                      <div className="w-36 h-36 bg-gray-300 rounded-md animate-pulse" />
-                    )}
-                    <div className="w-1 h-40 bg-blue-500 rounded-md ml-4" />
-                  </div>
-                </div>
-
-                {youtubeChannel && (
-                  <div className="flex items-center gap-4">
-                    <img src={youtubeChannel.thumbnail} alt={youtubeChannel.title} className="w-16 h-16 rounded-full object-cover" />
-                    <div className="text-left">
-                      <div className="font-bold text-lg">{youtubeChannel.title}</div>
-                      <div className="text-sm text-gray-600">{formatNumber(youtubeChannel.videoCount)} videos • {formatNumber(youtubeChannel.subscriberCount)} subscribers</div>
+                        <Youtube className="w-6 h-6 text-red-600" />
+                      )}
+                    </div>
+                    <div className="flex-1 md:mt-1">
+                      <div className="font-semibold text-sm md:text-base truncate">{youtubeChannel ? youtubeChannel.title : 'No account selected'}</div>
+                      <div className="text-xs text-gray-400 mt-1">{youtubeChannel ? 'Account connected' : 'Choose a Google account using the Connect button below'}</div>
                     </div>
                   </div>
-                )}
 
-                <div className="w-full max-w-md">
-                  <Button onClick={() => router.push('/dashboard')} disabled={isAnalyzing && !analysisDone} className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white py-3 rounded-full shadow-lg">
-                    {isAnalyzing && !analysisDone ? 'Analyzing...' : 'Go to Dashboard'}
-                  </Button>
+                  {/* Card 2 - Analyze */}
+                  <div className={`flex-1 p-4 rounded-xl border bg-white flex flex-col items-center text-center shadow-sm ${isAnalyzing ? 'ring-2 ring-amber-100' : ''}`}>
+                    <div className={`w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center mb-3 ${isAnalyzing ? 'animate-pulse' : analysisDone ? 'pulse-scale' : ''}`}>
+                      {isAnalyzing && !analysisDone ? (
+                        <div className="w-6 h-6 text-gray-600"><Loader2 className="w-6 h-6" /></div>
+                      ) : analysisDone ? (
+                        <CheckCircle className="w-6 h-6 text-green-600" />
+                      ) : (
+                        <Sparkles className="w-6 h-6 text-amber-500" />
+                      )}
+                    </div>
+
+                    <div className="font-semibold">{isAnalyzing ? 'Analyzing...' : analysisDone ? 'Analysis complete' : 'Analyze channel'}</div>
+                    <div className="text-xs text-gray-400 mt-2">{isAnalyzing ? 'Scanning recent uploads and trends' : analysisDone ? 'Ready to go' : 'We’ll analyze your channel once connected'}</div>
+
+                    {/* Animated scanning bar */}
+                    <div className="mt-4 w-full max-w-xs">
+                      <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden relative">
+                        <div className="absolute top-0 left-0 h-full w-1/3 scan-inner"></div>
+                      </div>
+
+                      <div className="flex items-center justify-center gap-2 mt-3">
+                        <div className={`w-2 h-2 rounded-full ${isAnalyzing ? 'bg-amber-500 animate-pulse' : 'bg-gray-200'}`}></div>
+                        <div className={`w-2 h-2 rounded-full ${isAnalyzing ? 'bg-amber-500 animate-pulse delay-150' : 'bg-gray-200'}`}></div>
+                        <div className={`w-2 h-2 rounded-full ${isAnalyzing ? 'bg-amber-500 animate-pulse delay-300' : 'bg-gray-200'}`}></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 3 - Success / Redirect */}
+                  <div className={`flex-1 p-4 rounded-xl border bg-white flex flex-col items-center text-center shadow-sm ${analysisDone ? 'ring-2 ring-green-100' : ''}`}>
+                    <div className={`w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center mb-3 ${analysisDone ? 'pulse-scale' : ''}`}>
+                      {analysisDone ? <CheckCircle className="w-6 h-6 text-green-600" /> : <Play className="w-6 h-6 text-gray-600" />}
+                    </div>
+                    <div className="font-semibold">{analysisDone ? 'All set' : 'Complete'}</div>
+                    <div className="text-xs text-gray-400 mt-2">{analysisDone ? 'Redirecting to Dashboard...' : 'You will see recommendations after analysis'}</div>
+                  </div>
                 </div>
 
-                {/* small helper */}
-                <p className="text-xs text-gray-500">We analyze recent uploads, tags, and title performance for quick recommendations.</p>
+                <div className="mt-6 text-center text-xs text-gray-400">Tip: You can connect multiple channels later from Settings.</div>
               </div>
-            )}
+            </div>
           </div>
-        </div>
 
-        {/* Mobile Bottom Safe Area */}
-        <div className="md:hidden h-4 bg-white"></div>
+          {/* Desktop floating bar (hidden on mobile) */}
+          <div className="hidden md:flex fixed bottom-6 left-1/2 transform -translate-x-1/2">
+            <div className="bg-white rounded-full shadow-lg px-4 py-3 flex items-center gap-4">
+              {!youtubeChannel ? (
+                <button onClick={handleConnectWithGoogle} className="px-5 py-2 rounded-full font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600">
+                  Connect YouTube Channel
+                </button>
+              ) : !analysisDone && !isAnalyzing ? (
+                <button onClick={() => { setIsAnalyzing(true); setAnalysisDone(false); setTimeout(() => { setIsAnalyzing(false); setAnalysisDone(true); }, 2500) }} className="px-5 py-2 rounded-full font-semibold text-white bg-gradient-to-r from-amber-600 to-yellow-500">Start Analysis</button>
+              ) : analysisDone ? (
+                <button onClick={() => { setIsRedirecting(true) }} className="px-5 py-2 rounded-full font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-500">Go to Dashboard</button>
+              ) : (
+                <div className="px-4 py-2 text-sm text-gray-500">Analyzing...</div>
+              )}
+              <button onClick={handleRefreshChannel} className="px-3 py-2 text-sm rounded-full border border-gray-200">Refresh</button>
+              <button onClick={handleDisconnect} className="px-3 py-2 text-sm rounded-full border border-gray-200 text-red-600">Disconnect</button>
+            </div>
+          </div>
 
-        {/* Animations */}
-        <style dangerouslySetInnerHTML={{__html: `
-        @keyframes bounce-in {
-          0% {
-            transform: scale(0);
-            opacity: 0;
-          }
-          50% {
-            transform: scale(1.2);
-          }
-          100% {
-            transform: scale(1);
-            opacity: 1;
-          }
-        }
-        @keyframes scale-in {
-          0% {
-            transform: scale(0);
-            opacity: 0;
-          }
-          100% {
-            transform: scale(1);
-            opacity: 1;
-          }
-        }
-        @keyframes fade-in-up {
-          0% {
-            transform: translateY(20px);
-            opacity: 0;
-          }
-          100% {
-            transform: translateY(0);
-            opacity: 1;
-          }
-        }
-        @keyframes fade-in {
-          0% {
-            opacity: 0;
-          }
-          100% {
-            opacity: 1;
-          }
-        }
-        .animate-bounce-in {
-          animation: bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-        }
-        .animate-scale-in {
-          animation: scale-in 0.5s ease-out 0.3s both;
-        }
-        .animate-fade-in-up {
-          animation: fade-in-up 0.5s ease-out 0.6s both;
-        }
-        .animate-fade-in-up-delay {
-          animation: fade-in-up 0.5s ease-out 0.8s both;
-        }
-        .animate-fade-in {
-          animation: fade-in 0.5s ease-out 1s both;
-        }
-      `}} />
+          {/* Mobile bottom bar */}
+          <div className="md:hidden fixed inset-x-0 bottom-4 px-4">
+            <div className="bg-white rounded-xl shadow-lg px-3 py-3 flex items-center gap-3">
+              {!youtubeChannel ? (
+                <button onClick={handleConnectWithGoogle} className="flex-1 px-4 py-3 rounded-md font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600">Connect</button>
+              ) : !analysisDone && !isAnalyzing ? (
+                <button onClick={() => { setIsAnalyzing(true); setAnalysisDone(false); setTimeout(() => { setIsAnalyzing(false); setAnalysisDone(true); }, 2500) }} className="flex-1 px-4 py-3 rounded-md font-semibold text-white bg-gradient-to-r from-amber-600 to-yellow-500">Analyze</button>
+              ) : analysisDone ? (
+                <button onClick={() => { setIsRedirecting(true) }} className="flex-1 px-4 py-3 rounded-md font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-500">Dashboard</button>
+              ) : (
+                <div className="flex-1 px-4 py-3 text-sm text-gray-500">Analyzing...</div>
+              )}
+
+              <button onClick={handleRefreshChannel} className="px-3 py-2 text-sm rounded-md border border-gray-200">Refresh</button>
+            </div>
+          </div>
+
+        </main>
       </div>
     </div>
   )

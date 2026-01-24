@@ -969,9 +969,8 @@ export default function DashboardPage() {
                       <span className="inline-block h-px bg-gradient-to-r from-blue-100 via-indigo-100 to-purple-100 ml-3 w-full"></span>
                     </div>
 
-                    <div className="mt-3 sm:mt-0 flex flex-col sm:flex-row sm:items-center sm:gap-3 w-full sm:w-auto">
-                      <Link href="/analytics" className="w-full sm:w-auto inline-flex items-center justify-center bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-3 rounded-lg font-semibold shadow-sm text-sm text-center">View analytics</Link>
-                      <Link href="/channels" className="w-full sm:w-auto inline-flex items-center justify-center border border-gray-200 bg-white px-4 py-3 rounded-lg font-semibold text-sm text-center">Manage channels</Link>
+                    <div className="mt-3 sm:mt-0 flex w-full sm:w-auto">
+                      <Link href="/challenge" className="w-full sm:w-auto inline-flex items-center justify-center bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-5 py-3 rounded-full font-semibold shadow-sm text-sm text-center">Start Challenge</Link>
                     </div>
                   </div>
                 </div>
