@@ -30,6 +30,10 @@ export function NavMenu({ activePage }: NavMenuProps) {
     { id: "compare", icon: GitCompare, label: "Compare", href: "/compare" },
     { id: "bulk-upload", icon: Upload, label: "Smart Upload", href: "/bulk-upload" },
     { id: "ai-thumbnail", icon: Sparkles, label: "AI Thumbnails", href: "/ai-thumbnail" },
+  ]
+
+  return (
+    <div className="flex flex-col">
       {navItems.map((item) => {
         const Icon = item.icon
         const isActive = activePage === item.id

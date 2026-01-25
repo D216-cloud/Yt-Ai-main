@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Sparkles, Youtube, Monitor, Smartphone, Calendar, Clock, Eye, Heart, MessageCircle } from 'lucide-react' 
 import SharedSidebar from '@/components/shared-sidebar'
 import DashboardHeader from '@/components/dashboard-header'
+import { useToast } from '@/hooks/use-toast'
 
 type CreatorChallengePlan = {
   durationMonths: number
@@ -40,6 +41,7 @@ function formatNumber(num: string | number) {
 }
 
 export default function ChallengePage() {
+  const { toast } = useToast()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [youtubeChannel, setYoutubeChannel] = useState<YouTubeChannel | null>(null)
@@ -57,6 +59,10 @@ export default function ChallengePage() {
   const [challengeStartedAt, setChallengeStartedAt] = useState<string | null>(null)
   const [showAllVideos, setShowAllVideos] = useState(false)
 
+  // UI states while preparing a schedule (shows spinner & disables actions)
+  const [isPreparing, setIsPreparing] = useState(false)
+  const [isStartingAnimation, setIsStartingAnimation] = useState(false)
+
   // New states for the step-by-step flow
   const [step, setStep] = useState<'start' | 'setup' | 'videoType' | 'progress'>('start')
   const [selectedDuration, setSelectedDuration] = useState(6) // months
@@ -64,21 +70,72 @@ export default function ChallengePage() {
   const [selectedVideoType, setSelectedVideoType] = useState<'long' | 'shorts' | null>(null)
   const [challengeStartDate, setChallengeStartDate] = useState<Date | null>(null)
 
+  // Staged animation when selecting video type: 'idle' | 'running' (first gif) | 'loading2' (second gif)
+  const [animStage, setAnimStage] = useState<'idle' | 'running' | 'loading2'>('idle')
+  const animT1 = useRef<number | null>(null)
+  const animT2 = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (animT1.current) clearTimeout(animT1.current)
+      if (animT2.current) clearTimeout(animT2.current)
+    }
+  }, [])
+
+  const handleSelectVideoType = (type: 'long' | 'shorts') => {
+    // select immediately for visual state
+    setSelectedVideoType(type)
+    // start first animation (running gif)
+    setAnimStage('running')
+    // after 3s switch to loading2
+    animT1.current = window.setTimeout(() => {
+      setAnimStage('loading2')
+    }, 3000)
+    // after 5s finish and proceed to progress and persist selection
+    animT2.current = window.setTimeout(async () => {
+      setAnimStage('idle')
+      setStep('progress')
+      // persist to server if we have a challenge id
+      try {
+        const id = localStorage.getItem('creator_challenge_id')
+        if (id) {
+          const res = await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ config: { videoType: type } })
+          })
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: 'Server error' }))
+            const { error } = err as any
+            toast({ title: 'Could not save selection', description: error || 'Server error' })
+          } else {
+            toast({ title: 'Saved format', description: `Selected ${type === 'long' ? 'Long Video (16:9)' : 'Shorts (9:16)'}` })
+          }
+        }
+      } catch (e) {
+        console.error('Failed to persist videoType', e)
+        toast({ title: 'Save failed', description: String(e?.message || e) })
+      }
+    }, 5000)
+  }
+
   // Custom / flexible setup states
   const [customDurationEnabled, setCustomDurationEnabled] = useState(false)
   const [customMonths, setCustomMonths] = useState<number>(3)
-  const [frequencyMode, setFrequencyMode] = useState<'preset' | 'everyNDays' | 'videosPerDay'>('preset')
-  const [frequencyDaysCustom, setFrequencyDaysCustom] = useState<number>(2)
-  const [videosPerDayCustom, setVideosPerDayCustom] = useState<number>(1)
+
+
+
+  // Keep inputs synced with computed defaults when base settings change
+
 
   // Schedule count: show fewer items on small screens for clarity
   const scheduleCount = useMemo(() => {
     const months = customDurationEnabled ? customMonths : selectedDuration
-    const daysBetween = frequencyMode === 'everyNDays' ? frequencyDaysCustom : selectedFrequency || 1
+    const daysBetween = selectedFrequency || 1
     const totalUploads = Math.max(1, Math.floor((months * 30) / daysBetween))
     if (typeof window === 'undefined') return Math.min(10, totalUploads)
     return window.innerWidth < 640 ? Math.min(5, totalUploads) : Math.min(10, totalUploads)
-  }, [customDurationEnabled, customMonths, selectedDuration, frequencyMode, frequencyDaysCustom, selectedFrequency])
+  }, [customDurationEnabled, customMonths, selectedDuration, selectedFrequency])
 
   // Toggle to view the full schedule list
   const [showFullSchedule, setShowFullSchedule] = useState(false)
@@ -86,9 +143,147 @@ export default function ChallengePage() {
   // Total uploads derived from plan (used for View more and full expansion)
   const totalUploads = useMemo(() => {
     const months = customDurationEnabled ? customMonths : selectedDuration
-    const daysBetween = frequencyMode === 'everyNDays' ? frequencyDaysCustom : selectedFrequency || 1
+    const daysBetween = selectedFrequency || 1
     return Math.max(1, Math.floor((months * 30) / daysBetween))
-  }, [customDurationEnabled, customMonths, selectedDuration, frequencyMode, frequencyDaysCustom, selectedFrequency])
+  }, [customDurationEnabled, customMonths, selectedDuration, selectedFrequency])
+
+  // Schedule dates for the whole plan (used for heatmap and stats)
+  const scheduleDates = useMemo(() => {
+    if (!challengeStartDate) return [] as Date[]
+    const out: Date[] = []
+    for (let i = 0; i < totalUploads; i++) {
+      out.push(new Date(challengeStartDate.getTime() + i * (selectedFrequency || 1) * 24 * 60 * 60 * 1000))
+    }
+    return out
+  }, [challengeStartDate, totalUploads, selectedFrequency])
+
+  // Simple derived consistency metrics (based on dates that are in the past)
+  const uploadedCount = useMemo(() => scheduleDates.filter(d => d < new Date()).length, [scheduleDates])
+  const consistencyPercent = useMemo(() => Math.round((uploadedCount / Math.max(1, totalUploads)) * 100), [uploadedCount, totalUploads])
+  const currentStreak = useMemo(() => {
+    // Count consecutive past uploads starting from the most recent scheduled date
+    let streak = 0
+    const today = new Date().setHours(0,0,0,0)
+    for (let i = scheduleDates.length - 1; i >= 0; i--) {
+      const d = scheduleDates[i].setHours(0,0,0,0)
+      if (d < today) streak++
+      else break
+    }
+    return streak
+  }, [scheduleDates])
+
+  // Metadata for scheduled videos (titles, thumbnails, notes, uploaded state)
+  type ScheduledMeta = {
+    title?: string
+    thumbnail?: string
+    notes?: string
+    duration?: string
+    uploaded?: boolean
+    uploadedAt?: string | null
+  }
+
+  const [scheduledMeta, setScheduledMeta] = useState<Record<number, ScheduledMeta>>({})
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editorDraft, setEditorDraft] = useState<ScheduledMeta>({})
+
+  // Load saved meta from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('challenge_scheduled_meta')
+      if (raw) setScheduledMeta(JSON.parse(raw))
+    } catch {
+      // noop
+    }
+  }, [])
+
+  // Persist scheduled meta
+  useEffect(() => {
+    try {
+      localStorage.setItem('challenge_scheduled_meta', JSON.stringify(scheduledMeta))
+    } catch {
+      // noop
+    }
+  }, [scheduledMeta])
+
+  const toggleUploaded = (index: number) => {
+    setScheduledMeta(prev => {
+      const next = { ...prev };
+      const current = next[index] || {};
+      if (current.uploaded) {
+        current.uploaded = false
+        current.uploadedAt = null
+      } else {
+        current.uploaded = true
+        current.uploadedAt = new Date().toISOString()
+      }
+      next[index] = current
+
+      // Persist change to server in background
+      ;(async () => {
+        try {
+          const id = localStorage.getItem('creator_challenge_id')
+          if (!id) return
+          const progressArr = Object.keys(next).map((k) => next[Number(k)])
+          const res = await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ progress: progressArr })
+          })
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: 'Server error' }))
+            toast({ title: 'Failed to save progress', description: err?.error || 'Server error' })
+          }
+        } catch (e) {
+          console.error('Failed to persist progress to server', e)
+          toast({ title: 'Failed to save progress', description: String(e?.message || e) })
+        }
+      })()
+
+      return next
+    })
+  }
+
+  const openEditor = (index: number) => {
+    setEditingIndex(index)
+    setEditorDraft(scheduledMeta[index] || {
+      title: `Video ${index + 1}`
+    })
+  }
+
+  const saveEditor = async () => {
+    if (editingIndex === null) return
+    setScheduledMeta(prev => {
+      const next = { ...prev, [editingIndex]: editorDraft };
+
+      // Persist progress to server
+      ;(async () => {
+        try {
+          const id = localStorage.getItem('creator_challenge_id')
+          if (!id) return
+          const progressArr = Object.keys(next).map((k) => next[Number(k)])
+          const res = await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ progress: progressArr })
+          })
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: 'Server error' }))
+            toast({ title: 'Failed to save progress', description: err?.error || 'Server error' })
+          }
+        } catch (e) {
+          console.error('Failed to persist progress to server', e)
+          toast({ title: 'Failed to save progress', description: String(e?.message || e) })
+        }
+      })()
+
+      return next
+    })
+    setEditingIndex(null)
+  }
+
+  const closeEditor = () => {
+    setEditingIndex(null)
+  }
 
   const visibleAdditionalChannels = useMemo(() => {
     return (additionalChannelsList || []).filter((ch) => ch && ch.id && ch.id !== youtubeChannel?.id)
@@ -135,6 +330,21 @@ export default function ChallengePage() {
     }
   }, [durationMonths, cadenceEveryDays, videosPerCadence])
 
+  // Setup summary for user-friendly calculations shown in the UI
+  const setupSummary = useMemo(() => {
+    const months = selectedDuration || 6
+    const totalDays = months * 30
+    const daysPerVideo = Math.max(1, selectedFrequency || 2)
+    const totalVideos = Math.max(1, Math.floor(totalDays / daysPerVideo))
+    const perDay = totalVideos / totalDays
+    const perWeek = perDay * 7
+    const perMonth = totalVideos / months
+    const avgSpacing = Math.max(1, Math.round(totalDays / Math.max(1, totalVideos)))
+    return { months, totalDays, daysPerVideo, totalVideos, perDay, perWeek, perMonth, avgSpacing }
+  }, [selectedDuration, selectedFrequency])
+
+
+
   const plannedVideos = useMemo((): CreatorChallengeVideo[] => {
     const safeTotalDays = Math.max(1, computed.totalDays)
     const cadence = Math.max(1, computed.cadenceEveryDays)
@@ -164,7 +374,7 @@ export default function ChallengePage() {
     setPlan(nextPlan)
   }
 
-  const startChallenge = () => {
+  const startChallenge = async () => {
     const nextPlan: CreatorChallengePlan = {
       durationMonths: computed.durationMonths,
       cadenceEveryDays: computed.cadenceEveryDays,
@@ -181,9 +391,35 @@ export default function ChallengePage() {
     setChallengeStartedAt(ts)
     setSetupHidden(true)
     setShowAllVideos(false)
+
+    // Attempt to persist to server
+    try {
+      const res = await fetch('/api/user-challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: nextPlan, progress: Object.values(scheduledMeta) })
+      })
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          toast({ title: 'Sign in required', description: 'Please sign in to save your challenge' })
+          return
+        }
+        const err = await res.json().catch(() => ({ error: 'Unknown server error' }))
+        toast({ title: 'Failed to start challenge', description: err?.error || 'Server error' })
+        return
+      }
+
+      const json = await res.json()
+      try { localStorage.setItem('creator_challenge_id', json?.id || '') } catch {}
+      toast({ title: 'Challenge started', description: 'Saved to your account' })
+    } catch (e) {
+      console.error('Failed to persist challenge to server', e)
+      toast({ title: 'Failed to start challenge', description: String(e?.message || e) })
+    }
   }
 
-  const handleSaveAndHide = () => {
+  const handleSaveAndHide = async () => {
     const nextPlan: CreatorChallengePlan = {
       durationMonths: computed.durationMonths,
       cadenceEveryDays: computed.cadenceEveryDays,
@@ -196,6 +432,19 @@ export default function ChallengePage() {
     try {
       localStorage.setItem('creator_challenge_setup_hidden', '1')
     } catch {}
+
+    // Persist config to server
+    try {
+      const id = localStorage.getItem('creator_challenge_id')
+      if (!id) return
+      await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: nextPlan })
+      })
+    } catch (e) {
+      console.error('Failed to persist challenge config to server', e)
+    }
   }
 
   const handleEditPlan = () => {
@@ -206,12 +455,22 @@ export default function ChallengePage() {
     } catch {}
   }
 
-  const handleResetPlan = () => {
+  const handleResetPlan = async () => {
     if (!confirm('Clear your challenge plan?')) return
+
+    // Attempt to delete on server
+    try {
+      const id = localStorage.getItem('creator_challenge_id')
+      if (id) await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+    } catch (e) {
+      console.error('Failed to delete challenge on server', e)
+    }
+
     try {
       localStorage.removeItem('creator_challenge_plan')
       localStorage.removeItem('creator_challenge_setup_hidden')
       localStorage.removeItem('creator_challenge_started_at')
+      localStorage.removeItem('creator_challenge_id')
     } catch {}
     setPlan(null)
     setSetupHidden(false)
@@ -297,6 +556,60 @@ export default function ChallengePage() {
     } catch {
       // no-op
     }
+
+    // Fetch persisted active challenge from server and merge
+    const fetchActive = async () => {
+      try {
+        const res = await fetch('/api/user-challenge')
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: 'Server error' }))
+          console.error('Failed to fetch active challenge:', err)
+          return
+        }
+        const json = await res.json()
+        const ch = json?.challenge
+        if (!ch) return
+
+        // Apply to UI state
+        if (ch.config) {
+          const cfg = ch.config
+          setPlan({
+            durationMonths: cfg.durationMonths || durationMonths,
+            cadenceEveryDays: cfg.cadenceEveryDays || cadenceEveryDays,
+            videosPerCadence: cfg.videosPerCadence || videosPerCadence,
+            createdAt: cfg.createdAt || new Date().toISOString(),
+          })
+          setDurationMonths(cfg.durationMonths || durationMonths)
+          setCadenceEveryDays(cfg.cadenceEveryDays || cadenceEveryDays)
+          setVideosPerCadence(cfg.videosPerCadence || videosPerCadence)
+        }
+        if (ch.started_at) {
+          try { localStorage.setItem('creator_challenge_started_at', ch.started_at) } catch {}
+          setChallengeStartedAt(ch.started_at)
+          setSetupHidden(true)
+        }
+        if (Array.isArray(ch.progress) && ch.progress.length) {
+          const map: Record<number, ScheduledMeta> = {}
+          ch.progress.forEach((p: any, i: number) => {
+            map[i] = {
+              title: p.title,
+              notes: p.notes,
+              thumbnail: p.thumbnail,
+              uploaded: !!p.uploaded,
+              uploadedAt: p.uploadedAt || null,
+            }
+          })
+          setScheduledMeta(map)
+        }
+        if (ch.id) {
+          try { localStorage.setItem('creator_challenge_id', ch.id) } catch {}
+        }
+      } catch (e) {
+        console.error('Failed to load persisted challenge from server', e)
+      }
+    }
+
+    fetchActive()
   }, [])
 
   // Close channel menu on outside click
@@ -514,30 +827,101 @@ export default function ChallengePage() {
               </div>
             </div>
 
+            {/* Active Challenge Card (persisted) */}
+            {plan && challengeStartedAt && (
+              <div className="rounded-2xl bg-white border border-gray-100 p-4 mb-6 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm text-gray-500">Active • Started {new Date(challengeStartedAt).toLocaleDateString()}</div>
+                  <div className="text-lg font-semibold text-gray-900 mt-1 truncate">{computed.totalVideos} videos • {consistencyPercent}% consistency</div>
+                  <div className="text-sm text-gray-500 mt-1">{uploadedCount} uploads scheduled before today • {currentStreak} day streak</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setShowAllVideos((s) => !s)} className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm font-semibold hover:bg-gray-50">{showAllVideos ? 'Close' : 'Open'}</button>
+                  <button onClick={handleEditPlan} className="px-4 py-2 rounded-full border border-gray-200 text-sm font-semibold hover:bg-gray-50">Edit</button>
+                  <button onClick={handleResetPlan} className="px-4 py-2 rounded-full bg-red-50 text-red-600 border border-red-100 text-sm font-semibold hover:bg-red-100">Delete</button>
+                </div>
+              </div>
+            )}
+
             {/* Challenge Flow Cards */}
             <div className="space-y-6">
               {step === 'start' && (
-                <div className="rounded-3xl bg-white border border-gray-100 shadow-sm p-8 text-center">
-                  <div className="max-w-md mx-auto">
-                    <div className="w-16 h-16 rounded-2xl bg-white border border-gray-100 flex items-center justify-center mx-auto mb-4">
-                      <Youtube className="w-8 h-8 text-red-600" />
-                    </div>
-                    <h3 className="text-xl font-extrabold text-gray-900 mb-2">Start your challenge today</h3>
-                    <p className="text-gray-600 mb-6">Create a focused upload routine and measure progress with a clean, professional challenge flow.</p>
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
-                      <button
-                        onClick={() => setStep('setup')}
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-full font-semibold shadow-sm transition-all duration-150"
-                      >
-                        Start Challenge
-                      </button>
-                      <button
-                        onClick={() => setStep('setup')}
-                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-gray-200 bg-white px-5 py-3 rounded-full text-gray-700 font-semibold hover:bg-gray-50 transition"
-                      >
-                        Customize
-                      </button>
-                    </div>
+                <div className="rounded-3xl bg-white border border-gray-200 shadow-sm p-5 sm:p-8">
+                  <div className="max-w-2xl mx-auto">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-5">
+                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white border border-gray-100 flex items-center justify-center shadow-sm">
+                          <Youtube className="w-7 h-7 sm:w-8 sm:h-8 text-red-600" />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/80 border border-gray-100 text-xs font-semibold text-gray-700 shadow-sm">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                            New challenge plan
+                          </div>
+                          <h3 className="mt-3 text-xl sm:text-2xl font-extrabold text-gray-900">Build a consistent upload streak</h3>
+                          <p className="mt-2 text-gray-600 text-sm sm:text-base leading-relaxed">
+                            Pick a schedule, generate your full upload calendar, and track progress day by day.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        <button
+                          onClick={async () => {
+                            if (isPreparing) return
+                            setIsPreparing(true)
+                            try {
+                              // small preparation delay so users see the animation
+                              await new Promise((r) => setTimeout(r, 700))
+                              setStep('setup')
+                            } finally {
+                              setIsPreparing(false)
+                            }
+                          }}
+                          disabled={isPreparing}
+                          aria-busy={isPreparing}
+                          className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 ${isPreparing ? 'opacity-90 cursor-wait' : ''} bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-full font-semibold shadow-sm transition-all duration-150`}
+                        >
+                          {isPreparing ? (
+                            <span className="inline-flex items-center gap-2">
+                              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Preparing...
+                            </span>
+                          ) : (
+                            'Create schedule'
+                          )}
+                        </button>
+
+                        <button
+                          onClick={async () => {
+                            if (isPreparing) return
+                            setIsPreparing(true)
+                            try {
+                              setCustomDurationEnabled(false)
+                              setSelectedDuration(6)
+                              setSelectedFrequency(2)
+                              setVideosPerCadence(1)
+                              // small delay for consistent UX
+                              await new Promise((r) => setTimeout(r, 500))
+                              setStep('setup')
+                            } finally {
+                              setIsPreparing(false)
+                            }
+                          }}
+                          disabled={isPreparing}
+                          aria-busy={isPreparing}
+                          className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-gray-200 bg-white/80 px-6 py-3 rounded-full text-gray-800 font-semibold hover:bg-white transition ${isPreparing ? 'opacity-70 cursor-wait' : ''}`}
+                        >
+                          {isPreparing ? (
+                            <span className="inline-flex items-center gap-2 text-gray-800">
+                              <span className="w-4 h-4 border-2 border-gray-800 border-t-transparent rounded-full animate-spin" />
+                              Preparing...
+                            </span>
+                          ) : (
+                            'Quick start (2 days)'
+                          )}
+                        </button>
+                      </div>
                   </div>
                 </div>
               )}
@@ -550,118 +934,77 @@ export default function ChallengePage() {
                     
                     <div className="space-y-6">
                       <div>
-                        <label className="block text-sm font-semibold text-gray-900 mb-3">Challenge duration <span className="ml-2 text-xs text-gray-400 inline-flex items-center"><Calendar className="w-3 h-3 mr-1" />Flexible</span></label>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          {[6, 12, 24].map((months) => (
+                        <label className="block text-sm font-semibold text-gray-900 mb-3">Duration</label>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {[1,3,6,12].map((m) => (
                             <button
-                              key={months}
-                              onClick={() => { setSelectedDuration(months); setCustomDurationEnabled(false) }}
-                              className={`w-full p-4 rounded-xl border-2 transition-all ${
-                                selectedDuration === months && !customDurationEnabled
-                                  ? 'border-gray-900 bg-white text-gray-900'
-                                  : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                              }`}
-                            >
-                              <div className="font-semibold">{months} Months</div>
-                              <div className="text-xs text-gray-500 mt-1">~{Math.round(months * 30)} days</div>
+                              key={m}
+                              onClick={() => { setSelectedDuration(m); setCustomDurationEnabled(false) }}
+                              className={`w-full px-3 py-3 rounded-xl border text-sm font-semibold transition ${selectedDuration === m && !customDurationEnabled ? 'bg-blue-600 border-blue-700 text-white shadow' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+                              {m}m
                             </button>
                           ))}
+                        </div>
 
-                          <button
-                            onClick={() => setCustomDurationEnabled((s) => !s)}
-                            className={`col-span-1 sm:col-span-3 w-full p-4 rounded-xl border-2 transition-all ${customDurationEnabled ? 'border-gray-900 bg-white text-gray-900' : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'}`}>
-                            <div className="font-semibold">Custom Duration</div>
-                            <div className="text-xs text-gray-500 mt-1">Choose any length (months)</div>
-                          </button>
-
-                          {customDurationEnabled && (
-                            <div className="col-span-1 sm:col-span-3 mt-2 flex flex-col sm:flex-row items-center gap-3">
-                              <input
-                                type="number"
-                                min={1}
-                                max={120}
-                                value={customMonths}
-                                onChange={(e) => setCustomMonths(Number(e.target.value))}
-                                className="w-full sm:w-48 rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
-                                aria-label="Custom months"
-                              />
-                              <div className="text-sm text-gray-600">months (~{Math.round(customMonths * 30)} days)</div>
-                            </div>
-                          )}
+                        <div className="mt-3 flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={1}
+                            max={60}
+                            value={customMonths}
+                            onChange={(e) => { const v = Math.max(1, Number(e.target.value) || 1); setCustomMonths(v); setCustomDurationEnabled(true); setSelectedDuration(v) }}
+                            className="w-32 rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                            aria-label="Custom months"
+                          />
+                          <div className="text-sm text-gray-600">months</div>
+                          <div className="ml-3 text-xs text-gray-500">Presets: 1m / 3m / 6m / 12m</div>
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-sm font-semibold text-gray-900 mb-3">Upload frequency <span className="ml-2 text-xs text-gray-400 inline-flex items-center"><Clock className="w-3 h-3 mr-1" />Flexible</span></label>
+                        <label className="block text-sm font-semibold text-gray-900 mb-3">Frequency</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[1,2,3].map((d) => (
+                            <button
+                              key={d}
+                              onClick={() => setSelectedFrequency(d)}
+                              className={`w-full px-3 py-3 rounded-xl border text-sm font-semibold transition ${selectedFrequency === d ? 'bg-blue-600 border-blue-700 text-white shadow' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+                              1 / {d}d
+                            </button>
+                          ))}
+                        </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <button
-                            onClick={() => { setFrequencyMode('preset'); setSelectedFrequency(1); setVideosPerCadence(1) }}
-                            className={`w-full p-4 rounded-xl border-2 transition-all ${
-                              frequencyMode === 'preset' && selectedFrequency === 1
-                                ? 'border-gray-900 bg-white text-gray-900'
-                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                            }`}
-                          >
-                            <div className="font-semibold">Daily</div>
-                            <div className="text-xs text-gray-500 mt-1">1 video per day</div>
-                          </button>
-                          <button
-                            onClick={() => { setFrequencyMode('preset'); setSelectedFrequency(2); setVideosPerCadence(1) }}
-                            className={`w-full p-4 rounded-xl border-2 transition-all ${
-                              frequencyMode === 'preset' && selectedFrequency === 2
-                                ? 'border-gray-900 bg-white text-gray-900'
-                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
-                            }`}
-                          >
-                            <div className="font-semibold">Every 2 days</div>
-                            <div className="text-xs text-gray-500 mt-1">~15 videos per month</div>
-                          </button>
+                        <div className="mt-3 flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={1}
+                            max={90}
+                            value={selectedFrequency}
+                            onChange={(e) => setSelectedFrequency(Math.max(1, Number(e.target.value) || 1))}
+                            className="w-32 rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                            aria-label="Days per video" />
+                          <div className="text-sm text-gray-600">days</div>
+                          <div className="ml-3 text-xs text-gray-500">Choose spacing: 1 video every N days</div>
+                        </div>
 
-                          <button
-                            onClick={() => { setFrequencyMode('everyNDays'); setSelectedFrequency(frequencyDaysCustom); setVideosPerCadence(1) }}
-                            className={`w-full p-4 rounded-xl border-2 transition-all ${frequencyMode === 'everyNDays' ? 'border-gray-900 bg-white text-gray-900' : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'}`}>
-                            <div className="font-semibold">Custom (Every N days)</div>
-                            <div className="text-xs text-gray-500 mt-1">Choose a number of days between uploads</div>
-                          </button>
+                        <div className="mt-4 grid grid-cols-3 gap-2">
+                          <div className="bg-gray-50 p-3 rounded-lg text-center">
+                            <div className="text-xs text-gray-500">/ day</div>
+                            <div className="text-lg font-extrabold text-gray-900 mt-1">{(1/selectedFrequency).toFixed(2)}</div>
+                          </div>
+                          <div className="bg-gray-50 p-3 rounded-lg text-center">
+                            <div className="text-xs text-gray-500">/ week</div>
+                            <div className="text-lg font-extrabold text-gray-900 mt-1">{(1/selectedFrequency*7).toFixed(1)}</div>
+                          </div>
+                          <div className="bg-gray-50 p-3 rounded-lg text-center">
+                            <div className="text-xs text-gray-500">/ month</div>
+                            <div className="text-lg font-extrabold text-gray-900 mt-1">{(1/selectedFrequency*30).toFixed(1)}</div>
+                          </div>
+                        </div>
 
-                          <button
-                            onClick={() => { setFrequencyMode('videosPerDay'); setSelectedFrequency(1) }}
-                            className={`w-full p-4 rounded-xl border-2 transition-all ${frequencyMode === 'videosPerDay' ? 'border-gray-900 bg-white text-gray-900' : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'}`}>
-                            <div className="font-semibold">Custom (Videos per day)</div>
-                            <div className="text-xs text-gray-500 mt-1">Upload multiple videos on a day</div>
-                          </button>
-
-                          {frequencyMode === 'everyNDays' && (
-                            <div className="col-span-1 sm:col-span-2 mt-2 flex flex-col sm:flex-row items-center gap-3">
-                              <input
-                                type="number"
-                                min={1}
-                                max={30}
-                                value={frequencyDaysCustom}
-                                onChange={(e) => { setFrequencyDaysCustom(Number(e.target.value)); setSelectedFrequency(Number(e.target.value)) }}
-                                className="w-full sm:w-48 rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
-                                aria-label="Every N days"
-                              />
-                              <div className="text-sm text-gray-600">days between uploads</div>
-                            </div>
-                          )}
-
-                          {frequencyMode === 'videosPerDay' && (
-                            <div className="col-span-1 sm:col-span-2 mt-2 flex flex-col sm:flex-row items-center gap-3">
-                              <input
-                                type="number"
-                                min={1}
-                                max={10}
-                                value={videosPerDayCustom}
-                                onChange={(e) => { setVideosPerDayCustom(Number(e.target.value)); setVideosPerCadence(Number(e.target.value)) }}
-                                className="w-full sm:w-48 rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
-                                aria-label="Videos per day"
-                              />
-                              <div className="text-sm text-gray-600">videos per upload day</div>
-                            </div>
-                          )}
+                        <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-sm text-gray-600">
+                          <div className="font-medium">1 video every <span className="font-semibold">{selectedFrequency}</span> day(s)</div>
+                          <div className="text-gray-500">Duration ≈ <span className="font-semibold">{selectedDuration} months</span> • Total ≈ <span className="font-semibold">{Math.max(1, Math.floor((selectedDuration*30)/selectedFrequency))}</span> videos</div>
                         </div>
                       </div>
 
@@ -674,20 +1017,11 @@ export default function ChallengePage() {
                         </button>
                         <button
                           onClick={() => {
-                            // derive values from custom inputs if enabled
-                            const months = customDurationEnabled ? customMonths : selectedDuration
-                            let daysBetween = selectedFrequency
-                            let videosPerDay = 1
+                            // derive values from selected months & frequency
+                            const months = Math.max(1, selectedDuration)
+                            const daysBetween = Math.max(1, selectedFrequency)
+                            const videosPerDay = 1
 
-                            if (frequencyMode === 'everyNDays') {
-                              daysBetween = frequencyDaysCustom
-                              videosPerDay = 1
-                            } else if (frequencyMode === 'videosPerDay') {
-                              daysBetween = 1
-                              videosPerDay = videosPerDayCustom
-                            }
-
-                            // persist a preliminary plan
                             const nextPlan: CreatorChallengePlan = {
                               durationMonths: months,
                               cadenceEveryDays: daysBetween,
@@ -700,8 +1034,13 @@ export default function ChallengePage() {
                             setSelectedFrequency(daysBetween)
                             setVideosPerCadence(videosPerDay)
 
-                            setChallengeStartDate(new Date())
-                            setStep('videoType')
+                            // Play the start animation for 3s, then move to video type
+                            setIsStartingAnimation(true)
+                            setTimeout(() => {
+                              setIsStartingAnimation(false)
+                              setChallengeStartDate(new Date())
+                              setStep('videoType')
+                            }, 3000)
                           }}
                           className="w-full sm:w-auto px-8 py-3 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg transition-all"
                         >
@@ -709,6 +1048,20 @@ export default function ChallengePage() {
                         </button>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {isStartingAnimation && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+                  <div className="bg-white rounded-xl p-6 flex flex-col items-center gap-4">
+                    <div className="w-72 h-44 overflow-hidden rounded-md">
+                      <video src="/animation/calander.mp4" autoPlay muted playsInline className="w-full h-full object-cover" />
+                    </div>
+                    <div className="w-64 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-2 bg-blue-600 animate-[load_3s_ease-in-out]" style={{ width: '100%' }} />
+                    </div>
+                    <div className="text-sm text-gray-700">Preparing your schedule…</div>
                   </div>
                 </div>
               )}
@@ -721,48 +1074,62 @@ export default function ChallengePage() {
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <button
-                        onClick={() => {
-                          setSelectedVideoType('long')
-                          setStep('progress')
-                        }}
-                        className="w-full p-4 rounded-2xl border border-gray-200 bg-white hover:shadow-sm transition-all group text-left flex items-start gap-4"
-                        aria-label="Choose long video"
+                        onClick={() => handleSelectVideoType('long')}
+                        aria-pressed={selectedVideoType === 'long'}
+                        className={`w-full p-5 rounded-2xl border transition-transform duration-150 text-left flex items-center gap-4 ${selectedVideoType === 'long' ? 'border-indigo-200 shadow-lg scale-100' : 'border-gray-200 hover:shadow-sm'} bg-white`}
                       >
-                        <div className="w-14 h-10 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
-                          <Monitor className="w-6 h-6 text-gray-600" />
+                        <div className={`flex items-center justify-center rounded-md border ${selectedVideoType === 'long' ? 'border-indigo-200 shadow-sm' : 'border-gray-100'} bg-white w-16 h-10`}> 
+                          <Monitor className="w-7 h-7 text-gray-700" />
                         </div>
-                        <div className="flex-1">
-                          <h4 className="text-lg font-semibold text-gray-900 mb-1">Long Video</h4>
-                          <p className="text-sm text-gray-600 mb-2">16:9 — Standard YouTube videos (horizontal)</p>
-                          <div className="text-sm text-gray-500">Recommended for full-length content and detailed tutorials.</div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3">
+                            <h4 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">Long Video</h4>
+                            <span className="ml-auto text-xs sm:text-sm font-semibold text-gray-500">16:9</span>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-2">Standard horizontal videos — great for tutorials and long-form content.</p>
                         </div>
                       </button>
-                      
+
                       <button
-                        onClick={() => {
-                          setSelectedVideoType('shorts')
-                          setStep('progress')
-                        }}
-                        className="w-full p-4 rounded-2xl border border-gray-200 bg-white hover:shadow-sm transition-all group text-left flex items-start gap-4"
-                        aria-label="Choose shorts"
+                        onClick={() => handleSelectVideoType('shorts')}
+                        aria-pressed={selectedVideoType === 'shorts'}
+                        className={`w-full p-5 rounded-2xl border transition-transform duration-150 text-left flex items-center gap-4 ${selectedVideoType === 'shorts' ? 'border-indigo-200 shadow-lg scale-100' : 'border-gray-200 hover:shadow-sm'} bg-white`}
                       >
-                        <div className="w-10 h-14 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
-                          <Smartphone className="w-5 h-5 text-gray-600" />
+                        <div className={`flex items-center justify-center rounded-md border ${selectedVideoType === 'shorts' ? 'border-indigo-200 shadow-sm' : 'border-gray-100'} bg-white w-12 h-16`}>
+                          <Smartphone className="w-6 h-6 text-gray-700" />
                         </div>
-                        <div className="flex-1">
-                          <h4 className="text-lg font-semibold text-gray-900 mb-1">Shorts</h4>
-                          <p className="text-sm text-gray-600 mb-2">9:16 — Vertical short-form videos</p>
-                          <div className="text-sm text-gray-500">Great for audience reach and quick engagement.</div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3">
+                            <h4 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">Shorts</h4>
+                            <span className="ml-auto text-xs sm:text-sm font-semibold text-gray-500">9:16</span>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-2">Vertical short-form videos — optimized for reach and quick engagement.</p>
                         </div>
                       </button>
                     </div>
 
                     <button
                       onClick={() => setStep('setup')}
-                      className="mt-8 px-6 py-3 rounded-full border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-all"
+                      className="mt-6 sm:mt-8 px-6 py-3 rounded-full border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-all"
                     >
                       Back
                     </button>
+
+                    {/* Selection animation overlay */}
+                    {animStage !== 'idle' && (
+                      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl p-6 flex flex-col items-center gap-4 shadow-2xl">
+                          {animStage === 'running' ? (
+                            <img src="/animation/running.gif" alt="Preparing" className="w-48 h-48 object-contain" />
+                          ) : (
+                            <img src="/animation/loading2.gif" alt="Loading" className="w-40 h-40 object-contain" />
+                          )}
+                          <div className="text-gray-800 font-semibold">Preparing your challenge…</div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -807,27 +1174,59 @@ export default function ChallengePage() {
                       </div>
                     </div>
 
-                    {/* Compact progress stats */}
+                    {/* Compact progress stats + heatmap */}
                     <div className="mb-6">
                       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                        <div className="bg-white border border-gray-100 rounded-xl p-3">
+                        <div className="bg-white border border-gray-100 rounded-xl p-3 text-center">
                           <div className="text-xs text-gray-500">Next upload</div>
-                          <div className="text-base font-semibold text-gray-900 mt-1">{new Date(challengeStartDate.getTime() + (Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1) * selectedFrequency * 24 * 60 * 60 * 1000).toLocaleDateString()}</div>
+                          <div className="text-base font-semibold text-gray-900 mt-1">{challengeStartDate ? new Date(challengeStartDate.getTime() + (Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1) * selectedFrequency * 24 * 60 * 60 * 1000).toLocaleDateString() : '--'}</div>
                         </div>
 
-                        <div className="bg-white border border-gray-100 rounded-xl p-3">
+                        <div className="bg-white border border-gray-100 rounded-xl p-3 text-center">
                           <div className="text-xs text-gray-500">Days Elapsed</div>
-                          <div className="text-base font-semibold text-gray-900 mt-1">{Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24))}</div>
+                          <div className="text-base font-semibold text-gray-900 mt-1">{challengeStartDate ? Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) : 0}</div>
                         </div>
 
-                        <div className="bg-white border border-gray-100 rounded-xl p-3">
+                        <div className="bg-white border border-gray-100 rounded-xl p-3 text-center">
                           <div className="text-xs text-gray-500">Total videos</div>
-                          <div className="text-base font-semibold text-gray-900 mt-1">{Math.floor((selectedDuration * 30) / selectedFrequency)}</div>
+                          <div className="text-base font-semibold text-gray-900 mt-1">{totalUploads}</div>
                         </div>
 
-                        <div className="bg-white border border-gray-100 rounded-xl p-3">
+                        <div className="bg-white border border-gray-100 rounded-xl p-3 text-center">
                           <div className="text-xs text-gray-500">Status</div>
-                          <div className="text-base font-semibold text-green-600 mt-1">Active</div>
+                          <div className="text-base font-semibold text-green-600 mt-1">{uploadedCount === 0 ? 'Upcoming' : (uploadedCount >= totalUploads ? 'Completed' : 'Active')}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex flex-col sm:flex-row gap-3 items-start">
+                        <div className="sm:flex-1 bg-white border border-gray-100 rounded-xl p-3">
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm font-semibold text-gray-900">Consistency</div>
+                            <div className="text-sm font-semibold text-gray-900">{consistencyPercent}%</div>
+                          </div>
+                          <div className="w-full bg-gray-100 h-2 rounded-full mt-2 overflow-hidden">
+                            <div className="h-2 bg-blue-600 rounded-full" style={{ width: `${consistencyPercent}%` }}></div>
+                          </div>
+                          <div className="mt-2 text-xs text-gray-500">Streak: <span className="font-semibold text-gray-900">{currentStreak} days</span></div>
+                        </div>
+
+                        <div className="sm:w-48 bg-white border border-gray-100 rounded-xl p-3">
+                          <div className="text-xs text-gray-500 mb-2">Upcoming schedule</div>
+                          <div className="grid grid-cols-7 gap-1" role="grid" aria-label="Upload schedule heatmap">
+                            {scheduleDates.slice(0, 28).map((d, idx) => {
+                              const isPast = d < new Date()
+                              const isToday = d.toDateString() === new Date().toDateString()
+                              return (
+                                <div
+                                  key={idx}
+                                  role="gridcell"
+                                  aria-label={`${d.toLocaleDateString()} ${isPast ? 'Uploaded' : isToday ? 'Today' : 'Upcoming'}`}
+                                  title={`${d.toLocaleDateString()} ${isPast ? 'Uploaded' : isToday ? 'Today' : 'Upcoming'}`}
+                                  className={`w-4 h-4 rounded-sm ${isPast ? 'bg-green-400' : isToday ? 'bg-blue-400' : 'bg-gray-200'}`}
+                                />
+                              )
+                            })}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -861,83 +1260,74 @@ export default function ChallengePage() {
                   </div>
 
                   {/* Upload Schedule */}
-                  <div className="rounded-3xl bg-white border border-gray-100 shadow-[0_30px_60px_rgba(8,15,52,0.06)] p-8">
-                    <h4 className="text-xl font-extrabold text-gray-900 mb-4">Upload Schedule</h4>
+                  <div className="rounded-3xl bg-white border border-gray-100 shadow-[0_30px_60px_rgba(8,15,52,0.06)] p-4 sm:p-8">
+                    <h4 className="text-lg sm:text-xl font-extrabold text-gray-900 mb-4">Upload Schedule</h4>
 
                     {/* Real-time video cards — previews show selected format (16:9 or 9:16) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                       {Array.from({ length: (showFullSchedule ? totalUploads : scheduleCount) }, (_, i) => {
                         const uploadDate = new Date(challengeStartDate.getTime() + i * selectedFrequency * 24 * 60 * 60 * 1000)
                         const isPast = uploadDate < new Date()
                         const isToday = uploadDate.toDateString() === new Date().toDateString()
 
-                        const primaryClass = selectedVideoType === 'long' ? 'aspect-video' : 'aspect-[9/16]'
-                        const altLabel = selectedVideoType === 'long' ? '9:16' : '16:9'
+                        const primaryClass = selectedVideoType === 'long' ? 'aspect-video' : 'aspect-9/16'
+                        const previewWidthClass = selectedVideoType === 'long' ? 'w-full' : 'w-full max-w-[320px] mx-auto sm:max-w-none'
 
                         return (
-                          <div key={i} className={`rounded-2xl border border-gray-100 bg-white p-4 shadow-sm ${isToday ? 'ring-2 ring-blue-100' : ''}`}>
+                          <div
+                            key={i}
+                            className={`group rounded-2xl border border-gray-100 bg-white p-3 sm:p-5 shadow-sm transition-shadow hover:shadow-md ${isToday ? 'ring-2 ring-blue-100' : ''}`}
+                          >
                             <div className="flex flex-col h-full">
-                              <div className="mb-3">
-                                <div className={`w-full overflow-hidden rounded-xl border-2 border-gray-100 ${primaryClass}`}>
-                                  <div className="w-full h-full bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
-                                    <div className="text-gray-700 font-bold text-lg">{selectedVideoType === 'long' ? '16:9' : '9:16'}</div>
+                              <div className="mb-3 sm:mb-4">
+                                <div className={`${previewWidthClass} overflow-hidden rounded-xl border border-gray-100 ${primaryClass}`}>
+                                  <div className="w-full h-full bg-linear-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
+                                    <div className="flex flex-col items-center gap-2 text-gray-500">
+                                      <Youtube className="w-8 h-8" />
+                                      <div className="text-xs font-medium">Thumbnail preview</div>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
 
                               <div className="flex-1">
-                                <div className="flex items-start justify-between gap-4">
-                                  <div>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                                  <div className="min-w-0">
                                     <div className="text-sm font-semibold text-gray-900">Day {i * selectedFrequency + 1} of {selectedDuration * 30}</div>
-                                    <div className="text-xs text-gray-500 mt-1">{uploadDate.toLocaleDateString()}</div>
+                                    <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
+                                      <Calendar className="w-3.5 h-3.5" />
+                                      <span>{uploadDate.toLocaleDateString()}</span>
+                                    </div>
                                   </div>
 
-                                  <div className="text-right">
-                                    <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${isPast ? 'bg-green-100 text-green-700' : isToday ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                                  <div className="sm:text-right">
+                                    <div className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${isPast ? 'bg-green-100 text-green-700' : isToday ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
                                       {isPast ? 'Uploaded' : isToday ? 'Today' : 'Upcoming'}
                                     </div>
                                   </div>
                                 </div>
 
                                 <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                                  <div className="bg-gray-50 rounded-lg p-2">
-                                    <div className="text-xs text-gray-500">Views</div>
-                                    <div className="font-semibold text-gray-900">--</div>
+                                  <div className="bg-gray-50 rounded-lg px-2 py-2">
+                                    <div className="text-[11px] sm:text-xs text-gray-500">Views</div>
+                                    <div className="text-sm sm:text-base font-semibold text-gray-900">--</div>
                                   </div>
-                                  <div className="bg-gray-50 rounded-lg p-2">
-                                    <div className="text-xs text-gray-500">Likes</div>
-                                    <div className="font-semibold text-gray-900">--</div>
+                                  <div className="bg-gray-50 rounded-lg px-2 py-2">
+                                    <div className="text-[11px] sm:text-xs text-gray-500">Likes</div>
+                                    <div className="text-sm sm:text-base font-semibold text-gray-900">--</div>
                                   </div>
-                                  <div className="bg-gray-50 rounded-lg p-2">
-                                    <div className="text-xs text-gray-500">Comments</div>
-                                    <div className="font-semibold text-gray-900">--</div>
+                                  <div className="bg-gray-50 rounded-lg px-2 py-2">
+                                    <div className="text-[11px] sm:text-xs text-gray-500">Comments</div>
+                                    <div className="text-sm sm:text-base font-semibold text-gray-900">--</div>
                                   </div>
                                 </div>
 
-                                <div className="mt-3 flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <div className={`w-20 overflow-hidden rounded-md border border-gray-100 ${selectedVideoType === 'long' ? 'aspect-[9/16]' : 'aspect-video'}`}>
-                                      <div className="w-full h-full bg-gray-50 flex items-center justify-center text-sm text-gray-500">{altLabel}</div>
-                                    </div>
-                                    <div className="text-sm text-gray-500">Alternate preview</div>
-                                  </div>
-
-                                  <div>
-                                    <button
-                                      onClick={() => {
-                                        if (isToday) return
-                                        const adj = new Date(challengeStartDate.getTime())
-                                        if (uploadDate > new Date()) {
-                                          const delta = Math.floor((new Date().getTime() - uploadDate.getTime()) / (1000 * 60 * 60 * 24))
-                                          adj.setDate(adj.getDate() + delta)
-                                          setChallengeStartDate(adj)
-                                        }
-                                      }}
-                                      className="w-full sm:w-auto px-4 py-2 rounded-full border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 font-semibold"
-                                    >
-                                      {isPast ? 'Revert' : 'Mark as Uploaded'}
-                                    </button>
-                                  </div>
+                                {/* Card footer: Title + small details */}
+                                <div className="mt-3 pt-3 border-t border-gray-100">
+                                  <div className="text-sm font-semibold text-gray-900 truncate">{scheduledMeta[i]?.title || `Video ${i + 1}`}</div>
+                                  {scheduledMeta[i]?.notes ? (
+                                    <div className="text-xs text-gray-500 mt-1 line-clamp-2">{scheduledMeta[i]?.notes}</div>
+                                  ) : null}
                                 </div>
                               </div>
                             </div>
