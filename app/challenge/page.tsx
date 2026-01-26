@@ -774,8 +774,21 @@ export default function ChallengePage() {
             {lastSaveError && (
               <div className="mb-4">
                 <div className="rounded-lg p-3 bg-red-50 border border-red-100 text-red-800 text-sm font-semibold max-w-3xl mx-auto">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>Failed to save challenge: <span className="font-semibold">{lastSaveError}</span></div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div>Failed to save challenge: <span className="font-semibold">{lastSaveError}</span></div>
+                      {/* Guidance hints */}
+                      <div className="mt-2 text-xs text-red-700">
+                        {lastSaveError?.toLowerCase().includes('unauthor') || lastSaveError?.toLowerCase().includes('sign in') ? (
+                          <div>Sign in to save changes. <button onClick={() => { window.location.href = '/signup' }} className="ml-2 px-2 py-1 rounded bg-white text-red-700 text-xs font-semibold">Sign in</button></div>
+                        ) : lastSaveError?.toLowerCase().includes('permission') || lastSaveError?.toLowerCase().includes('rls') ? (
+                          <div>Permission error: check Supabase RLS policies and server auth settings.</div>
+                        ) : lastSaveError?.toLowerCase().includes('does not exist') || lastSaveError?.toLowerCase().includes('42p01') ? (
+                          <div>Missing table: run the migrations (see <span className="font-semibold">migrations/006_add_challenge_columns.sql</span>).</div>
+                        ) : null }
+                      </div>
+                    </div>
+
                     <div className="flex items-center gap-2">
                       {lastServerDebug && (
                         <button onClick={() => setShowDebug((s) => !s)} className="px-2 py-1 rounded bg-red-100 text-red-700 text-xs font-semibold">{showDebug ? 'Hide details' : 'View details'}</button>
