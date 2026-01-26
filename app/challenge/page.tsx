@@ -67,6 +67,9 @@ export default function ChallengePage() {
   const [isPreparing, setIsPreparing] = useState(false)
   const [isStartingAnimation, setIsStartingAnimation] = useState(false)
   const [showStartedBanner, setShowStartedBanner] = useState(false)
+  const [lastSaveError, setLastSaveError] = useState<string | null>(null)
+  const [lastServerDebug, setLastServerDebug] = useState<any>(null)
+  const [showDebug, setShowDebug] = useState(false)
 
   // New states for the step-by-step flow
   const [step, setStep] = useState<'start' | 'setup' | 'videoType' | 'progress'>('start')
@@ -119,11 +122,16 @@ export default function ChallengePage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ config: { videoType: type }, videoType: type })
           })
+          const errJson = await res.json().catch(() => null)
           if (!res.ok) {
-            const err = await res.json().catch(() => ({ error: 'Server error' }))
-            const { error } = err as any
-            toast({ title: 'Could not save selection', description: error || 'Server error' })
+            const errMsg = errJson?.error || `HTTP ${res.status}`
+            setLastSaveError(errMsg)
+            setLastServerDebug(errJson || null)
+            setShowDebug(Boolean(errJson))
+            toast({ title: 'Could not save selection', description: errMsg })
           } else {
+            setLastSaveError(null)
+            setLastServerDebug(null)
             toast({ title: 'Saved format', description: `Selected ${type === 'long' ? 'Long Video (16:9)' : 'Shorts (9:16)'}` })
           }
         }
@@ -244,13 +252,21 @@ export default function ChallengePage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ progress: progressArr })
           })
+          const errJson = await res.json().catch(() => null)
           if (!res.ok) {
-            const err = await res.json().catch(() => ({ error: 'Server error' }))
-            toast({ title: 'Failed to save progress', description: err?.error || 'Server error' })
+            const errMsg = errJson?.error || `HTTP ${res.status}`
+            setLastSaveError(errMsg)
+            setLastServerDebug(errJson || null)
+            setShowDebug(Boolean(errJson))
+            toast({ title: 'Failed to save progress', description: errMsg })
           }
         } catch (e) {
           console.error('Failed to persist progress to server', e)
-          toast({ title: 'Failed to save progress', description: String(e?.message || e) })
+          const errMsg = String(e?.message || e)
+          setLastSaveError(errMsg)
+          setLastServerDebug(null)
+          setShowDebug(false)
+          toast({ title: 'Failed to save progress', description: errMsg })
         }
       })()
 
@@ -281,13 +297,21 @@ export default function ChallengePage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ progress: progressArr })
           })
+          const errJson = await res.json().catch(() => null)
           if (!res.ok) {
-            const err = await res.json().catch(() => ({ error: 'Server error' }))
-            toast({ title: 'Failed to save progress', description: err?.error || 'Server error' })
+            const errMsg = errJson?.error || `HTTP ${res.status}`
+            setLastSaveError(errMsg)
+            setLastServerDebug(errJson || null)
+            setShowDebug(Boolean(errJson))
+            toast({ title: 'Failed to save progress', description: errMsg })
           }
         } catch (e) {
           console.error('Failed to persist progress to server', e)
-          toast({ title: 'Failed to save progress', description: String(e?.message || e) })
+          const errMsg = String(e?.message || e)
+          setLastSaveError(errMsg)
+          setLastServerDebug(null)
+          setShowDebug(false)
+          toast({ title: 'Failed to save progress', description: errMsg })
         }
       })()
 
@@ -415,23 +439,19 @@ export default function ChallengePage() {
         body: JSON.stringify({ config: nextPlan, progress: Object.values(scheduledMeta) })
       })
 
+      const json = await res.json().catch(() => null)
+
       if (!res.ok) {
-        if (res.status === 401) {
-          toast({ title: 'Sign in required', description: 'Please sign in to save your challenge' })
-          return
-        }
-        const err = await res.json().catch(() => ({ error: 'Unknown server error' }))
-        toast({ title: 'Failed to start challenge', description: err?.error || 'Server error' })
-        return
+        const errorMsg = json?.error || `HTTP ${res.status}`
+        console.error('startChallenge failed:', errorMsg, json)
+        return { success: false, error: errorMsg, status: res.status, debug: json }
       }
 
-      const json = await res.json()
       try { localStorage.setItem('creator_challenge_id', json?.id || '') } catch {}
-      // Return the server response so caller can show success after animations
-      return json
+
+      return { success: true, id: json?.id || null, challenge: json?.challenge || null, debug: json?.debug }
     } catch (e) {
       console.error('Failed to persist challenge to server', e)
-      // Return an error shape instead of showing toast here; caller will handle message timing
       return { success: false, error: String(e?.message || e) }
     }
   }
@@ -454,13 +474,30 @@ export default function ChallengePage() {
     try {
       const id = localStorage.getItem('creator_challenge_id')
       if (!id) return
-      await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, {
+      const res = await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config: nextPlan })
       })
+      const errJson = await res.json().catch(() => null)
+      if (!res.ok) {
+        const errMsg = errJson?.error || `HTTP ${res.status}`
+        setLastSaveError(errMsg)
+        setLastServerDebug(errJson || null)
+        setShowDebug(Boolean(errJson))
+        toast({ title: 'Failed to save challenge', description: errMsg })
+        return
+      }
+      // success -> clear prior errors
+      setLastSaveError(null)
+      setLastServerDebug(null)
+      setShowDebug(false)
     } catch (e) {
       console.error('Failed to persist challenge config to server', e)
+      const errMsg = String(e?.message || e)
+      setLastSaveError(errMsg)
+      setLastServerDebug(null)
+      setShowDebug(false)
     }
   }
 
@@ -478,9 +515,26 @@ export default function ChallengePage() {
     // Attempt to delete on server
     try {
       const id = localStorage.getItem('creator_challenge_id')
-      if (id) await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (id) {
+        const res = await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+        const errJson = await res.json().catch(() => null)
+        if (!res.ok) {
+          const errMsg = errJson?.error || `HTTP ${res.status}`
+          setLastSaveError(errMsg)
+          setLastServerDebug(errJson || null)
+          setShowDebug(Boolean(errJson))
+          console.error('Failed to delete challenge on server', errMsg)
+        } else {
+          setLastSaveError(null)
+          setLastServerDebug(null)
+          setShowDebug(false)
+        }
+      }
     } catch (e) {
       console.error('Failed to delete challenge on server', e)
+      setLastSaveError(String(e?.message || e))
+      setLastServerDebug(null)
+      setShowDebug(false)
     }
 
     try {
@@ -578,12 +632,16 @@ export default function ChallengePage() {
     const fetchActive = async () => {
       try {
         const res = await fetch('/api/user-challenge')
+        const errJson = await res.json().catch(() => null)
         if (!res.ok) {
-          const err = await res.json().catch(() => ({ error: 'Server error' }))
-          console.error('Failed to fetch active challenge:', err)
+          const errMsg = errJson?.error || `HTTP ${res.status}`
+          console.error('Failed to fetch active challenge:', errMsg, errJson)
+          setLastSaveError(errMsg)
+          setLastServerDebug(errJson || null)
+          setShowDebug(Boolean(errJson))
           return
         }
-        const json = await res.json()
+        const json = errJson
         const ch = json?.challenge
         if (!ch) return
 
@@ -710,6 +768,25 @@ export default function ChallengePage() {
             {showStartedBanner && (
               <div className="mb-4">
                 <div className="rounded-lg p-3 bg-green-50 border border-green-100 text-green-800 text-sm font-semibold max-w-3xl mx-auto text-center">Challenge started successfully — saved to your account</div>
+              </div>
+            )}
+
+            {lastSaveError && (
+              <div className="mb-4">
+                <div className="rounded-lg p-3 bg-red-50 border border-red-100 text-red-800 text-sm font-semibold max-w-3xl mx-auto">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>Failed to save challenge: <span className="font-semibold">{lastSaveError}</span></div>
+                    <div className="flex items-center gap-2">
+                      {lastServerDebug && (
+                        <button onClick={() => setShowDebug((s) => !s)} className="px-2 py-1 rounded bg-red-100 text-red-700 text-xs font-semibold">{showDebug ? 'Hide details' : 'View details'}</button>
+                      )}
+                      <button onClick={() => { setLastSaveError(null); setLastServerDebug(null); setShowDebug(false) }} className="px-2 py-1 rounded bg-white text-red-700 text-xs font-semibold">Dismiss</button>
+                    </div>
+                  </div>
+                  {showDebug && lastServerDebug && (
+                    <pre className="mt-2 text-xs text-red-700 overflow-auto max-h-32 bg-white p-2 rounded">{JSON.stringify(lastServerDebug, null, 2)}</pre>
+                  )}
+                </div>
               </div>
             )}
 
