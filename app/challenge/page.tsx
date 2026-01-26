@@ -66,6 +66,7 @@ export default function ChallengePage() {
   // UI states while preparing a schedule (shows spinner & disables actions)
   const [isPreparing, setIsPreparing] = useState(false)
   const [isStartingAnimation, setIsStartingAnimation] = useState(false)
+  const [showStartedBanner, setShowStartedBanner] = useState(false)
 
   // New states for the step-by-step flow
   const [step, setStep] = useState<'start' | 'setup' | 'videoType' | 'progress'>('start')
@@ -101,12 +102,22 @@ export default function ChallengePage() {
       setStep('progress')
       // persist to server if we have a challenge id
       try {
-        const id = localStorage.getItem('creator_challenge_id')
+        let id = localStorage.getItem('creator_challenge_id')
+        // If we don't have an id yet, try creating the challenge first
+        if (!id) {
+          const startRes = await startChallenge()
+          if (!startRes || startRes?.success === false) {
+            toast({ title: 'Failed to save selection', description: startRes?.error || 'Unable to start challenge' })
+            return
+          }
+          id = startRes?.id || localStorage.getItem('creator_challenge_id')
+        }
+
         if (id) {
           const res = await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ config: { videoType: type } })
+            body: JSON.stringify({ config: { videoType: type }, videoType: type })
           })
           if (!res.ok) {
             const err = await res.json().catch(() => ({ error: 'Server error' }))
@@ -416,10 +427,12 @@ export default function ChallengePage() {
 
       const json = await res.json()
       try { localStorage.setItem('creator_challenge_id', json?.id || '') } catch {}
-      toast({ title: 'Challenge started', description: 'Saved to your account' })
+      // Return the server response so caller can show success after animations
+      return json
     } catch (e) {
       console.error('Failed to persist challenge to server', e)
-      toast({ title: 'Failed to start challenge', description: String(e?.message || e) })
+      // Return an error shape instead of showing toast here; caller will handle message timing
+      return { success: false, error: String(e?.message || e) }
     }
   }
 
@@ -586,6 +599,10 @@ export default function ChallengePage() {
           setDurationMonths(cfg.durationMonths || durationMonths)
           setCadenceEveryDays(cfg.cadenceEveryDays || cadenceEveryDays)
           setVideosPerCadence(cfg.videosPerCadence || videosPerCadence)
+          // If a video type was persisted previously, reflect it in the UI
+          if (cfg.videoType) {
+            setSelectedVideoType(cfg.videoType === 'shorts' ? 'shorts' : 'long')
+          }
         }
         if (ch.started_at) {
           try { localStorage.setItem('creator_challenge_started_at', ch.started_at) } catch {}
@@ -690,6 +707,12 @@ export default function ChallengePage() {
 
         <main className={`flex-1 pt-14 md:pt-16 p-4 md:p-8 pb-20 md:pb-8 transition-all duration-300 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'}`}>
           <div className="max-w-7xl mx-auto">
+            {showStartedBanner && (
+              <div className="mb-4">
+                <div className="rounded-lg p-3 bg-green-50 border border-green-100 text-green-800 text-sm font-semibold max-w-3xl mx-auto text-center">Challenge started successfully — saved to your account</div>
+              </div>
+            )}
+
             <div className="mb-8 mt-8 md:mt-10">
               {/* Channel Selector (same dashboard style) */}
               {youtubeChannel && (
@@ -1039,7 +1062,7 @@ export default function ChallengePage() {
                           Back
                         </button>
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             // derive values from selected months & frequency
                             const months = Math.max(1, selectedDuration)
                             const daysBetween = Math.max(1, selectedFrequency)
@@ -1057,18 +1080,32 @@ export default function ChallengePage() {
                             setSelectedFrequency(daysBetween)
                             setVideosPerCadence(videosPerDay)
 
-                            // Play the start animation for 3s, then move to video type
+                            // Start server save and play the start animation for 3s
                             setIsStartingAnimation(true)
-                            setTimeout(() => {
+
+                            const startPromise = startChallenge()
+
+                            setTimeout(async () => {
                               setIsStartingAnimation(false)
                               setChallengeStartDate(new Date())
                               setStep('videoType')
+
+                              const startResult = await startPromise.catch((e) => ({ success: false, error: String(e) }))
+
+                              if (startResult && startResult.success !== false) {
+                                // saved successfully on server
+                                toast({ title: 'Challenge started', description: 'Saved to your account' })
+                                setShowStartedBanner(true)
+                                setTimeout(() => setShowStartedBanner(false), 4000)
+                              } else {
+                                toast({ title: 'Failed to start challenge', description: startResult?.error || 'Server error' })
+                              }
                             }, 3000)
                           }}
                           className="w-full sm:w-auto px-8 py-3 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg transition-all"
                         >
                           Start Challenge
-                        </button>
+                        </button> 
                       </div>
                     </div>
                   </div>
