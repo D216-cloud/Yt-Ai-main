@@ -67,9 +67,6 @@ export default function ChallengePage() {
   const [isPreparing, setIsPreparing] = useState(false)
   const [isStartingAnimation, setIsStartingAnimation] = useState(false)
   const [showStartedBanner, setShowStartedBanner] = useState(false)
-  const [lastSaveError, setLastSaveError] = useState<string | null>(null)
-  const [lastServerDebug, setLastServerDebug] = useState<any>(null)
-  const [showDebug, setShowDebug] = useState(false)
 
   // New states for the step-by-step flow
   const [step, setStep] = useState<'start' | 'setup' | 'videoType' | 'progress'>('start')
@@ -122,16 +119,11 @@ export default function ChallengePage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ config: { videoType: type }, videoType: type })
           })
-          const errJson = await res.json().catch(() => null)
           if (!res.ok) {
-            const errMsg = errJson?.error || `HTTP ${res.status}`
-            setLastSaveError(errMsg)
-            setLastServerDebug(errJson || null)
-            setShowDebug(Boolean(errJson))
-            toast({ title: 'Could not save selection', description: errMsg })
+            const err = await res.json().catch(() => ({ error: 'Server error' }))
+            const { error } = err as any
+            toast({ title: 'Could not save selection', description: error || 'Server error' })
           } else {
-            setLastSaveError(null)
-            setLastServerDebug(null)
             toast({ title: 'Saved format', description: `Selected ${type === 'long' ? 'Long Video (16:9)' : 'Shorts (9:16)'}` })
           }
         }
@@ -252,21 +244,13 @@ export default function ChallengePage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ progress: progressArr })
           })
-          const errJson = await res.json().catch(() => null)
           if (!res.ok) {
-            const errMsg = errJson?.error || `HTTP ${res.status}`
-            setLastSaveError(errMsg)
-            setLastServerDebug(errJson || null)
-            setShowDebug(Boolean(errJson))
-            toast({ title: 'Failed to save progress', description: errMsg })
+            const err = await res.json().catch(() => ({ error: 'Server error' }))
+            toast({ title: 'Failed to save progress', description: err?.error || 'Server error' })
           }
         } catch (e) {
           console.error('Failed to persist progress to server', e)
-          const errMsg = String(e?.message || e)
-          setLastSaveError(errMsg)
-          setLastServerDebug(null)
-          setShowDebug(false)
-          toast({ title: 'Failed to save progress', description: errMsg })
+          toast({ title: 'Failed to save progress', description: String(e?.message || e) })
         }
       })()
 
@@ -297,21 +281,13 @@ export default function ChallengePage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ progress: progressArr })
           })
-          const errJson = await res.json().catch(() => null)
           if (!res.ok) {
-            const errMsg = errJson?.error || `HTTP ${res.status}`
-            setLastSaveError(errMsg)
-            setLastServerDebug(errJson || null)
-            setShowDebug(Boolean(errJson))
-            toast({ title: 'Failed to save progress', description: errMsg })
+            const err = await res.json().catch(() => ({ error: 'Server error' }))
+            toast({ title: 'Failed to save progress', description: err?.error || 'Server error' })
           }
         } catch (e) {
           console.error('Failed to persist progress to server', e)
-          const errMsg = String(e?.message || e)
-          setLastSaveError(errMsg)
-          setLastServerDebug(null)
-          setShowDebug(false)
-          toast({ title: 'Failed to save progress', description: errMsg })
+          toast({ title: 'Failed to save progress', description: String(e?.message || e) })
         }
       })()
 
@@ -439,19 +415,23 @@ export default function ChallengePage() {
         body: JSON.stringify({ config: nextPlan, progress: Object.values(scheduledMeta) })
       })
 
-      const json = await res.json().catch(() => null)
-
       if (!res.ok) {
-        const errorMsg = json?.error || `HTTP ${res.status}`
-        console.error('startChallenge failed:', errorMsg, json)
-        return { success: false, error: errorMsg, status: res.status, debug: json }
+        if (res.status === 401) {
+          toast({ title: 'Sign in required', description: 'Please sign in to save your challenge' })
+          return
+        }
+        const err = await res.json().catch(() => ({ error: 'Unknown server error' }))
+        toast({ title: 'Failed to start challenge', description: err?.error || 'Server error' })
+        return
       }
 
+      const json = await res.json()
       try { localStorage.setItem('creator_challenge_id', json?.id || '') } catch {}
-
-      return { success: true, id: json?.id || null, challenge: json?.challenge || null, debug: json?.debug }
+      // Return the server response so caller can show success after animations
+      return json
     } catch (e) {
       console.error('Failed to persist challenge to server', e)
+      // Return an error shape instead of showing toast here; caller will handle message timing
       return { success: false, error: String(e?.message || e) }
     }
   }
@@ -474,30 +454,13 @@ export default function ChallengePage() {
     try {
       const id = localStorage.getItem('creator_challenge_id')
       if (!id) return
-      const res = await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, {
+      await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ config: nextPlan })
       })
-      const errJson = await res.json().catch(() => null)
-      if (!res.ok) {
-        const errMsg = errJson?.error || `HTTP ${res.status}`
-        setLastSaveError(errMsg)
-        setLastServerDebug(errJson || null)
-        setShowDebug(Boolean(errJson))
-        toast({ title: 'Failed to save challenge', description: errMsg })
-        return
-      }
-      // success -> clear prior errors
-      setLastSaveError(null)
-      setLastServerDebug(null)
-      setShowDebug(false)
     } catch (e) {
       console.error('Failed to persist challenge config to server', e)
-      const errMsg = String(e?.message || e)
-      setLastSaveError(errMsg)
-      setLastServerDebug(null)
-      setShowDebug(false)
     }
   }
 
@@ -515,26 +478,9 @@ export default function ChallengePage() {
     // Attempt to delete on server
     try {
       const id = localStorage.getItem('creator_challenge_id')
-      if (id) {
-        const res = await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
-        const errJson = await res.json().catch(() => null)
-        if (!res.ok) {
-          const errMsg = errJson?.error || `HTTP ${res.status}`
-          setLastSaveError(errMsg)
-          setLastServerDebug(errJson || null)
-          setShowDebug(Boolean(errJson))
-          console.error('Failed to delete challenge on server', errMsg)
-        } else {
-          setLastSaveError(null)
-          setLastServerDebug(null)
-          setShowDebug(false)
-        }
-      }
+      if (id) await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
     } catch (e) {
       console.error('Failed to delete challenge on server', e)
-      setLastSaveError(String(e?.message || e))
-      setLastServerDebug(null)
-      setShowDebug(false)
     }
 
     try {
@@ -632,54 +578,79 @@ export default function ChallengePage() {
     const fetchActive = async () => {
       try {
         const res = await fetch('/api/user-challenge')
-        const errJson = await res.json().catch(() => null)
         if (!res.ok) {
-          const errMsg = errJson?.error || `HTTP ${res.status}`
-          console.error('Failed to fetch active challenge:', errMsg, errJson)
-          setLastSaveError(errMsg)
-          setLastServerDebug(errJson || null)
-          setShowDebug(Boolean(errJson))
+          const err = await res.json().catch(() => ({ error: 'Server error' }))
+          console.error('Failed to fetch active challenge:', err)
           return
         }
-        const json = errJson
+        const json = await res.json()
         const ch = json?.challenge
         if (!ch) return
 
-        // Apply to UI state
-        if (ch.config) {
-          const cfg = ch.config
-          setPlan({
-            durationMonths: cfg.durationMonths || durationMonths,
-            cadenceEveryDays: cfg.cadenceEveryDays || cadenceEveryDays,
-            videosPerCadence: cfg.videosPerCadence || videosPerCadence,
-            createdAt: cfg.createdAt || new Date().toISOString(),
-          })
-          setDurationMonths(cfg.durationMonths || durationMonths)
-          setCadenceEveryDays(cfg.cadenceEveryDays || cadenceEveryDays)
-          setVideosPerCadence(cfg.videosPerCadence || videosPerCadence)
-          // If a video type was persisted previously, reflect it in the UI
-          if (cfg.videoType) {
-            setSelectedVideoType(cfg.videoType === 'shorts' ? 'shorts' : 'long')
-          }
+        // Apply to UI state - use the explicit columns if available, fallback to config
+        const cfg = ch.config || {}
+        const newDurationMonths = ch.duration_months || cfg.durationMonths || durationMonths
+        const newCadenceEveryDays = ch.cadence_every_days || cfg.cadenceEveryDays || cadenceEveryDays
+        const newVideosPerCadence = ch.videos_per_cadence || cfg.videosPerCadence || videosPerCadence
+        
+        // Update state with values from DB
+        setDurationMonths(newDurationMonths)
+        setCadenceEveryDays(newCadenceEveryDays)
+        setVideosPerCadence(newVideosPerCadence)
+        
+        setPlan({
+          durationMonths: newDurationMonths,
+          cadenceEveryDays: newCadenceEveryDays,
+          videosPerCadence: newVideosPerCadence,
+          createdAt: ch.created_at || cfg.createdAt || new Date().toISOString(),
+        })
+
+        // If a video type was persisted, reflect it in the UI
+        if (ch.video_type || cfg.videoType) {
+          const vt = ch.video_type || cfg.videoType
+          setSelectedVideoType(vt === 'shorts' ? 'shorts' : 'long')
         }
+
         if (ch.started_at) {
           try { localStorage.setItem('creator_challenge_started_at', ch.started_at) } catch {}
           setChallengeStartedAt(ch.started_at)
           setSetupHidden(true)
         }
-        if (Array.isArray(ch.progress) && ch.progress.length) {
+        
+        // Load progress from either scheduled_meta or progress array
+        const progressData = ch.scheduled_meta || (Array.isArray(ch.progress) ? ch.progress : [])
+        if (progressData && (Array.isArray(progressData) || typeof progressData === 'object')) {
           const map: Record<number, ScheduledMeta> = {}
-          ch.progress.forEach((p: any, i: number) => {
-            map[i] = {
-              title: p.title,
-              notes: p.notes,
-              thumbnail: p.thumbnail,
-              uploaded: !!p.uploaded,
-              uploadedAt: p.uploadedAt || null,
-            }
-          })
+          if (Array.isArray(progressData)) {
+            progressData.forEach((p: any, i: number) => {
+              if (p) {
+                map[i] = {
+                  title: p.title || `Video ${i + 1}`,
+                  notes: p.notes || '',
+                  thumbnail: p.thumbnail,
+                  uploaded: !!p.uploaded,
+                  uploadedAt: p.uploadedAt || null,
+                }
+              }
+            })
+          } else {
+            // Handle object format (indexed by video number)
+            Object.entries(progressData).forEach(([key, p]: [string, any]) => {
+              const idx = Number(key)
+              if (!isNaN(idx) && p) {
+                map[idx] = {
+                  title: p.title || `Video ${idx + 1}`,
+                  notes: p.notes || '',
+                  thumbnail: p.thumbnail,
+                  uploaded: !!p.uploaded,
+                  uploadedAt: p.uploadedAt || null,
+                }
+              }
+            })
+          }
           setScheduledMeta(map)
         }
+        
         if (ch.id) {
           try { localStorage.setItem('creator_challenge_id', ch.id) } catch {}
         }
@@ -768,38 +739,6 @@ export default function ChallengePage() {
             {showStartedBanner && (
               <div className="mb-4">
                 <div className="rounded-lg p-3 bg-green-50 border border-green-100 text-green-800 text-sm font-semibold max-w-3xl mx-auto text-center">Challenge started successfully — saved to your account</div>
-              </div>
-            )}
-
-            {lastSaveError && (
-              <div className="mb-4">
-                <div className="rounded-lg p-3 bg-red-50 border border-red-100 text-red-800 text-sm font-semibold max-w-3xl mx-auto">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div>Failed to save challenge: <span className="font-semibold">{lastSaveError}</span></div>
-                      {/* Guidance hints */}
-                      <div className="mt-2 text-xs text-red-700">
-                        {lastSaveError?.toLowerCase().includes('unauthor') || lastSaveError?.toLowerCase().includes('sign in') ? (
-                          <div>Sign in to save changes. <button onClick={() => { window.location.href = '/signup' }} className="ml-2 px-2 py-1 rounded bg-white text-red-700 text-xs font-semibold">Sign in</button></div>
-                        ) : lastSaveError?.toLowerCase().includes('permission') || lastSaveError?.toLowerCase().includes('rls') ? (
-                          <div>Permission error: check Supabase RLS policies and server auth settings.</div>
-                        ) : lastSaveError?.toLowerCase().includes('does not exist') || lastSaveError?.toLowerCase().includes('42p01') ? (
-                          <div>Missing table: run the migrations (see <span className="font-semibold">migrations/006_add_challenge_columns.sql</span>).</div>
-                        ) : null }
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {lastServerDebug && (
-                        <button onClick={() => setShowDebug((s) => !s)} className="px-2 py-1 rounded bg-red-100 text-red-700 text-xs font-semibold">{showDebug ? 'Hide details' : 'View details'}</button>
-                      )}
-                      <button onClick={() => { setLastSaveError(null); setLastServerDebug(null); setShowDebug(false) }} className="px-2 py-1 rounded bg-white text-red-700 text-xs font-semibold">Dismiss</button>
-                    </div>
-                  </div>
-                  {showDebug && lastServerDebug && (
-                    <pre className="mt-2 text-xs text-red-700 overflow-auto max-h-32 bg-white p-2 rounded">{JSON.stringify(lastServerDebug, null, 2)}</pre>
-                  )}
-                </div>
               </div>
             )}
 

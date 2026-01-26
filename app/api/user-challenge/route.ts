@@ -45,24 +45,50 @@ export async function POST(req: Request) {
     const progress = Array.isArray(body.progress) ? body.progress : []
     const challengeId = body.challengeId || 'creator-challenge'
 
-    const payload = {
+    // Extract explicit columns from config for easier queries and integrity
+    const durationMonths = Number(config?.durationMonths || config?.duration_months || null)
+    const cadenceEveryDays = Number(config?.cadenceEveryDays || config?.cadence_every_days || null)
+    const videosPerCadence = Number(config?.videosPerCadence || config?.videos_per_cadence || null)
+    const videoType = (config?.videoType || config?.video_type || null)
+    const scheduledMeta = body.scheduledMeta || body.scheduled_meta || (Array.isArray(progress) ? null : null)
+
+    // Build config with all fields properly named
+    const fullConfig = {
+      durationMonths: !isNaN(durationMonths) ? durationMonths : (config?.durationMonths || config?.duration_months),
+      cadenceEveryDays: !isNaN(cadenceEveryDays) ? cadenceEveryDays : (config?.cadenceEveryDays || config?.cadence_every_days),
+      videosPerCadence: !isNaN(videosPerCadence) ? videosPerCadence : (config?.videosPerCadence || config?.videos_per_cadence),
+      videoType: videoType || config?.videoType || config?.video_type,
+    }
+
+    const payload: any = {
       user_id: userRow.id,
       challenge_id: challengeId,
       started_at: new Date().toISOString(),
-      config,
-      progress,
+      config: fullConfig,
+      progress: progress.length > 0 ? progress : [],
       status: 'active',
       updated_at: new Date().toISOString(),
     }
 
-    console.log('user-challenge POST payload:', { userId: userRow.id, challengeId, cfg: config, progressCount: progress.length })
+    // Add explicit columns for easier queries
+    if (!isNaN(durationMonths)) payload.duration_months = durationMonths
+    if (!isNaN(cadenceEveryDays)) payload.cadence_every_days = cadenceEveryDays
+    if (!isNaN(videosPerCadence)) payload.videos_per_cadence = videosPerCadence
+    if (videoType) payload.video_type = videoType
+    if (scheduledMeta) payload.scheduled_meta = scheduledMeta
+
+    console.log('user-challenge POST payload:', { userId: userRow.id, challengeId, config: fullConfig, progressCount: progress.length })
 
     let data, error, res
     try {
-      res = await supabase.from('user_challenges').upsert(payload, { onConflict: 'user_id,challenge_id' }).select().maybeSingle()
+      res = await supabase
+        .from('user_challenges')
+        .upsert(payload, { onConflict: 'user_id,challenge_id' })
+        .select()
+        .maybeSingle()
       data = res.data
       error = res.error
-      console.log('supabase upsert result', { data, error })
+      console.log('supabase upsert result', { success: !error, id: data?.id })
     } catch (e: any) {
       console.error('user-challenge POST exception', e)
       return NextResponse.json({ error: String(e?.message || e) }, { status: 500 })
@@ -80,9 +106,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: msg }, { status: 500 })
     }
 
-    // Return debug info in dev to help debugging
-    const debug = process.env.NODE_ENV !== 'production' ? { supabaseResponse: res } : undefined
-    return NextResponse.json({ success: true, id: data?.id || null, challenge: data || payload, debug })
+    // Return created/updated challenge
+    return NextResponse.json({ 
+      success: true, 
+      id: data?.id || null, 
+      challenge: data || payload
+    })
   } catch (err: any) {
     console.error('user-challenge POST unexpected', err)
     return NextResponse.json({ error: String(err) }, { status: 500 })
@@ -102,11 +131,38 @@ export async function PATCH(req: Request) {
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
     const updates: any = { updated_at: new Date().toISOString() }
+    
+    // Update config and progress columns
     if (body.config) updates.config = body.config
     if (body.progress) updates.progress = body.progress
     if (body.status) updates.status = body.status
 
-    const { data, error } = await supabase.from('user_challenges').update(updates).eq('id', id).eq('user_id', userRow.id).select().maybeSingle()
+    // Update explicit columns for structured queries
+    if (typeof body.durationMonths !== 'undefined') updates.duration_months = Number(body.durationMonths)
+    if (typeof body.cadenceEveryDays !== 'undefined') updates.cadence_every_days = Number(body.cadenceEveryDays)
+    if (typeof body.videosPerCadence !== 'undefined') updates.videos_per_cadence = Number(body.videosPerCadence)
+    if (typeof body.videoType !== 'undefined') updates.video_type = body.videoType
+    if (typeof body.scheduledMeta !== 'undefined') updates.scheduled_meta = body.scheduledMeta
+
+    // Ensure config has all the fields when updating
+    if (body.config && typeof updates.config === 'object') {
+      updates.config = {
+        ...updates.config,
+        durationMonths: updates.duration_months || updates.config.durationMonths,
+        cadenceEveryDays: updates.cadence_every_days || updates.config.cadenceEveryDays,
+        videosPerCadence: updates.videos_per_cadence || updates.config.videosPerCadence,
+        videoType: updates.video_type || updates.config.videoType,
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('user_challenges')
+      .update(updates)
+      .eq('id', id)
+      .eq('user_id', userRow.id)
+      .select()
+      .maybeSingle()
+    
     if (error) {
       console.error('user-challenge PATCH error', error)
       return NextResponse.json({ error: 'DB error' }, { status: 500 })
