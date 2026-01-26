@@ -11,6 +11,7 @@ import {
   Settings, 
   Sparkles 
 } from "lucide-react"
+import { useRouter } from 'next/navigation'
 
 interface NavItem {
   id: string
@@ -24,12 +25,12 @@ interface NavMenuProps {
 }
 
 export function NavMenu({ activePage }: NavMenuProps) {
+  const router = useRouter()
   const navItems: NavItem[] = [
     { id: "dashboard", icon: Home, label: "Dashboard", href: "/dashboard" },
     { id: "profile", icon: User, label: "Profile", href: "/dashboard?page=profile" },
     { id: "compare", icon: GitCompare, label: "Compare", href: "/compare" },
     { id: "bulk-upload", icon: Upload, label: "Smart Upload", href: "/bulk-upload" },
-    { id: "ai-thumbnail", icon: Sparkles, label: "AI Thumbnails", href: "/ai-thumbnail" },
   ]
 
   return (
@@ -41,6 +42,8 @@ export function NavMenu({ activePage }: NavMenuProps) {
           <Link
             key={item.id}
             href={item.href}
+            onMouseEnter={() => { try { router.prefetch(item.href).catch(()=>{}) } catch(e){} }}
+            onFocus={() => { try { router.prefetch(item.href).catch(()=>{}) } catch(e){} }}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               isActive
                 ? "bg-blue-100 text-blue-700 border border-blue-300"

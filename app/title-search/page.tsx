@@ -7,7 +7,8 @@ import SharedSidebar from '@/components/shared-sidebar'
 import DashboardHeader from '@/components/dashboard-header'
 import TitleSearchScoreComponent from '@/components/title-search-score'
 import VideoCard from '@/components/video-card'
-import { Sparkles, ChevronDown, Youtube, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
+import AnimationLoader from '@/components/animation-loader'
+import { Sparkles, ChevronDown, Youtube, Loader2, AlertCircle, RefreshCw } from 'lucide-react' 
 
 interface YouTubeChannel {
   id: string
@@ -40,6 +41,27 @@ export default function TitleSearchPage() {
   const [showChannelMenu, setShowChannelMenu] = useState(false)
   const [additionalChannelsList, setAdditionalChannelsList] = useState<YouTubeChannel[]>([])
   const channelMenuRef = useRef<HTMLDivElement | null>(null)
+  const [showInitialLoader, setShowInitialLoader] = useState(true)
+  const [titleLoaderDuration, setTitleLoaderDuration] = useState(3000)
+  const ANIMATIONS = ['/animation/running.gif','/animation/loading2.gif','/animation/loading1.gif','/animation/screening.gif','/animation/process.mp4','/animation/calander.mp4']
+
+  // Initial loader overlay (3s first show, 1.5s on repeats)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('title_search_loader_count') || '0'
+      const count = parseInt(raw, 10) || 0
+      const durationMs = count === 0 ? 3000 : 1500
+      localStorage.setItem('title_search_loader_count', String(count + 1))
+      setTitleLoaderDuration(durationMs + 200)
+
+      const t = window.setTimeout(() => setShowInitialLoader(false), durationMs + 200)
+      return () => window.clearTimeout(t)
+    } catch (err) {
+      console.warn('title search loader error', err)
+      const t = window.setTimeout(() => setShowInitialLoader(false), 1500)
+      return () => window.clearTimeout(t)
+    }
+  }, [])
 
   // Channel Video Analyzer States
   const [channelId, setChannelId] = useState("")
@@ -148,6 +170,12 @@ export default function TitleSearchPage() {
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Initial loader overlay (3s)
+  useEffect(() => {
+    const t = window.setTimeout(() => setShowInitialLoader(false), 3000)
+    return () => window.clearTimeout(t)
   }, [])
 
   const formatNumber = (num: number | string | undefined): string => {
@@ -374,6 +402,7 @@ export default function TitleSearchPage() {
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-slate-50">
+      <AnimationLoader open={showInitialLoader} items={[ANIMATIONS[0]]} perItemDuration={titleLoaderDuration} maxDuration={titleLoaderDuration} useAll={false} sizeClass="w-48 h-48" onFinish={() => setShowInitialLoader(false)} />
       <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex">

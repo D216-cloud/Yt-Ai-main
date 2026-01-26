@@ -4,6 +4,8 @@ import { Inter } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
 import AuthProvider from "./providers"
+import PageProgress from '@/components/page-progress'
+import NavigationOverlay from '@/components/navigation-overlay'
 import "./globals.css"
 
 const inter = Inter({
@@ -27,6 +29,8 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.variable} font-sans overflow-x-hidden`}>
         <AuthProvider>
+          <PageProgress />
+          <NavigationOverlay />
           <Suspense fallback={null}>{children}</Suspense>
           <Analytics />
         </AuthProvider>

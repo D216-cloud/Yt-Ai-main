@@ -5,7 +5,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Sparkles, Youtube, Monitor, Smartphone, Calendar, Clock, Eye, Heart, MessageCircle } from 'lucide-react' 
 import SharedSidebar from '@/components/shared-sidebar'
 import DashboardHeader from '@/components/dashboard-header'
-import { useToast } from '@/hooks/use-toast'
+import AnimationLoader from '@/components/animation-loader'
+import { useToast } from '@/hooks/use-toast' 
 
 type CreatorChallengePlan = {
   durationMonths: number
@@ -48,6 +49,9 @@ export default function ChallengePage() {
   const [additionalChannelsList, setAdditionalChannelsList] = useState<YouTubeChannel[]>([])
   const [showChannelMenu, setShowChannelMenu] = useState(false)
   const channelMenuRef = useRef<HTMLDivElement | null>(null)
+  const [showInitialLoader, setShowInitialLoader] = useState(true)
+  const [challengeLoaderDuration, setChallengeLoaderDuration] = useState(4000)
+  const ANIMATIONS = ['/animation/running.gif','/animation/loading2.gif','/animation/loading1.gif','/animation/screening.gif','/animation/process.mp4','/animation/calander.mp4']
 
   const [plan, setPlan] = useState<CreatorChallengePlan | null>(null)
   const [setupHidden, setSetupHidden] = useState(false)
@@ -625,6 +629,24 @@ export default function ChallengePage() {
     return () => window.removeEventListener('mousedown', onDown)
   }, [showChannelMenu])
 
+  // Initial loader overlay for Challenge page (4s first show, 1.5s on repeats)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('challenge_loader_count') || '0'
+      const count = parseInt(raw, 10) || 0
+      const durationMs = count === 0 ? 4000 : 1500
+      localStorage.setItem('challenge_loader_count', String(count + 1))
+      setChallengeLoaderDuration(durationMs + 200)
+
+      const t = window.setTimeout(() => setShowInitialLoader(false), durationMs + 200)
+      return () => window.clearTimeout(t)
+    } catch (err) {
+      console.warn('challenge loader error', err)
+      const t = window.setTimeout(() => setShowInitialLoader(false), 1500)
+      return () => window.clearTimeout(t)
+    }
+  }, [])
+
   const handleDisconnectAdditional = async (channelId: string) => {
     if (!confirm('Disconnect this channel?')) return
     try {
@@ -654,6 +676,7 @@ export default function ChallengePage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <AnimationLoader open={showInitialLoader} items={[ANIMATIONS[0]]} perItemDuration={challengeLoaderDuration} maxDuration={challengeLoaderDuration} useAll={false} sizeClass="w-48 h-48" onFinish={() => setShowInitialLoader(false)} />
       <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex">
@@ -1124,7 +1147,7 @@ export default function ChallengePage() {
                           {animStage === 'running' ? (
                             <img src="/animation/running.gif" alt="Preparing" className="w-48 h-48 object-contain" />
                           ) : (
-                            <img src="/animation/loading2.gif" alt="Loading" className="w-40 h-40 object-contain" />
+                            <img src="/animation/loading2.gif" alt="Loading" className="w-48 h-48 object-contain" />
                           )}
                           <div className="text-gray-800 font-semibold">Preparing your challenge…</div>
                         </div>

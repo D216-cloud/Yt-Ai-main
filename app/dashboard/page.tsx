@@ -12,6 +12,7 @@ import SharedSidebar from "@/components/shared-sidebar"
 import DashboardHeader from "@/components/dashboard-header"
 import Image from "next/image"
 import { TagBox } from "@/components/tag-box"
+import AnimationLoader from '@/components/animation-loader'
 
 interface YouTubeChannel {
   id: string
@@ -52,6 +53,9 @@ export default function DashboardPage() {
   const [isPublishing, setIsPublishing] = useState(false)
   const [publishSuccess, setPublishSuccess] = useState(false)
   const [newTagInput, setNewTagInput] = useState('')
+  const [showInitialLoader, setShowInitialLoader] = useState(true)
+  const [dashboardLoaderDuration, setDashboardLoaderDuration] = useState(6000)
+  const ANIMATIONS = ['/animation/running.gif','/animation/loading2.gif','/animation/loading1.gif','/animation/screening.gif','/animation/process.mp4','/animation/calander.mp4']
 
   // Input suggestion states
   const [inputSuggestions, setInputSuggestions] = useState<Array<{tag: string, score?: number}>>([])
@@ -112,12 +116,47 @@ export default function DashboardPage() {
     }
 
     window.addEventListener('storage', onStorage)
-    return () => {
-      window.removeEventListener('storage', onStorage)
-      if (suggestionTimerRef.current) {
-        window.clearTimeout(suggestionTimerRef.current)
-        suggestionTimerRef.current = null
+
+    // Show an initial animation overlay when Dashboard first loads; first visit shows 5s, subsequent visits show 2.5s
+    try {
+      // Allow a small defer so UI paints before overlay appears
+      const t = window.setTimeout(() => {
+        setShowInitialLoader(true)
+      }, 120)
+
+      // Decide duration based on a counter in localStorage
+      try {
+        const raw = localStorage.getItem('dashboard_loader_count') || '0'
+        const count = parseInt(raw, 10) || 0
+        // First visit: 5s, subsequent visits: 1.5s
+        const durationMs = count === 0 ? 5000 : 1500
+        // record that we've shown it once more
+        localStorage.setItem('dashboard_loader_count', String(count + 1))
+        setDashboardLoaderDuration(durationMs + 200) // add small buffer
+
+        const finishT = window.setTimeout(() => {
+          setShowInitialLoader(false)
+        }, durationMs + 200)
+
+        return () => {
+          window.clearTimeout(t)
+          window.clearTimeout(finishT)
+          window.removeEventListener('storage', onStorage)
+          if (suggestionTimerRef.current) {
+            window.clearTimeout(suggestionTimerRef.current)
+            suggestionTimerRef.current = null
+          }
+        }
+      } catch (err) {
+        console.warn('dashboard loader counter error', err)
+        const finishT = window.setTimeout(() => setShowInitialLoader(false), 1500)
+        return () => { window.clearTimeout(t); window.clearTimeout(finishT); window.removeEventListener('storage', onStorage) }
       }
+    } catch (e) {
+      console.error('dashboard loader setup failed', e)
+      // cleanup
+      window.removeEventListener('storage', onStorage)
+      return () => window.removeEventListener('storage', onStorage)
     }
   }, [])
 
@@ -788,6 +827,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <AnimationLoader open={showInitialLoader} items={[ANIMATIONS[0]]} perItemDuration={dashboardLoaderDuration} maxDuration={dashboardLoaderDuration} useAll={false} sizeClass="w-48 h-48" onFinish={() => setShowInitialLoader(false)} />
       <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex">

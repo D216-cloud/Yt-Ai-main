@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
 import { useSearchParams, useRouter } from "next/navigation"
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Play, ChevronRight, Lock, Loader2, Youtube, CheckCircle, User, LogOut, RefreshCw, AlertCircle, X, Sparkles } from "lucide-react"
 import { Header } from "@/components/header"
 import Image from "next/image"
+import AnimationLoader from '@/components/animation-loader'
 
 interface YouTubeChannel {
   id: string
@@ -45,7 +46,11 @@ export default function ConnectPage() {
   const [isStartingAuth, setIsStartingAuth] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisDone, setAnalysisDone] = useState(false)
+  const [analysisProgress, setAnalysisProgress] = useState(0)
+  const analysisInterval = useRef<number | null>(null)
   const [isRedirecting, setIsRedirecting] = useState(false)
+  const [showRedirectLoader, setShowRedirectLoader] = useState(false)
+  const ANIMATIONS = ['/animation/running.gif','/animation/loading2.gif','/animation/loading1.gif','/animation/screening.gif','/animation/process.mp4','/animation/calander.mp4']
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([])
   const [additionalChannels, setAdditionalChannels] = useState<YouTubeChannel[]>([])
 
@@ -278,6 +283,16 @@ export default function ConnectPage() {
       }
     }
   }, [status, searchParams])
+
+  // Auto-start analysis the first time a channel is detected in this session
+  useEffect(() => {
+    try {
+      if (youtubeChannel && !analysisDone && !isAnalyzing && !sessionStorage.getItem('analysis_started')) {
+        // Give a beat for the UI to settle then start
+        setTimeout(() => startAnalysis(3000), 450)
+      }
+    } catch (e) { /* ignore */ }
+  }, [youtubeChannel, analysisDone, isAnalyzing])
 
   // When analysis completes, briefly show success then start redirect countdown
   useEffect(() => {
@@ -618,6 +633,59 @@ export default function ConnectPage() {
       window.location.href = '/api/youtube/auth'
     }, 550)
   }
+  // Start the analysis flow with a visual progress and proper cancellation support
+  const startAnalysis = (duration = 3000) => {
+    // Prevent multiple intervals
+    if (analysisInterval.current) {
+      clearInterval(analysisInterval.current)
+      analysisInterval.current = null
+    }
+
+    setIsAnalyzing(true)
+    setAnalysisDone(false)
+    setAnalysisProgress(0)
+
+    const start = Date.now()
+    analysisInterval.current = window.setInterval(() => {
+      const elapsed = Date.now() - start
+      const pct = Math.min(100, Math.round((elapsed / duration) * 100))
+      setAnalysisProgress(pct)
+
+      if (pct >= 100) {
+        if (analysisInterval.current) { clearInterval(analysisInterval.current); analysisInterval.current = null }
+        setIsAnalyzing(false)
+        setAnalysisDone(true)
+        setAnalysisProgress(100)
+
+        // Show a short animation loader before redirecting to Dashboard
+        setTimeout(() => {
+          setShowRedirectLoader(true)
+        }, 450)
+      }
+    }, 150)
+
+    // Mark analysis started for this session+channel so it doesn't auto-start repeatedly
+    try { sessionStorage.setItem('analysis_started', '1') } catch (e) {}
+  }
+
+  // Skip analysis and move to completed state immediately
+  const skipAnalysis = () => {
+    if (analysisInterval.current) { clearInterval(analysisInterval.current); analysisInterval.current = null }
+    setAnalysisProgress(100)
+    setIsAnalyzing(false)
+    setAnalysisDone(true)
+    // Run redirect shortly after skipping
+    setTimeout(() => {
+      setIsRedirecting(true)
+    }, 600)
+  }
+
+  // Cleanup interval on unmount (avoid leaking timers)
+  useEffect(() => {
+    return () => {
+      if (analysisInterval.current) { clearInterval(analysisInterval.current); analysisInterval.current = null }
+    }
+  }, [])
 
   const handleRefreshChannel = async () => {
     if (!youtubeToken) {
@@ -691,9 +759,10 @@ export default function ConnectPage() {
 
                 <style>{`
                   @keyframes scan { 0% { transform: translateX(-120%);} 100% { transform: translateX(120%);} }
-                  .scan-inner { animation: scan 1.6s linear infinite; background: linear-gradient(90deg, rgba(99,102,241,0) 0%, rgba(99,102,241,0.25) 50%, rgba(99,102,241,0) 100%); }
+                  .scan-inner { animation: scan 1.6s linear infinite; background: linear-gradient(90deg, rgba(249,115,22,0) 0%, rgba(249,115,22,0.25) 50%, rgba(249,115,22,0) 100%); }
                   .pulse-scale { transform-origin: center; animation: pulse-scale 850ms cubic-bezier(.2,.9,.3,1) forwards; }
                   @keyframes pulse-scale { 0% { transform: scale(0.6); opacity: 0 } 60% { transform: scale(1.08); opacity: 1 } 100% { transform: scale(1); opacity: 1 } }
+                  .progress-glow { box-shadow: 0 8px 24px rgba(249,115,22,0.12); }
                 `}</style>
 
                 <div className="flex flex-col md:flex-row gap-4">
@@ -727,16 +796,22 @@ export default function ConnectPage() {
                     <div className="font-semibold">{isAnalyzing ? 'Analyzing...' : analysisDone ? 'Analysis complete' : 'Analyze channel'}</div>
                     <div className="text-xs text-gray-400 mt-2">{isAnalyzing ? 'Scanning recent uploads and trends' : analysisDone ? 'Ready to go' : 'We’ll analyze your channel once connected'}</div>
 
-                    {/* Animated scanning bar */}
+                    {/* Progress bar & skip control */}
                     <div className="mt-4 w-full max-w-xs">
                       <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden relative">
-                        <div className="absolute top-0 left-0 h-full w-1/3 scan-inner"></div>
+                        <div
+                          className={`h-full bg-amber-400 rounded-full transition-all ${isAnalyzing ? 'progress-glow' : ''}`}
+                          style={{ width: `${analysisProgress}%` }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-amber-700">{analysisProgress}%</div>
                       </div>
 
-                      <div className="flex items-center justify-center gap-2 mt-3">
-                        <div className={`w-2 h-2 rounded-full ${isAnalyzing ? 'bg-amber-500 animate-pulse' : 'bg-gray-200'}`}></div>
-                        <div className={`w-2 h-2 rounded-full ${isAnalyzing ? 'bg-amber-500 animate-pulse delay-150' : 'bg-gray-200'}`}></div>
-                        <div className={`w-2 h-2 rounded-full ${isAnalyzing ? 'bg-amber-500 animate-pulse delay-300' : 'bg-gray-200'}`}></div>
+                      <div className="flex items-center justify-center gap-3 mt-3">
+                        {isAnalyzing ? (
+                          <button onClick={skipAnalysis} className="text-xs text-red-500 hover:underline">Skip here</button>
+                        ) : (
+                          <button onClick={() => startAnalysis(2500)} className="text-xs text-gray-500 hover:underline">Run analysis</button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -760,18 +835,20 @@ export default function ConnectPage() {
           <div className="hidden md:flex fixed bottom-6 left-1/2 transform -translate-x-1/2">
             <div className="bg-white rounded-full shadow-lg px-4 py-3 flex items-center gap-4">
               {!youtubeChannel ? (
-                <button onClick={handleConnectWithGoogle} className="px-5 py-2 rounded-full font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600">
+                <button onClick={handleConnectWithGoogle} className="px-5 py-2 rounded-full font-semibold text-white bg-linear-to-r from-blue-600 to-indigo-600">
                   Connect YouTube Channel
                 </button>
               ) : !analysisDone && !isAnalyzing ? (
-                <button onClick={() => { setIsAnalyzing(true); setAnalysisDone(false); setTimeout(() => { setIsAnalyzing(false); setAnalysisDone(true); }, 2500) }} className="px-5 py-2 rounded-full font-semibold text-white bg-gradient-to-r from-amber-600 to-yellow-500">Start Analysis</button>
+                <button onClick={() => { setIsAnalyzing(true); setAnalysisDone(false); setTimeout(() => { setIsAnalyzing(false); setAnalysisDone(true); }, 2500) }} className="px-5 py-2 rounded-full font-semibold text-white bg-linear-to-r from-amber-600 to-yellow-500">Start Analysis</button>
               ) : analysisDone ? (
-                <button onClick={() => { setIsRedirecting(true) }} className="px-5 py-2 rounded-full font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-500">Go to Dashboard</button>
+                <button onClick={() => { setShowRedirectLoader(true) }} className="px-5 py-2 rounded-full font-semibold text-white bg-linear-to-r from-green-600 to-emerald-500">Go to Dashboard</button>
               ) : (
                 <div className="px-4 py-2 text-sm text-gray-500">Analyzing...</div>
               )}
               <button onClick={handleRefreshChannel} className="px-3 py-2 text-sm rounded-full border border-gray-200">Refresh</button>
-              <button onClick={handleDisconnect} className="px-3 py-2 text-sm rounded-full border border-gray-200 text-red-600">Disconnect</button>
+              {isAnalyzing ? (
+                <button onClick={skipAnalysis} className="px-3 py-2 text-sm rounded-full border border-gray-200 text-red-600">Skip</button>
+              ) : null}
             </div>
           </div>
 
@@ -779,18 +856,24 @@ export default function ConnectPage() {
           <div className="md:hidden fixed inset-x-0 bottom-4 px-4">
             <div className="bg-white rounded-xl shadow-lg px-3 py-3 flex items-center gap-3">
               {!youtubeChannel ? (
-                <button onClick={handleConnectWithGoogle} className="flex-1 px-4 py-3 rounded-md font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600">Connect</button>
+                <button onClick={handleConnectWithGoogle} className="flex-1 px-4 py-3 rounded-md font-semibold text-white bg-linear-to-r from-blue-600 to-indigo-600">Connect</button>
               ) : !analysisDone && !isAnalyzing ? (
-                <button onClick={() => { setIsAnalyzing(true); setAnalysisDone(false); setTimeout(() => { setIsAnalyzing(false); setAnalysisDone(true); }, 2500) }} className="flex-1 px-4 py-3 rounded-md font-semibold text-white bg-gradient-to-r from-amber-600 to-yellow-500">Analyze</button>
+                <button onClick={() => { setIsAnalyzing(true); setAnalysisDone(false); setTimeout(() => { setIsAnalyzing(false); setAnalysisDone(true); }, 2500) }} className="flex-1 px-4 py-3 rounded-md font-semibold text-white bg-linear-to-r from-amber-600 to-yellow-500">Analyze</button>
               ) : analysisDone ? (
-                <button onClick={() => { setIsRedirecting(true) }} className="flex-1 px-4 py-3 rounded-md font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-500">Dashboard</button>
+                <button onClick={() => { setShowRedirectLoader(true) }} className="flex-1 px-4 py-3 rounded-md font-semibold text-white bg-linear-to-r from-green-600 to-emerald-500">Dashboard</button>
               ) : (
                 <div className="flex-1 px-4 py-3 text-sm text-gray-500">Analyzing...</div>
               )}
 
               <button onClick={handleRefreshChannel} className="px-3 py-2 text-sm rounded-md border border-gray-200">Refresh</button>
+              {isAnalyzing ? (
+                <button onClick={skipAnalysis} className="px-3 py-2 text-sm rounded-md border border-gray-200 text-red-600">Skip</button>
+              ) : null}
             </div>
           </div>
+
+          {/* Redirect loader shown after analysis completes */}
+          <AnimationLoader open={showRedirectLoader} items={ANIMATIONS} perItemDuration={5000} useAll={true} sizeClass="w-48 h-48" onFinish={() => { setShowRedirectLoader(false); router.push('/dashboard') }} />
 
         </main>
       </div>

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { useRouter } from 'next/navigation'
 import {
     Home,
     FileText,
@@ -30,6 +31,7 @@ interface SharedSidebarProps {
 
 export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage: activePageProp, isCollapsed = false, setIsCollapsed }: SharedSidebarProps) {
     const pathname = usePathname()
+    const router = useRouter()
     const [youtubeChannel, setYoutubeChannel] = useState<any>(null)
     const [showChannelDropdown, setShowChannelDropdown] = useState(false)
     const [showConnectModal, setShowConnectModal] = useState(false)
@@ -294,7 +296,6 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
         { icon: Sparkles, label: 'Title Search', href: '/title-search', id: 'title-search', badge: 'NEW', description: 'Generate SEO-friendly titles & scores' },
         { icon: FileText, label: 'Vid-Info', href: '/vid-info', id: 'vid-info', badge: null, description: 'View and edit video metadata' },
         { icon: Upload, label: 'Smart Upload', href: '/bulk-upload', id: 'bulk-upload', badge: null, description: 'Upload multiple videos at once' },
-        { icon: Sparkles, label: 'AI Thumbnail', href: '/ai-thumbnail', id: 'ai-thumbnail', badge: null, description: 'Generate AI thumbnails' },
         { icon: GitCompare, label: 'Compare', href: '/compare', id: 'compare', badge: null, description: 'Compare channel performance' },
     ]
 
@@ -376,18 +377,18 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                         <Link
                             key={link.id}
                             href={link.href}
+                            onMouseEnter={(e) => { try { handleMouseEnter(e, link.label, (link as any).description); router.prefetch(link.href).catch(()=>{}); } catch(e){} }}
+                            onFocus={(e) => { try { handleMouseEnter(e, link.label, (link as any).description); router.prefetch(link.href).catch(()=>{}); } catch(e){} }}
                             className={`flex items-center gap-3 ${isCollapsed ? 'justify-center px-3 py-3' : 'px-4 py-3'} rounded-xl font-bold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 ${
                                 activePage === link.id
                                     ? 'bg-blue-600 text-white shadow-md'
                                     : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                             }`}
                             title={isCollapsed ? link.label : ''}
-                            onMouseEnter={(e) => handleMouseEnter(e, link.label, (link as any).description)}
                             onMouseLeave={handleMouseLeave}
-                            onFocus={(e) => handleMouseEnter(e, link.label, (link as any).description)}
                             onBlur={handleMouseLeave}
                         >
-                            <link.icon className={`w-5 h-5 flex-shrink-0 ${activePage === link.id ? 'text-white' : 'text-gray-600'}`} />
+                            <link.icon className={`w-5 h-5 shrink-0 ${activePage === link.id ? 'text-white' : 'text-gray-600'}`} />
                             {!isCollapsed && (
                                 <>
                                     <span className="flex-1">{link.label}</span>
@@ -679,7 +680,7 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                                 {/* Info */}
                                 <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                                 <div className="flex gap-2">
-                                    <svg className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                     <div className="text-xs text-blue-800">

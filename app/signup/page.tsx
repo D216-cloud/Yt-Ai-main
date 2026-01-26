@@ -5,11 +5,9 @@ export const dynamic = 'force-dynamic'
 import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
-import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
-import { Button } from "@/components/ui/button"
-import { Play, Mail, Lock, Eye, EyeOff, Loader2, Sparkles, TrendingUp, Users } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react"
 import { Header } from "@/components/header"
 
 type AuthMode = "signup" | "signin"
@@ -89,7 +87,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
+    <div className="min-h-screen relative overflow-hidden bg-linear-to-br from-slate-50 via-blue-50 to-purple-50">
       {/* Header - Use home page navbar */}
       <Header />
       
@@ -98,131 +96,107 @@ export default function SignupPage() {
 
       {/* Decorative orbs removed per request (icons/animated elements removed) */}
 
-      {/* Main Content - Split layout */}
+      {/* Main Content - Simple centered auth card */}
       <div className="relative z-10 px-4 sm:px-6 lg:px-8 pt-28 lg:pt-32 pb-10 min-h-[calc(100vh-64px)] flex items-start justify-center">
-        <div className="w-full max-w-[1100px] rounded-3xl overflow-hidden shadow-2xl bg-transparent">
-          <div className="flex flex-col lg:flex-row bg-white rounded-3xl overflow-hidden">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-6 sm:p-8">
 
-            {/* Left art panel (hidden on small screens) */}
-            <div className="hidden lg:block lg:w-1/2 relative bg-gradient-to-b from-zinc-950 via-zinc-900 to-zinc-950 p-8" style={{clipPath: 'polygon(0 0, 72% 0, 58% 100%, 0% 100%)'}}>
-              <div className="absolute inset-6 rounded-3xl border-8 border-white/90 overflow-hidden shadow-inner">
-                <img src="/images/auth-art.svg" alt="art" className="w-full h-full object-cover" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-md overflow-hidden flex items-center justify-center">
+                <img src="/vidiomex-logo.svg" alt="logo" className="object-cover" />
               </div>
-
-              {/* Top labels */}
-              <div className="absolute top-8 left-10 text-white text-sm font-semibold">Selected Works</div>
-              <div className="absolute top-6 right-6 flex items-center gap-3">
-                <button
-                  onClick={() => { setAuthMode('signup'); document.getElementById('auth-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
-                  className="text-white rounded-full px-3 py-1 border border-white/40 hover:bg-white/10 transition"
-                >
-                  Sign Up
-                </button>
-                <button
-                  onClick={() => { setAuthMode('signup'); document.getElementById('auth-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}
-                  className="bg-white text-black rounded-full px-3 py-1 shadow-sm"
-                >
-                  Join Us
-                </button>
-              </div>
-
-              {/* Bottom left author */}
-              <div className="absolute bottom-8 left-8 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white text-sm font-semibold">A</div>
-                <div className="text-white text-sm">
-                  <div className="font-semibold">Andrew.ui</div>
-                  <div className="text-xs text-white/80">UI & Illustration</div>
-                </div>
-              </div>
-
-              {/* Bottom right arrows */}
-              <div className="absolute bottom-8 right-8 flex gap-2">
-                <button className="w-9 h-9 rounded-full bg-white/10 text-white border border-white/20">‹</button>
-                <button className="w-9 h-9 rounded-full bg-white/10 text-white border border-white/20">›</button>
-              </div>
-            </div>
-
-            {/* Right form panel */}
-            <div className="w-full lg:w-1/2 bg-white p-10 lg:p-12 flex flex-col justify-center">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-md overflow-hidden flex items-center justify-center">
-                    <img src="/vidiomex-logo.svg" alt="logo" className="object-cover" />
-                  </div>
-                  <div className="text-sm font-semibold">UISOCIAL</div>
-                </div>
-
-                <div>
-                  <button className="text-xs px-3 py-1 rounded-full border border-gray-200">EN</button>
-                </div>
-              </div>
-
-              <h2 className="text-4xl font-extrabold text-gray-900 mb-2">Hi Designer</h2>
-              <p className="text-sm text-gray-500 mb-6">Welcome to UISOCIAL</p>
-
-              <form id="auth-form" onSubmit={handleAuth} className="space-y-4 w-full max-w-md">
-                <div>
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email"
-                    required
-                    disabled={isLoading}
-                    className="w-full px-4 py-3 rounded-md border border-gray-200 focus:ring-2 focus:ring-blue-100 outline-none text-sm"
-                  />
-                </div>
-                <div>
-                  <input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Password"
-                    required
-                    disabled={isLoading}
-                    className="w-full px-4 py-3 rounded-md border border-gray-200 focus:ring-2 focus:ring-blue-100 outline-none text-sm"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" className="form-checkbox h-4 w-4 rounded" />
-                    <span className="text-gray-600">Remember me</span>
-                  </div>
-                  <Link href="/forgot-password" className="text-sm text-red-400">Forgot password ?</Link>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <button type="button" onClick={handleGoogleAuth} className="w-full border border-gray-200 rounded-md py-3 text-sm flex items-center justify-center gap-2">
-                      <img src="/images/google-icon.svg" alt="g" className="w-5 h-5" />
-                      Login with Google
-                    </button>
-                  </div>
-                  <div className="w-28">
-                    <button type="submit" className="w-full bg-red-500 text-white rounded-full py-3">Login</button>
-                  </div>
-                </div>
-
-                <p className="text-xs text-gray-500 mt-2">Don't have an account? <button type="button" onClick={() => { setAuthMode('signup'); document.getElementById('auth-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => { (document.getElementById('name') || document.getElementById('email'))?.focus(); }, 500); }} className="text-red-500 font-semibold hover:underline">Sign up</button></p>
-
-                {error && (
-                  <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-md text-sm font-medium">
-                    {error}
-                  </div>
-                )}
-
-                <div className="mt-6 flex items-center gap-3 text-sm text-gray-500">
-                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">f</div>
-                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">t</div>
-                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">in</div>
-                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">ig</div>
-                </div>
-              </form>
+              <div className="text-sm font-semibold">UISOCIAL</div>
             </div>
           </div>
+
+          {/* Tabs */}
+          <div className="flex gap-2 bg-gray-50 p-1 rounded-full w-full mb-5">
+            <button type="button" onClick={() => { setAuthMode('signin'); (document.getElementById('email'))?.focus(); }} className={`flex-1 py-2 rounded-full text-sm font-semibold ${authMode === 'signin' ? 'bg-white shadow' : 'text-gray-500'}`}>Sign In</button>
+            <button type="button" onClick={() => { setAuthMode('signup'); setTimeout(() => { (document.getElementById('name') || document.getElementById('email'))?.focus(); }, 120); }} className={`flex-1 py-2 rounded-full text-sm font-semibold ${authMode === 'signup' ? 'bg-white shadow' : 'text-gray-500'}`}>Sign Up</button>
+          </div>
+
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-1">{authMode === 'signin' ? 'Welcome back' : 'Create your account'}</h2>
+          <p className="text-sm sm:text-base text-gray-500 mb-6">{authMode === 'signin' ? 'Sign in to continue' : 'Create an account to get started'}</p>
+
+          <form id="auth-form" onSubmit={handleAuth} className="space-y-4 sm:space-y-5 w-full">
+            {authMode === 'signup' && (
+              <div>
+                <input
+                  id="name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Full name"
+                  required
+                  disabled={isLoading}
+                  className="w-full px-4 py-3 rounded-md border border-gray-200 focus:ring-2 focus:ring-blue-100 outline-none text-sm"
+                />
+              </div>
+            )}
+
+            <div>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email"
+                required
+                disabled={isLoading}
+                className="w-full px-4 py-3 rounded-md border border-gray-200 focus:ring-2 focus:ring-blue-100 outline-none text-sm"
+              />
+            </div>
+
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                required
+                disabled={isLoading}
+                className="w-full px-4 py-3 rounded-md border border-gray-200 focus:ring-2 focus:ring-blue-100 outline-none text-sm"
+              />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <button type="button" onClick={handleGoogleAuth} aria-label="Sign in with Google" title="Sign in with Google" className="w-full border border-gray-200 rounded-md py-2 sm:py-3 text-sm flex items-center justify-center gap-3 hover:shadow-sm transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-200">
+                  <svg className="w-5 h-5" viewBox="0 0 46 46" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+                    <path fill="#EA4335" d="M23 9.5c2.9 0 5.3 1 7.1 2.5l5.3-5.3C33.5 3 28.9 1 23 1 14 1 6.2 6.7 3.2 14.9l6.6 5.1C11.4 13 16.6 9.5 23 9.5z"/>
+                    <path fill="#34A853" d="M44.5 24.5c0-1.6-.1-2.8-.4-4.1H23v7.5h12.2c-.5 2.6-1.9 4.9-4.1 6.4l6.3 4.9c3.7-3.4 5.1-8.6 5.1-14.7z"/>
+                    <path fill="#4285F4" d="M23 45c5.9 0 10.9-1.9 14.6-5.3l-6.3-4.9C28.9 36 26.2 37 23 37c-6.4 0-11.6-3.5-13.2-8.7l-6.6 5.1C6.2 39.3 14 45 23 45z"/>
+                    <path fill="#FBBC05" d="M3.2 14.9l6.6 5.1C10.8 20.3 16.1 17 23 17c3.6 0 6.9 1.2 9.4 3.3l6.9-6.9C34.5 7.6 28.3 5 23 5 16.6 5 11.5 7.8 8.5 12.2z"/>
+                  </svg>
+                  <span className="font-medium">Continue with Google</span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <button type="submit" className="w-full bg-red-500 text-white rounded-full py-3 font-semibold">{authMode === 'signin' ? 'Sign in' : 'Sign up'}</button>
+            </div>
+
+            <div className="text-center">
+              {authMode === 'signin' ? (
+                <p className="text-xs text-gray-500">Don't have an account? <button type="button" onClick={() => { setAuthMode('signup'); setTimeout(() => { (document.getElementById('name') || document.getElementById('email'))?.focus(); }, 300); }} className="text-red-500 font-semibold hover:underline">Sign up</button></p>
+              ) : (
+                <p className="text-xs text-gray-500">Already have an account? <button type="button" onClick={() => { setAuthMode('signin'); (document.getElementById('email'))?.focus(); }} className="text-red-500 font-semibold hover:underline">Sign in</button></p>
+              )}
+            </div>
+
+            {error && (
+              <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-md text-sm font-medium">
+                {error}
+              </div>
+            )}
+
+          </form>
+
         </div>
       </div>
 
