@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import SharedSidebar from '@/components/shared-sidebar'
-import DashboardHeader from '@/components/dashboard-header'
+
 import TitleSearchScoreComponent from '@/components/title-search-score'
 import VideoCard from '@/components/video-card'
 import AnimationLoader from '@/components/animation-loader'
@@ -403,7 +403,6 @@ export default function TitleSearchPage() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-slate-50">
       <AnimationLoader open={showInitialLoader} items={[ANIMATIONS[0]]} perItemDuration={titleLoaderDuration} maxDuration={titleLoaderDuration} useAll={false} sizeClass="w-48 h-48" onFinish={() => setShowInitialLoader(false)} />
-      <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex">
         {/* Shared Sidebar */}

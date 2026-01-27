@@ -3,16 +3,14 @@
 import React from 'react'
 import Link from "next/link"
 import { Button } from '@/components/ui/button'
-import { GitCompare, Upload, BarChart3, ArrowUpRight, Lightbulb, Youtube, Lock, Sparkles, Users, MessageSquare, Eye, Play, DollarSign, Calendar, ThumbsUp, ChevronDown, Plus, X, Check } from "lucide-react"
-import { ViewsIcon, SubscribersIcon, WatchTimeIcon, EngagementIcon } from "@/components/icons/dashboard-icons"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { useState, useEffect, useRef } from "react"
 import SharedSidebar from "@/components/shared-sidebar"
-import DashboardHeader from "@/components/dashboard-header"
 import Image from "next/image"
 import { TagBox } from "@/components/tag-box"
 import AnimationLoader from '@/components/animation-loader'
+import { Trophy, TrendingUp, Flame, Target, Calendar, CheckCircle, Play } from 'lucide-react'
 
 interface YouTubeChannel {
   id: string
@@ -268,7 +266,10 @@ export default function DashboardPage() {
       setLoadingVideo(true)
       try {
         // Fetch videos server-side; server will use stored tokens or API key fallback
-        const response = await fetch(`/api/youtube/best-videos?channelId=${youtubeChannel.id}`)
+        const response = await fetch(`/api/youtube/best-videos?channelId=${youtubeChannel.id}`, {
+          method: 'GET',
+          headers: { 'Cache-Control': 'max-age=300' }
+        })
 
         if (!response.ok) {
           const err = await response.json().catch(() => ({}))
@@ -828,7 +829,6 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <AnimationLoader open={showInitialLoader} items={[ANIMATIONS[0]]} perItemDuration={dashboardLoaderDuration} maxDuration={dashboardLoaderDuration} useAll={false} sizeClass="w-48 h-48" onFinish={() => setShowInitialLoader(false)} />
-      <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex">
         {/* Shared Sidebar */}
@@ -841,7 +841,18 @@ export default function DashboardPage() {
         />
 
         {/* Main Content */}
-        <main className={`flex-1 pt-14 md:pt-16 p-4 md:p-8 pb-20 md:pb-8 transition-all duration-300 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'}`}>
+        <main className={`flex-1 pt-16 md:pt-18 px-3 sm:px-4 md:px-6 pb-24 md:pb-12 transition-all duration-300 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'}`}>
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="md:hidden fixed top-4 left-4 z-40 p-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm"
+            aria-label="Open sidebar"
+          >
+            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+
           <div className="max-w-7xl mx-auto">
             {loadingVideo && (
               <div className="mb-4 px-2">
@@ -872,7 +883,7 @@ export default function DashboardPage() {
                       className="ml-2 flex items-center justify-center w-7 h-7 rounded-full bg-black/30 hover:bg-white/10 transition"
                       title="Channel actions"
                     >
-                      <ChevronDown className="w-4 h-4" />
+                      <span className="text-sm">▼</span>
                     </button>
                   </div>
 
@@ -901,7 +912,7 @@ export default function DashboardPage() {
                             className="inline-flex items-center gap-2 text-sm text-red-600 bg-white border border-red-200 px-3 py-1 rounded-md hover:bg-red-50 focus:outline-none font-semibold transition-colors"
                             title="Disconnect primary channel"
                           >
-                            <X className="w-3 h-3" />
+                            <span className="text-lg">✕</span>
                             <span className="hidden sm:inline">Disconnect</span>
                           </button>
                         </div>
@@ -959,7 +970,7 @@ export default function DashboardPage() {
                             }}
                             className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-full py-3 px-6 flex items-center justify-center gap-3 shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400 font-semibold text-sm transition-all active:scale-95"
                           >
-                            <Youtube className="w-4 sm:w-5 h-4 sm:h-5" />
+                            <span className="text-lg">▶</span>
                             Connect Another Channel
                           </button>
                         </div>
@@ -985,7 +996,7 @@ export default function DashboardPage() {
 
               <div className="flex justify-center mb-6 px-3">
                 <div className="inline-flex items-center gap-3 rounded-full bg-white/5 border border-gray-100 px-4 py-2 text-sm text-gray-700 shadow-sm max-w-full overflow-hidden">
-                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span className="text-lg">✨</span>
                   <div className="flex items-center gap-3">
                     <span className="font-semibold">Plan: Free</span>
                     <span className="text-gray-500 hidden sm:inline">• Limited features</span>
@@ -1001,7 +1012,7 @@ export default function DashboardPage() {
 
                   <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-3">
                     <div className="inline-flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full">
-                      <Sparkles className="w-4 h-4 text-amber-500" />
+                      <span className="text-lg">✨</span>
                       <span className="text-sm sm:text-base text-gray-700">Quick snapshot — YouTube growth & earnings</span>
                     </div>
 
@@ -1016,47 +1027,47 @@ export default function DashboardPage() {
                 </div>
               </div>
               {/* Three main statistic cards (clean, spacious style) */}
-              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                <div className="bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-lg">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-8">
+                <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 p-4 sm:p-6 shadow-sm hover:shadow-md transition-all duration-200">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm text-gray-500">Total Views</p>
-                      <p className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2">{formatNumber(analyticsData.views)}</p>
-                      <p className="text-xs text-gray-500 mt-2">Across connected channels</p>
+                      <p className="text-xs sm:text-sm font-medium text-gray-600">Total Views</p>
+                      <p className="text-2xl sm:text-4xl font-bold text-gray-900 mt-2 sm:mt-3">{formatNumber(analyticsData.views)}</p>
+                      <p className="text-xs text-gray-500 mt-2">Across all channels</p>
                     </div>
-                    <div className="ml-4">
-                      <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 shadow-sm">
-                        <ViewsIcon className="w-6 h-6" />
+                    <div className="ml-3 sm:ml-4">
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg bg-emerald-50 flex items-center justify-center shadow-sm flex-shrink-0">
+                        <span className="text-xl">👁️</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-lg">
+                <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 p-4 sm:p-6 shadow-sm hover:shadow-md transition-all duration-200">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm text-gray-500">Total Subscribers</p>
-                      <p className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2">{formatNumber(analyticsData.subscribers)}</p>
-                      <p className="text-xs text-gray-500 mt-2">Across connected channels</p>
+                      <p className="text-xs sm:text-sm font-medium text-gray-600">Subscribers</p>
+                      <p className="text-2xl sm:text-4xl font-bold text-gray-900 mt-2 sm:mt-3">{formatNumber(analyticsData.subscribers)}</p>
+                      <p className="text-xs text-gray-500 mt-2">Loyal community</p>
                     </div>
-                    <div className="ml-4">
-                      <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-lg bg-cyan-50 flex items-center justify-center text-cyan-600 shadow-sm">
-                        <SubscribersIcon className="w-6 h-6" />
+                    <div className="ml-3 sm:ml-4">
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg bg-teal-50 flex items-center justify-center shadow-sm flex-shrink-0">
+                        <span className="text-xl">👥</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 shadow-lg col-span-2 sm:col-span-1">
+                <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-200 p-4 sm:p-6 shadow-sm hover:shadow-md transition-all duration-200 col-span-2 sm:col-span-1">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm text-gray-500">Watch Time</p>
-                      <p className="text-3xl sm:text-4xl font-extrabold text-gray-900 mt-2">{formatNumber(analyticsData.watchTime)}h</p>
+                      <p className="text-xs sm:text-sm font-medium text-gray-600">Watch Time</p>
+                      <p className="text-2xl sm:text-4xl font-bold text-gray-900 mt-2 sm:mt-3">{formatNumber(analyticsData.watchTime)}h</p>
                       <p className="text-xs text-gray-500 mt-2">Hours watched</p>
                     </div>
-                    <div className="ml-4">
-                      <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-lg bg-orange-50 flex items-center justify-center text-orange-600 shadow-sm">
-                        <WatchTimeIcon className="w-6 h-6" />
+                    <div className="ml-3 sm:ml-4">
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-lg bg-cyan-50 flex items-center justify-center shadow-sm flex-shrink-0">
+                        <span className="text-xl">▶️</span>
                       </div>
                     </div>
                   </div>
@@ -1064,93 +1075,246 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Add Missing Tags Section */}
-            <div className="mb-8">
-              <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 shadow-2xl ring-1 ring-slate-900/20 border border-slate-700/40 backdrop-blur-sm">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-xl font-bold text-white">Add Missing Tags</h3>
-                    {publishSuccess && <Check className="w-5 h-5 text-green-400" />}
-                    {latestVideo && (
-                      <p className="text-gray-400 text-sm mt-1">
-                        {new Date(latestVideo.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    )}
-                  </div>
-                  {publishSuccess && (
-                    <div className="px-4 py-2 bg-green-500/20 border border-green-500/50 rounded-lg">
-                      <p className="text-green-400 text-sm font-semibold">✓ Tags published successfully</p>
+            {/* Challenge Tracking Card */}
+            <div className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-2xl border border-slate-700/50 backdrop-blur-sm transition-all duration-500 hover:shadow-2xl hover:shadow-amber-500/20">
+                <div className="flex items-start justify-between mb-5">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Trophy className="w-5 h-5 sm:w-6 sm:h-6 text-amber-400 animate-bounce" style={{ animationDelay: '0s' }} />
+                      <h3 className="text-lg sm:text-2xl font-bold text-white">Challenge Tracking</h3>
                     </div>
-                  )}
+                    <p className="text-slate-300 text-sm mt-1">Keep your upload streak alive and reach your goals</p>
+                  </div>
                 </div>
 
-                {publishError && (
-                  <div className="mb-4 px-4 py-2 bg-red-500/20 border border-red-500/50 rounded-lg">
-                    <p className="text-red-400 text-sm font-semibold">{publishError}</p>
-                  </div>
-                )}
-
-                {loadingVideo ? (
-                  <div className={`transition-all duration-300 overflow-hidden ${cardExpanded ? 'max-h-300 p-6' : 'max-h-40 p-2'}`}>
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start mb-4">
-                      <div className="md:col-span-3">
-                        <div className="relative w-full h-32 rounded-lg overflow-hidden bg-gray-200 animate-pulse" />
-                      </div>
-                      <div className="md:col-span-9">
-                        <div className="h-6 w-3/4 bg-gray-200 rounded mb-3 animate-pulse" />
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {[0,1,2,3,4].map(i => (
-                            <div key={i} className="h-8 w-20 bg-gray-200 rounded-full animate-pulse" />
-                          ))}
-                        </div>
-                        <div className="h-10 w-full bg-gray-200 rounded animate-pulse mt-4" />
-                      </div>
-                    </div>
-                  </div>
-                ) : latestVideo ? (
-                  <div className="transition-all duration-300 overflow-hidden">
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
-                      {/* Thumbnail */}
-                      <div className="md:col-span-3">
-                        <div className="relative w-full h-32 md:h-40 rounded-lg overflow-hidden bg-gray-700">
+                {latestVideo && !loadingVideo ? (
+                  <div className="space-y-4">
+                    {/* Latest Video Upload - Enhanced */}
+                    <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-4 border border-slate-600/50 hover:border-slate-500/70 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/10 animate-in fade-in slide-in-from-bottom-3 duration-700 fill-mode-backwards" style={{ animationDelay: '100ms' }}>
+                      <div className="flex items-start gap-4">
+                        <div className="relative w-20 h-12 sm:w-24 sm:h-14 rounded-md overflow-hidden bg-slate-700 shrink-0 ring-2 ring-amber-400/20 hover:ring-amber-400/40 transition-all duration-300">
                           {latestVideo?.thumbnail ? (
                             <Image 
                               src={latestVideo.thumbnail} 
-                              alt="Video thumbnail" 
+                              alt="Latest video" 
                               fill 
-                              className="object-cover" 
+                              className="object-cover hover:scale-105 transition-transform duration-300" 
                               unoptimized 
                               onError={(e: any) => { const target = e.target as HTMLImageElement; target.style.display = 'none' }} 
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-500">
-                              <Youtube className="w-12 h-12" />
-                            </div>
+                            <div className="w-full h-full flex items-center justify-center text-slate-400"><Play className="w-6 h-6" /></div>
                           )}
                         </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="px-2.5 py-1 bg-emerald-500/30 border border-emerald-400/50 rounded-full">
+                              <p className="text-emerald-200 text-xs font-bold">LATEST UPLOAD</p>
+                            </span>
+                          </div>
+                          <p className="text-white font-bold text-sm sm:text-base line-clamp-2">{latestVideo.title}</p>
+                          <div className="text-slate-300 text-xs mt-2.5 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <TrendingUp className="w-3.5 h-3.5 text-green-400" />
+                              <span className="font-medium">{Number(latestVideo.viewCount).toLocaleString()} views</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                              <span className="font-medium">{new Date(latestVideo.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                    </div>
 
-                      {/* Details Section (no tags UI) */}
-                      <div className="md:col-span-9">
-                        <p className="text-white font-semibold mb-3 line-clamp-2">{latestVideo.title}</p>
+                    {/* Next Upload Date */}
+                    <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-4 border border-slate-600/50 hover:border-blue-400/30 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-blue-500/20 border border-blue-400/50 flex items-center justify-center">
+                            <Calendar className="w-5 h-5 text-blue-400" />
+                          </div>
+                          <div>
+                            <p className="text-slate-400 text-xs font-medium">NEXT UPLOAD</p>
+                            <p className="text-white font-bold text-sm sm:text-base mt-0.5">February 3, 2026</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-slate-400 text-xs font-medium">DAYS UNTIL</p>
+                          <p className="text-cyan-300 font-bold text-lg">7</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Channel Stats - One Row (Watch Time, Total Views, Total Subscribers) */}
+                    {loadingVideo ? (
+                      <div className="grid grid-cols-3 gap-2 sm:gap-3 animate-pulse">
+                        {/* Watch Time Skeleton */}
+                        <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-3 sm:p-4 border border-slate-600/50">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-8 h-8 rounded-md bg-slate-600/50"></div>
+                            <div className="h-3 bg-slate-600/50 rounded w-16"></div>
+                          </div>
+                          <div className="h-6 bg-slate-600/50 rounded w-14 mb-2"></div>
+                          <div className="h-2 bg-slate-600/50 rounded w-20"></div>
+                        </div>
+
+                        {/* Total Views Skeleton */}
+                        <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-3 sm:p-4 border border-slate-600/50">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-8 h-8 rounded-md bg-slate-600/50"></div>
+                            <div className="h-3 bg-slate-600/50 rounded w-16"></div>
+                          </div>
+                          <div className="h-6 bg-slate-600/50 rounded w-14 mb-2"></div>
+                          <div className="h-2 bg-slate-600/50 rounded w-20"></div>
+                        </div>
+
+                        {/* Subscribers Skeleton */}
+                        <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-3 sm:p-4 border border-slate-600/50">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-8 h-8 rounded-md bg-slate-600/50"></div>
+                            <div className="h-3 bg-slate-600/50 rounded w-16"></div>
+                          </div>
+                          <div className="h-6 bg-slate-600/50 rounded w-14 mb-2"></div>
+                          <div className="h-2 bg-slate-600/50 rounded w-20"></div>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {/* Challenge Progress - Enhanced */}
+                    <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-4 border border-slate-600/50">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Target className="w-4 h-4 text-cyan-400" />
+                          <p className="text-white font-bold text-sm">Upload Progress</p>
+                        </div>
+                        <p className="text-amber-300 text-sm font-bold">75% Complete</p>
+                      </div>
+                      <div className="w-full bg-slate-600/50 rounded-full h-2.5 mb-2">
+                        <div className="bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 h-2.5 rounded-full w-3/4 transition-all duration-300 shadow-lg shadow-cyan-400/30"></div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-slate-400 text-xs font-medium">3 of 4 videos uploaded this month</p>
+                        <p className="text-amber-300 text-xs font-bold">1 Video Remaining</p>
+                      </div>
+                    </div>
+
+                    {/* Streak & Time Info - Enhanced */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-4 border border-slate-600/50 text-center hover:border-amber-400/30 transition-colors">
+                        <div className="flex items-center justify-center gap-2 mb-1">
+                          <Flame className="w-4 h-4 text-orange-400" />
+                          <p className="text-white font-bold text-3xl">14</p>
+                        </div>
+                        <p className="text-slate-400 text-xs font-medium">DAY STREAK</p>
+                        <p className="text-amber-300 text-xs mt-2 font-bold">🔥 Keep it going!</p>
+                      </div>
+                      <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-4 border border-slate-600/50 text-center hover:border-cyan-400/30 transition-colors">
+                        <div className="flex items-center justify-center gap-2 mb-1">
+                          <Calendar className="w-4 h-4 text-cyan-400" />
+                          <p className="text-white font-bold text-3xl">28</p>
+                        </div>
+                        <p className="text-slate-400 text-xs font-medium">DAYS LEFT</p>
+                        <p className="text-cyan-300 text-xs mt-2 font-bold">in challenge</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : loadingVideo ? (
+                  <div className="space-y-4 animate-pulse">
+                    {/* Latest Video Skeleton */}
+                    <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-4 border border-slate-600/50">
+                      <div className="flex items-start gap-4">
+                        <div className="w-20 h-12 sm:w-24 sm:h-14 rounded-md bg-slate-600/50 shrink-0"></div>
+                        <div className="flex-1 min-w-0 space-y-3">
+                          <div className="h-3 bg-slate-600/50 rounded w-24"></div>
+                          <div className="h-4 bg-slate-600/50 rounded w-48"></div>
+                          <div className="space-y-2">
+                            <div className="h-3 bg-slate-600/50 rounded w-32"></div>
+                            <div className="h-3 bg-slate-600/50 rounded w-32"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Next Upload Skeleton */}
+                    <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-4 border border-slate-600/50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 flex-1">
+                          <div className="w-10 h-10 rounded-lg bg-slate-600/50"></div>
+                          <div className="space-y-2 flex-1">
+                            <div className="h-2 bg-slate-600/50 rounded w-20"></div>
+                            <div className="h-4 bg-slate-600/50 rounded w-40"></div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="h-2 bg-slate-600/50 rounded w-16"></div>
+                          <div className="h-5 bg-slate-600/50 rounded w-8"></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stats Skeleton */}
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                      <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-3 sm:p-4 border border-slate-600/50 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-md bg-slate-600/50"></div>
+                          <div className="h-3 bg-slate-600/50 rounded w-16"></div>
+                        </div>
+                        <div className="h-6 bg-slate-600/50 rounded w-14"></div>
+                        <div className="h-2 bg-slate-600/50 rounded w-20"></div>
+                      </div>
+                      <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-3 sm:p-4 border border-slate-600/50 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-md bg-slate-600/50"></div>
+                          <div className="h-3 bg-slate-600/50 rounded w-16"></div>
+                        </div>
+                        <div className="h-6 bg-slate-600/50 rounded w-14"></div>
+                        <div className="h-2 bg-slate-600/50 rounded w-20"></div>
+                      </div>
+                      <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-3 sm:p-4 border border-slate-600/50 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-md bg-slate-600/50"></div>
+                          <div className="h-3 bg-slate-600/50 rounded w-16"></div>
+                        </div>
+                        <div className="h-6 bg-slate-600/50 rounded w-14"></div>
+                        <div className="h-2 bg-slate-600/50 rounded w-20"></div>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar Skeleton */}
+                    <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-4 border border-slate-600/50 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="h-4 bg-slate-600/50 rounded w-32"></div>
+                        <div className="h-4 bg-slate-600/50 rounded w-20"></div>
+                      </div>
+                      <div className="w-full h-2.5 bg-slate-600/50 rounded-full"></div>
+                      <div className="h-3 bg-slate-600/50 rounded w-48"></div>
+                    </div>
+
+                    {/* Streak Skeleton */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-4 border border-slate-600/50 space-y-2">
+                        <div className="h-8 bg-slate-600/50 rounded w-12 mx-auto"></div>
+                        <div className="h-3 bg-slate-600/50 rounded w-24 mx-auto"></div>
+                        <div className="h-3 bg-slate-600/50 rounded w-32 mx-auto"></div>
+                      </div>
+                      <div className="bg-slate-700/40 backdrop-blur-sm rounded-lg p-4 border border-slate-600/50 space-y-2">
+                        <div className="h-8 bg-slate-600/50 rounded w-12 mx-auto"></div>
+                        <div className="h-3 bg-slate-600/50 rounded w-24 mx-auto"></div>
+                        <div className="h-3 bg-slate-600/50 rounded w-32 mx-auto"></div>
                       </div>
                     </div>
                   </div>
                 ) : (
                   <div className="text-center py-8">
-                    <p className="text-gray-400 text-sm mb-4">No video selected yet</p>
+                    <Trophy className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                    <p className="text-slate-300 text-sm mb-4">No challenge active yet</p>
+                    <Link href="/challenge" className="inline-block px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold rounded-lg hover:shadow-lg hover:shadow-amber-500/30 transition-all text-sm">
+                      Start Challenge
+                    </Link>
                   </div>
                 )}
-
-                <div className="mt-6">
-                  <Button 
-                    onClick={handlePublishTags}
-                    disabled={!latestVideo || isPublishing}
-                    className="w-full bg-slate-700/60 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold py-3 rounded-lg border border-slate-600/50 hover:border-slate-600 transition-colors"
-                  >
-                    {isPublishing ? 'Adding...' : 'Add Tags'}
-                  </Button>
-                </div>
               </div>
             </div>
 
@@ -1177,7 +1341,7 @@ export default function DashboardPage() {
                               />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-gray-500">
-                                <Youtube className="w-12 h-12" />
+                                <span className="text-5xl">▶</span>
                               </div>
                             )}
                           </div>
@@ -1253,8 +1417,11 @@ export default function DashboardPage() {
 
               {/* Top Performing Videos */}
               <div className="mb-8">
-                <h3 className="text-lg font-black text-gray-900 mb-4">Top Performing Videos</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                <div className="flex items-center gap-2 mb-5">
+                  <TrendingUp className="w-6 h-6 text-blue-600" />
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900">Top Performing Videos</h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 mb-6">
                       {loadingVideo ? (
                     // Loading skeletons for top performing videos
                     [0,1,2].map((i) => (
@@ -1274,24 +1441,50 @@ export default function DashboardPage() {
                     ))
                   ) : (
                     topVideos && topVideos.length > 0 ? (
-                      topVideos.map((v) => (
-                        <div key={v.id} className="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100">
-                          <div className="flex items-start gap-4">
-                            <div className="w-28 h-16 rounded-md overflow-hidden bg-gray-100 shrink-0">
+                      topVideos.map((v, idx) => (
+                        <div key={v.id} className="group bg-white rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100 hover:shadow-xl hover:border-blue-200 transition-all duration-300 overflow-hidden">
+                          {/* Rank Badge */}
+                          <div className="absolute top-3 right-3 sm:top-4 sm:right-4 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-lg">
+                            #{idx + 1}
+                          </div>
+
+                          <div className="flex items-start gap-3 sm:gap-4">
+                            <div className="relative w-24 h-14 sm:w-28 sm:h-16 rounded-md overflow-hidden bg-gray-100 shrink-0 shadow-sm ring-2 ring-gray-200 group-hover:ring-blue-300 transition-all">
                               {v.thumbnail ? (
-                                <Image src={v.thumbnail} alt={v.title} width={224} height={128} className="object-cover" unoptimized />
+                                <Image src={v.thumbnail} alt={v.title} width={224} height={128} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" unoptimized />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-gray-400"><Play className="w-6 h-6" /></div>
+                                <div className="w-full h-full flex items-center justify-center text-gray-300 bg-gray-50"><Play className="w-8 h-8" /></div>
                               )}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-gray-900 line-clamp-2">{v.title}</p>
-                              <div className="text-xs text-gray-500 mt-1">{`${Number(v.viewCount).toLocaleString()} views • ${new Date(v.publishedAt).toLocaleDateString()}`}</div>
-                              <div className="mt-3 flex items-center gap-2">
-                                <span className="px-2 py-1 text-xs rounded-full bg-green-50 text-green-700">Top</span>
-                                <span className="px-2 py-1 text-xs rounded-full bg-indigo-50 text-indigo-700">Boost</span>
+                              <p className="text-sm font-bold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors">{v.title}</p>
+                              
+                              {/* Video Stats */}
+                              <div className="text-xs text-gray-600 mt-2 space-y-1.5">
+                                <div className="flex items-center gap-1.5">
+                                  <TrendingUp className="w-3.5 h-3.5 text-green-500" />
+                                  <span className="font-semibold">{Number(v.viewCount).toLocaleString()}</span>
+                                  <span className="text-gray-500">views</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                                  <span className="text-gray-600">{new Date(v.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                </div>
+                              </div>
+
+                              {/* Tags */}
+                              <div className="mt-3 flex items-center gap-1.5 flex-wrap">
+                                <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border border-blue-200">★ Top</span>
+                                <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gradient-to-r from-purple-50 to-purple-100 text-purple-700 border border-purple-200">⚡ Boost</span>
                               </div>
                             </div>
+                          </div>
+
+                          {/* View More */}
+                          <div className="mt-4 pt-4 border-t border-gray-100">
+                            <button className="w-full text-center text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 py-2 rounded-lg transition-colors">
+                              View Analytics →
+                            </button>
                           </div>
                         </div>
                       ))
@@ -1330,7 +1523,7 @@ export default function DashboardPage() {
             <div className="p-6 space-y-4">
               <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                  <Youtube className="w-6 h-6 text-blue-600" />
+                  <span className="text-2xl">▶</span>
                 </div>
                 <div className="flex-1">
                   <p className="font-bold text-gray-900">YouTube Channel</p>

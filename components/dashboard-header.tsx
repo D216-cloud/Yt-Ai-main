@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useState } from "react"
 import { useSession, signOut } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import {
     Search,
     Settings,
@@ -28,9 +28,21 @@ interface DashboardHeaderProps {
 
 export default function DashboardHeader({ sidebarOpen, setSidebarOpen }: DashboardHeaderProps) {
     const router = useRouter()
+    const pathname = usePathname()
     const { data: session } = useSession()
     const [showProfileMenu, setShowProfileMenu] = useState(false)
     const [darkMode, setDarkMode] = useState(false)
+
+    const pageTitles: Record<string,string> = {
+        '/dashboard': 'Dashboard',
+        '/title-search': 'Title Search',
+        '/vid-info': 'Vid-Info',
+        '/compare': 'Compare',
+        '/upload': 'Upload',
+        '/bulk-upload': 'Bulk Upload'
+    }
+
+    const currentPageTitle = pageTitles[pathname?.split('?')?.[0] || pathname || '/dashboard'] || 'Dashboard'
 
     // Determine user's plan (fallback to Free)
     const planName = (session?.user as any)?.plan || (session?.user as any)?.subscription || 'Free'
@@ -41,7 +53,7 @@ export default function DashboardHeader({ sidebarOpen, setSidebarOpen }: Dashboa
     }
 
     return (
-        <header className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200/80 bg-white/80 backdrop-blur-xl shadow-sm h-16">
+        <header className="fixed top-0 left-0 right-0 z-40 border-b border-transparent bg-transparent backdrop-blur-sm h-16">
             <div className="flex h-16 items-center justify-between px-4 md:px-6 lg:px-8">
                 {/* Left: Logo & Search */}
                 <div className="flex items-center gap-4 flex-1">
@@ -53,18 +65,13 @@ export default function DashboardHeader({ sidebarOpen, setSidebarOpen }: Dashboa
                         {sidebarOpen ? <X className="h-5 w-5 text-gray-600" /> : <Menu className="h-5 w-5 text-gray-600" />}
                     </button>
 
-                    {/* Logo Icon Only */}
-                    <Link href="/" className="flex items-center gap-3 group">
-                        <div className="relative">
-                            <Image
-                              src="/vidiomex-logo.svg"
-                              alt="Vidiomex"
-                              width={36}
-                              height={36}
-                              className="rounded-lg"
-                            />
-                        </div>
-                    </Link>
+
+                </div>
+
+                {/* Right-side enlarged logo (partial right) */}
+                <div className="hidden lg:flex items-center gap-3 ml-4 mr-2">
+                  <Image src="/vidiomex-logo.svg" alt="Vidio" width={72} height={72} className="rounded-lg" />
+                  <span className="text-2xl font-extrabold text-gray-900">vidio</span>
                 </div>
 
                 {/* Right: Actions & Profile */}

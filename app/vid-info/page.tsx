@@ -3,7 +3,6 @@
 import { useState } from "react"
 import Link from "next/link"
 import SharedSidebar from "@/components/shared-sidebar"
-import DashboardHeader from "@/components/dashboard-header"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -84,6 +83,7 @@ export default function VideoInfoPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [expandedVideo, setExpandedVideo] = useState<string | null>(null)
   const [inputError, setInputError] = useState<string | null>(null)
   const [showFullDesc, setShowFullDesc] = useState(false)
@@ -717,13 +717,23 @@ export default function VideoInfoPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex">
         {/* Shared Sidebar */}
-        <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="vid-info" />
+        <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="vid-info" isCollapsed={sidebarCollapsed} setIsCollapsed={setSidebarCollapsed} />
 
         <main className="flex-1 pt-20 md:pt-20 md:ml-72 p-4 md:p-8 pb-20 md:pb-8">
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="md:hidden fixed top-4 left-4 z-40 p-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm"
+            aria-label="Open sidebar"
+          >
+            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+
           <div className="max-w-7xl mx-auto">
             <div className="mb-8 mt-6">
               <div className="flex justify-center mb-6 px-3">

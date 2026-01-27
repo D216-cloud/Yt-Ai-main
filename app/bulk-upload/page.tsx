@@ -16,7 +16,7 @@ export default function BulkUploadPage() {
   const { data: session } = useSession()
   const [isLoading, setIsLoading] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [activePage, setActivePage] = useState('bulk-upload')
 
   const [allChannels, setAllChannels] = useState<any[]>([])
@@ -725,6 +725,17 @@ export default function BulkUploadPage() {
 
         {/* Main content */}
         <main className={`flex-1 pt-20 md:pt-20 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'} pb-20 md:pb-0 bg-slate-50 min-h-screen transition-all duration-300 ${sidebarOpen ? 'sm:translate-x-64 md:translate-x-0 scale-95 filter blur-sm' : 'translate-x-0 scale-100'}`}>
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="md:hidden fixed top-4 left-4 z-40 p-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm"
+            aria-label="Open sidebar"
+          >
+            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+
           <div className="max-w-6xl mx-auto p-6">
             {/* Channel selector + Upgrade Banner (dashboard-style) */}
             {selectedUploadChannel ? (

@@ -3,8 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Sparkles, Youtube, Monitor, Smartphone, Calendar, Clock, Eye, Heart, MessageCircle } from 'lucide-react' 
-import SharedSidebar from '@/components/shared-sidebar'
-import DashboardHeader from '@/components/dashboard-header'
+import SharedSidebar from '@/components/shared-sidebar' 
 import AnimationLoader from '@/components/animation-loader'
 import { useToast } from '@/hooks/use-toast' 
 
@@ -390,10 +389,15 @@ export default function ChallengePage() {
   }
 
   const startChallenge = async () => {
+    // Use the ACTUAL user-selected values, not computed defaults
+    const userSelectedDuration = customDurationEnabled ? customMonths : selectedDuration
+    const userSelectedFrequency = selectedFrequency
+    const userSelectedVideosPerCadence = videosPerCadence
+    
     const nextPlan: CreatorChallengePlan = {
-      durationMonths: computed.durationMonths,
-      cadenceEveryDays: computed.cadenceEveryDays,
-      videosPerCadence: computed.videosPerCadence,
+      durationMonths: userSelectedDuration,
+      cadenceEveryDays: userSelectedFrequency,
+      videosPerCadence: userSelectedVideosPerCadence,
       createdAt: new Date().toISOString(),
     }
     persistPlan(nextPlan)
@@ -412,23 +416,39 @@ export default function ChallengePage() {
       const res = await fetch('/api/user-challenge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config: nextPlan, progress: Object.values(scheduledMeta) })
+        body: JSON.stringify({ 
+          config: nextPlan, 
+          progress: Object.values(scheduledMeta),
+          // Send explicit column values from user input
+          durationMonths: userSelectedDuration,
+          cadenceEveryDays: userSelectedFrequency,
+          videosPerCadence: userSelectedVideosPerCadence,
+          videoType: selectedVideoType
+        })
       })
 
       if (!res.ok) {
         if (res.status === 401) {
           toast({ title: 'Sign in required', description: 'Please sign in to save your challenge' })
-          return
+          return { success: false, error: 'Unauthorized' }
         }
         const err = await res.json().catch(() => ({ error: 'Unknown server error' }))
+        console.error('Failed to start challenge:', err)
         toast({ title: 'Failed to start challenge', description: err?.error || 'Server error' })
-        return
+        return { success: false, error: err?.error || 'Server error' }
       }
 
       const json = await res.json()
-      try { localStorage.setItem('creator_challenge_id', json?.id || '') } catch {}
+      console.log('Challenge started response:', json)
+      
+      if (json?.id) {
+        try { localStorage.setItem('creator_challenge_id', json.id) } catch {}
+      } else {
+        console.warn('No challenge ID returned from server')
+      }
+      
       // Return the server response so caller can show success after animations
-      return json
+      return { success: true, id: json?.id, ...json }
     } catch (e) {
       console.error('Failed to persist challenge to server', e)
       // Return an error shape instead of showing toast here; caller will handle message timing
@@ -467,36 +487,65 @@ export default function ChallengePage() {
   const handleEditPlan = () => {
     setSetupHidden(false)
     setShowMore(false)
+    setStep('setup')
+    toast({ title: 'Edit Mode', description: 'Adjust your challenge settings below' })
     try {
       localStorage.setItem('creator_challenge_setup_hidden', '0')
     } catch {}
   }
 
   const handleResetPlan = async () => {
-    if (!confirm('Clear your challenge plan?')) return
+    if (!confirm('Are you sure? This will delete your challenge and all progress data.')) return
 
-    // Attempt to delete on server
     try {
-      const id = localStorage.getItem('creator_challenge_id')
-      if (id) await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      setShowAllVideos(false)
+      // Attempt to delete on server
+      try {
+        const id = localStorage.getItem('creator_challenge_id')
+        if (id) {
+          const res = await fetch(`/api/user-challenge?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+          if (!res.ok) {
+            throw new Error('Failed to delete from server')
+          }
+        }
+      } catch (e) {
+        console.error('Failed to delete challenge on server', e)
+        toast({ title: 'Warning', description: 'Challenge deleted locally, but server sync failed' })
+      }
+
+      // Clear local storage
+      try {
+        localStorage.removeItem('creator_challenge_plan')
+        localStorage.removeItem('creator_challenge_setup_hidden')
+        localStorage.removeItem('creator_challenge_started_at')
+        localStorage.removeItem('creator_challenge_id')
+        localStorage.removeItem('challenge_scheduled_meta')
+      } catch {}
+      
+      // Reset state
+      setPlan(null)
+      setSetupHidden(false)
+      setShowMore(false)
+      setChallengeStartedAt(null)
+      setShowAllVideos(false)
+      setStep('start')
+      setSelectedDuration(6)
+      setSelectedFrequency(2)
+      setVideosPerCadence(1)
+      setSelectedVideoType(null)
+      setScheduledMeta({})
+      
+      toast({ title: 'Challenge Deleted', description: 'Your challenge has been removed' })
     } catch (e) {
-      console.error('Failed to delete challenge on server', e)
+      console.error('Error deleting challenge:', e)
+      toast({ title: 'Error', description: 'Failed to delete challenge' })
     }
+  }
 
-    try {
-      localStorage.removeItem('creator_challenge_plan')
-      localStorage.removeItem('creator_challenge_setup_hidden')
-      localStorage.removeItem('creator_challenge_started_at')
-      localStorage.removeItem('creator_challenge_id')
-    } catch {}
-    setPlan(null)
-    setSetupHidden(false)
-    setShowMore(false)
-    setChallengeStartedAt(null)
-    setShowAllVideos(false)
-    setDurationMonths(6)
-    setCadenceEveryDays(2)
-    setVideosPerCadence(1)
+  const handleOpenChallenge = () => {
+    setShowAllVideos(true)
+    setStep('progress')
+    toast({ title: 'Challenge Opened', description: 'View your progress below' })
   }
 
   // Load channels from DB (same source as dashboard)
@@ -587,70 +636,41 @@ export default function ChallengePage() {
         const ch = json?.challenge
         if (!ch) return
 
-        // Apply to UI state - use the explicit columns if available, fallback to config
-        const cfg = ch.config || {}
-        const newDurationMonths = ch.duration_months || cfg.durationMonths || durationMonths
-        const newCadenceEveryDays = ch.cadence_every_days || cfg.cadenceEveryDays || cadenceEveryDays
-        const newVideosPerCadence = ch.videos_per_cadence || cfg.videosPerCadence || videosPerCadence
-        
-        // Update state with values from DB
-        setDurationMonths(newDurationMonths)
-        setCadenceEveryDays(newCadenceEveryDays)
-        setVideosPerCadence(newVideosPerCadence)
-        
-        setPlan({
-          durationMonths: newDurationMonths,
-          cadenceEveryDays: newCadenceEveryDays,
-          videosPerCadence: newVideosPerCadence,
-          createdAt: ch.created_at || cfg.createdAt || new Date().toISOString(),
-        })
-
-        // If a video type was persisted, reflect it in the UI
-        if (ch.video_type || cfg.videoType) {
-          const vt = ch.video_type || cfg.videoType
-          setSelectedVideoType(vt === 'shorts' ? 'shorts' : 'long')
+        // Apply to UI state
+        if (ch.config) {
+          const cfg = ch.config
+          setPlan({
+            durationMonths: cfg.durationMonths || durationMonths,
+            cadenceEveryDays: cfg.cadenceEveryDays || cadenceEveryDays,
+            videosPerCadence: cfg.videosPerCadence || videosPerCadence,
+            createdAt: cfg.createdAt || new Date().toISOString(),
+          })
+          setDurationMonths(cfg.durationMonths || durationMonths)
+          setCadenceEveryDays(cfg.cadenceEveryDays || cadenceEveryDays)
+          setVideosPerCadence(cfg.videosPerCadence || videosPerCadence)
+          // If a video type was persisted previously, reflect it in the UI
+          if (cfg.videoType) {
+            setSelectedVideoType(cfg.videoType === 'shorts' ? 'shorts' : 'long')
+          }
         }
-
         if (ch.started_at) {
           try { localStorage.setItem('creator_challenge_started_at', ch.started_at) } catch {}
           setChallengeStartedAt(ch.started_at)
           setSetupHidden(true)
         }
-        
-        // Load progress from either scheduled_meta or progress array
-        const progressData = ch.scheduled_meta || (Array.isArray(ch.progress) ? ch.progress : [])
-        if (progressData && (Array.isArray(progressData) || typeof progressData === 'object')) {
+        if (Array.isArray(ch.progress) && ch.progress.length) {
           const map: Record<number, ScheduledMeta> = {}
-          if (Array.isArray(progressData)) {
-            progressData.forEach((p: any, i: number) => {
-              if (p) {
-                map[i] = {
-                  title: p.title || `Video ${i + 1}`,
-                  notes: p.notes || '',
-                  thumbnail: p.thumbnail,
-                  uploaded: !!p.uploaded,
-                  uploadedAt: p.uploadedAt || null,
-                }
-              }
-            })
-          } else {
-            // Handle object format (indexed by video number)
-            Object.entries(progressData).forEach(([key, p]: [string, any]) => {
-              const idx = Number(key)
-              if (!isNaN(idx) && p) {
-                map[idx] = {
-                  title: p.title || `Video ${idx + 1}`,
-                  notes: p.notes || '',
-                  thumbnail: p.thumbnail,
-                  uploaded: !!p.uploaded,
-                  uploadedAt: p.uploadedAt || null,
-                }
-              }
-            })
-          }
+          ch.progress.forEach((p: any, i: number) => {
+            map[i] = {
+              title: p.title,
+              notes: p.notes,
+              thumbnail: p.thumbnail,
+              uploaded: !!p.uploaded,
+              uploadedAt: p.uploadedAt || null,
+            }
+          })
           setScheduledMeta(map)
         }
-        
         if (ch.id) {
           try { localStorage.setItem('creator_challenge_id', ch.id) } catch {}
         }
@@ -911,9 +931,24 @@ export default function ChallengePage() {
                   <div className="text-sm text-gray-500 mt-1">{uploadedCount} uploads scheduled before today • {currentStreak} day streak</div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setShowAllVideos((s) => !s)} className="px-4 py-2 rounded-full bg-white border border-gray-200 text-sm font-semibold hover:bg-gray-50">{showAllVideos ? 'Close' : 'Open'}</button>
-                  <button onClick={handleEditPlan} className="px-4 py-2 rounded-full border border-gray-200 text-sm font-semibold hover:bg-gray-50">Edit</button>
-                  <button onClick={handleResetPlan} className="px-4 py-2 rounded-full bg-red-50 text-red-600 border border-red-100 text-sm font-semibold hover:bg-red-100">Delete</button>
+                  <button 
+                    onClick={handleOpenChallenge}
+                    className="px-5 py-2 rounded-full bg-blue-50 border border-blue-200 text-blue-600 text-sm font-semibold hover:bg-blue-100 transition-colors"
+                  >
+                    Open
+                  </button>
+                  <button 
+                    onClick={handleEditPlan}
+                    className="px-5 py-2 rounded-full border border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors"
+                  >
+                    Edit
+                  </button>
+                  <button 
+                    onClick={handleResetPlan}
+                    className="px-5 py-2 rounded-full bg-red-50 text-red-600 border border-red-200 text-sm font-semibold hover:bg-red-100 transition-colors"
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             )}
@@ -1083,7 +1118,40 @@ export default function ChallengePage() {
                         </div>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row sm:justify-end gap-3 w-full">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-900 mb-3">Videos Per Upload Day</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[1,2,3].map((v) => (
+                            <button
+                              key={v}
+                              onClick={() => setVideosPerCadence(v)}
+                              className={`w-full px-3 py-3 rounded-xl border text-sm font-semibold transition ${videosPerCadence === v ? 'bg-blue-600 border-blue-700 text-white shadow' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}>
+                              {v} video{v > 1 ? 's' : ''}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="mt-3 flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={1}
+                            max={10}
+                            value={videosPerCadence}
+                            onChange={(e) => setVideosPerCadence(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                            className="w-32 rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-200"
+                            aria-label="Videos per day" />
+                          <div className="text-sm text-gray-600">video(s)</div>
+                          <div className="ml-3 text-xs text-gray-500">Presets: 1 / 2 / 3</div>
+                        </div>
+
+                        <div className="mt-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
+                          <div className="text-sm text-blue-800 font-medium">
+                            Total videos: <span className="font-bold">{Math.max(1, Math.floor((selectedDuration * 30) / selectedFrequency) * videosPerCadence)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
                         <button
                           onClick={() => setStep('start')}
                           className="w-full sm:w-auto px-6 py-3 rounded-full border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-all"
@@ -1178,12 +1246,16 @@ export default function ChallengePage() {
                           </div>
                           <p className="text-sm text-gray-600 mt-2">Standard horizontal videos — great for tutorials and long-form content.</p>
                         </div>
+
+                        {selectedVideoType === 'long' && (
+                          <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold">✓</div>
+                        )}
                       </button>
 
                       <button
                         onClick={() => handleSelectVideoType('shorts')}
                         aria-pressed={selectedVideoType === 'shorts'}
-                        className={`w-full p-5 rounded-2xl border transition-transform duration-150 text-left flex items-center gap-4 ${selectedVideoType === 'shorts' ? 'border-indigo-200 shadow-lg scale-100' : 'border-gray-200 hover:shadow-sm'} bg-white`}
+                        className={`w-full p-5 rounded-2xl border transition-transform duration-150 text-left flex items-center gap-4 ${selectedVideoType === 'shorts' ? 'border-indigo-200 shadow-lg scale-100' : 'border-gray-200 hover:shadow-sm'} bg-white relative`}
                       >
                         <div className={`flex items-center justify-center rounded-md border ${selectedVideoType === 'shorts' ? 'border-indigo-200 shadow-sm' : 'border-gray-100'} bg-white w-12 h-16`}>
                           <Smartphone className="w-6 h-6 text-gray-700" />
@@ -1196,15 +1268,64 @@ export default function ChallengePage() {
                           </div>
                           <p className="text-sm text-gray-600 mt-2">Vertical short-form videos — optimized for reach and quick engagement.</p>
                         </div>
+
+                        {selectedVideoType === 'shorts' && (
+                          <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-bold">✓</div>
+                        )}
                       </button>
                     </div>
 
-                    <button
-                      onClick={() => setStep('setup')}
-                      className="mt-6 sm:mt-8 px-6 py-3 rounded-full border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-all"
-                    >
-                      Back
-                    </button>
+                    {/* Show selected type summary */}
+                    {selectedVideoType && (
+                      <div className="mt-6 p-4 rounded-2xl bg-indigo-50 border border-indigo-100">
+                        <div className="text-sm text-indigo-700 font-semibold">
+                          Selected: <span className="text-indigo-900 font-bold">{selectedVideoType === 'long' ? 'Long Video (16:9)' : 'Shorts (9:16)'}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Buttons */}
+                    <div className="flex flex-col sm:flex-row gap-3 mt-8 justify-center">
+                      <button
+                        onClick={() => setStep('setup')}
+                        className="px-8 py-3 rounded-full border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 transition-all"
+                      >
+                        Back
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          if (!selectedVideoType) {
+                            toast({ title: 'Please select a video type', description: 'Choose Long Video or Shorts to continue' })
+                            return
+                          }
+                          
+                          setIsStartingAnimation(true)
+                          
+                          const startPromise = startChallenge()
+                          
+                          setTimeout(async () => {
+                            setIsStartingAnimation(false)
+                            setChallengeStartDate(new Date())
+                            setStep('progress')
+                            
+                            const startResult = await startPromise.catch((e) => ({ success: false, error: String(e) }))
+                            
+                            if (startResult && startResult.success !== false) {
+                              toast({ title: 'Challenge started', description: 'Saved to your account' })
+                              setShowStartedBanner(true)
+                              setTimeout(() => setShowStartedBanner(false), 4000)
+                            } else {
+                              toast({ title: 'Failed to start challenge', description: startResult?.error || 'Server error' })
+                            }
+                          }, 3000)
+                        }}
+                        disabled={!selectedVideoType || isStartingAnimation}
+                        className={`px-8 py-3 rounded-full font-semibold transition-all ${selectedVideoType && !isStartingAnimation ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
+                      >
+                        {isStartingAnimation ? 'Starting...' : 'Start Challenge'}
+                      </button>
+                    </div>
 
                     {/* Selection animation overlay */}
                     {animStage !== 'idle' && (
@@ -1238,6 +1359,26 @@ export default function ChallengePage() {
                         </div>
 
                         <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">Active</div>
+                      </div>
+                    </div>
+
+                    {/* Challenge Configuration Summary */}
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6 p-4 rounded-2xl bg-indigo-50 border border-indigo-100">
+                      <div className="text-center">
+                        <div className="text-xs font-semibold text-indigo-600">Duration</div>
+                        <div className="text-2xl font-bold text-indigo-900 mt-1">{selectedDuration} <span className="text-sm">months</span></div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs font-semibold text-indigo-600">Frequency</div>
+                        <div className="text-2xl font-bold text-indigo-900 mt-1">1 <span className="text-sm">/ {selectedFrequency}d</span></div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs font-semibold text-indigo-600">Per Upload</div>
+                        <div className="text-2xl font-bold text-indigo-900 mt-1">{1} <span className="text-sm">video</span></div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xs font-semibold text-indigo-600">Video Type</div>
+                        <div className="text-2xl font-bold text-indigo-900 mt-1">{selectedVideoType === 'long' ? '16:9' : '9:16'}</div>
                       </div>
                     </div>
 

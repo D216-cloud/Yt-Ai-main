@@ -11,7 +11,6 @@ import { useSession, signOut } from "next-auth/react"
 import { useState, useEffect } from "react"
 import ChannelSummary from '@/components/channel-summary'
 import SharedSidebar from "@/components/shared-sidebar"
-import DashboardHeader from "@/components/dashboard-header"
 
 interface YouTubeChannel {
   id: string
@@ -173,9 +172,12 @@ export default function DashboardPage() {
     },
   })
 
+  const [statsLoading, setStatsLoading] = useState(true)
+
   // Fetch real channel stats from backend when we have a channel or token
   useEffect(() => {
     const fetchChannelStats = async () => {
+      setStatsLoading(true)
       try {
         const token = localStorage.getItem('youtube_access_token')
         let url = '/api/youtube/channel'
@@ -187,10 +189,14 @@ export default function DashboardPage() {
           console.log('[Dashboard] Fetching channel with ID:', youtubeChannel.id)
         } else {
           console.log('[Dashboard] No token or channel ID available yet')
+          setStatsLoading(false)
           return
         }
 
-        const res = await fetch(url)
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: { 'Cache-Control': 'max-age=300' }
+        })
         const data = await res.json()
         console.log('[Dashboard] Channel API response:', { status: res.status, success: data?.success })
         
@@ -211,8 +217,10 @@ export default function DashboardPage() {
             subscribers: parseInt(ch.subscriberCount || '0'),
           }))
         }
+        setStatsLoading(false)
       } catch (err) {
         console.error('[Dashboard] Failed to fetch channel stats:', err)
+        setStatsLoading(false)
       }
     }
 
@@ -311,7 +319,6 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex">
         {/* Shared Sidebar */}
@@ -369,73 +376,118 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Views */}
-                <div className={`${cardBase} hover:border-blue-300/50 hover:shadow-blue-500/20`}>
-                  <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-blue-500/15 to-cyan-500/15 rounded-full blur-2xl"></div>
-                  <div className="relative">
-                    <div className="mb-3 sm:mb-4 flex items-center gap-4">
-                      <div className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center text-blue-600 shadow-sm flex-shrink-0">
-                        <ViewsIcon className="w-5 h-5" />
+                {/* Views / Subscribers / Watch Time — grouped for mobile single-row display */}
+                <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 sm:gap-4">
+                  {/* Views */}
+                  <div className={`${cardBase} hover:border-blue-300/50 hover:shadow-blue-500/20 min-w-[220px] flex-shrink-0 snap-start transition-all duration-500 ${statsLoading ? 'opacity-75' : 'opacity-100 animate-in fade-in slide-in-from-bottom-4 duration-700'}`}>
+                    <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-blue-500/15 to-cyan-500/15 rounded-full blur-2xl"></div>
+                    <div className="relative">
+                      <div className="mb-3 sm:mb-4 flex items-center gap-4">
+                        <div className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center text-blue-600 shadow-sm">
+                          {statsLoading ? (
+                            <div className="w-5 h-5 bg-blue-200 rounded-full animate-pulse"></div>
+                          ) : (
+                            <ViewsIcon className="w-5 h-5" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs sm:text-sm font-semibold text-gray-600 mb-1">Total Views</p>
+                          {statsLoading ? (
+                            <div className="space-y-2">
+                              <div className="h-6 bg-gray-200 rounded w-16 animate-pulse"></div>
+                              <div className="h-3 bg-gray-100 rounded w-24 animate-pulse"></div>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-lg sm:text-xl md:text-2xl font-black text-gray-900">{formatNumber(analyticsData.views)}</p>
+                              <p className="text-sm text-gray-500 mt-1">Across all channels</p>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs sm:text-sm font-semibold text-gray-600 mb-1">Total Views</p>
-                        <p className="text-lg sm:text-xl md:text-2xl font-black text-gray-900">{formatNumber(analyticsData.views)}</p>
-                        <p className="text-sm text-gray-500 mt-1">Click</p>
-                      </div>
+                      {!statsLoading && (
+                        <Button
+                          onClick={() => router.push('/vid-info')}
+                          aria-label="Analyze Videos"
+                          title="Analyze Videos"
+                          className="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-900 font-semibold px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                        >
+                          <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                          <span className="truncate">Analyze</span>
+                        </Button>
+                      )}
                     </div>
-                    <Button
-                      onClick={() => router.push('/vid-info')}
-                      aria-label="Analyze Videos"
-                      title="Analyze Videos"
-                      className="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-900 font-semibold px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
-                    >
-                      <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-                      <span className="truncate">Analyze</span>
-                    </Button>
                   </div>
-                </div>
 
-                {/* Subscribers */}
-                  <div className={`${cardBase} hover:border-purple-300/50 hover:shadow-purple-500/20`}>
-                  <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-purple-500/15 to-pink-500/15 rounded-full blur-2xl"></div>
-                  <div className="relative">
-                    <div className="mb-3 sm:mb-4 flex items-center gap-4">
-                      <div className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center text-purple-600 shadow-sm flex-shrink-0">
-                        <SubscribersIcon className="w-5 h-5" />
+                  {/* Subscribers */}
+                  <div className={`${cardBase} hover:border-purple-300/50 hover:shadow-purple-500/20 min-w-[220px] flex-shrink-0 snap-start transition-all duration-500 ${statsLoading ? 'opacity-75' : 'opacity-100 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100'}`}>
+                    <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-purple-500/15 to-pink-500/15 rounded-full blur-2xl"></div>
+                    <div className="relative">
+                      <div className="mb-3 sm:mb-4 flex items-center gap-4">
+                        <div className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center text-purple-600 shadow-sm">
+                          {statsLoading ? (
+                            <div className="w-5 h-5 bg-purple-200 rounded-full animate-pulse"></div>
+                          ) : (
+                            <SubscribersIcon className="w-5 h-5" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs sm:text-sm font-semibold text-gray-600 mb-1">Subscribers</p>
+                          {statsLoading ? (
+                            <div className="space-y-2">
+                              <div className="h-6 bg-gray-200 rounded w-16 animate-pulse"></div>
+                              <div className="h-3 bg-gray-100 rounded w-24 animate-pulse"></div>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-lg sm:text-xl md:text-2xl font-black text-gray-900">{formatNumber(analyticsData.subscribers)}</p>
+                              <p className="text-sm text-gray-500 mt-1">Loyal community</p>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs sm:text-sm font-semibold text-gray-600 mb-1">Subscribers</p>
-                        <p className="text-lg sm:text-xl md:text-2xl font-black text-gray-900">{formatNumber(analyticsData.subscribers)}</p>
-                        <p className="text-sm text-gray-500 mt-1">Full file</p>
-                      </div>
+                      {!statsLoading && (
+                        <Button
+                          onClick={() => router.push('/bulk-upload')}
+                          aria-label="Smart Bulk Upload"
+                          title="Smart Bulk Upload"
+                          className="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-900 font-semibold px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
+                        >
+                          <Upload className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
+                          <span className="truncate">Smart Upload</span>
+                        </Button>
+                      )}
                     </div>
-                    <Button
-                      onClick={() => router.push('/bulk-upload')}
-                      aria-label="Smart Bulk Upload"
-                      title="Smart Bulk Upload"
-                      className="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-900 font-semibold px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all"
-                    >
-                      <Upload className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-                      <span className="truncate">Smart Upload</span>
-                    </Button>
                   </div>
-                </div>
 
-                {/* Watch Time */}
-                <div className={`${cardBase} hover:border-green-300/50 hover:shadow-green-500/20`}>
-                  <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-green-500/15 to-emerald-500/15 rounded-full blur-2xl"></div>
-                  <div className="relative">
-                    <div className="mb-3 sm:mb-4 flex items-center gap-4">
-                      <div className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center text-green-600 shadow-sm flex-shrink-0">
-                        <WatchTimeIcon className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-xs sm:text-sm font-semibold text-gray-600 mb-1">Watch Time</p>
-                        <p className="text-lg sm:text-xl md:text-2xl font-black text-gray-900">{formatHoursForDisplay(analyticsData.watchTime) === '—' ? '—' : formatHoursForDisplay(analyticsData.watchTime) + 'h'}</p>
-                        <p className="text-sm text-gray-500 mt-1">Full file</p>
+                  {/* Watch Time */}
+                  <div className={`${cardBase} hover:border-green-300/50 hover:shadow-green-500/20 min-w-[220px] flex-shrink-0 snap-start transition-all duration-500 ${statsLoading ? 'opacity-75' : 'opacity-100 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200'}`}>
+                    <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-gradient-to-br from-green-500/15 to-emerald-500/15 rounded-full blur-2xl"></div>
+                    <div className="relative">
+                      <div className="mb-3 sm:mb-4 flex items-center gap-4">
+                        <div className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center text-green-600 shadow-sm">
+                          {statsLoading ? (
+                            <div className="w-5 h-5 bg-green-200 rounded-full animate-pulse"></div>
+                          ) : (
+                            <WatchTimeIcon className="w-5 h-5" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs sm:text-sm font-semibold text-gray-600 mb-1">Watch Time</p>
+                          {statsLoading ? (
+                            <div className="space-y-2">
+                              <div className="h-6 bg-gray-200 rounded w-16 animate-pulse"></div>
+                              <div className="h-3 bg-gray-100 rounded w-24 animate-pulse"></div>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-lg sm:text-xl md:text-2xl font-black text-gray-900">{formatHoursForDisplay(analyticsData.watchTime) === '—' ? '—' : formatHoursForDisplay(analyticsData.watchTime) + 'h'}</p>
+                              <p className="text-sm text-gray-500 mt-1">Hours watched</p>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    {/* AI Tools removed */}
                   </div>
                 </div>
 

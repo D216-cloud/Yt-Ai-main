@@ -4,6 +4,12 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
 import { createServerSupabaseClient } from "@/lib/supabase"
 
+// Ensure this route runs in the Node runtime and is treated as dynamic to avoid
+// static analysis errors during build (e.g., 'ComponentMod.patchFetch' issues).
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+import { sendLoginNotificationEmail } from '@/lib/emailService'
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -121,6 +127,14 @@ export const authOptions: NextAuthOptions = {
           // Do not block sign-in because of a DB upsert failure in production — allow OAuth sign-in
         } else {
           console.log('✅ Supabase user upserted:', data?.email)
+          // Send a non-blocking login notification email for Google sign-ins
+          try {
+            if (account?.provider === 'google' && user?.email) {
+              await sendLoginNotificationEmail({ userEmail: user.email, userName: user.name || 'Creator', provider: 'Google' })
+            }
+          } catch (e) {
+            console.warn('⚠️ Login notification email failed (non-blocking):', e)
+          }
         }
       } catch (error) {
         console.error('❌ Error in signIn callback (upsert error):', error)

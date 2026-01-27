@@ -540,6 +540,7 @@ export default function ComparePage() {
   const router = useRouter()
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [channel1Id, setChannel1Id] = useState("")
   const [channel2Id, setChannel2Id] = useState("")
   const [channel1, setChannel1] = useState<YouTubeChannel | null>(null)
@@ -993,9 +994,20 @@ export default function ComparePage() {
 
       <div className="flex flex-1">
         {/* Shared Sidebar */}
-        <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="compare" />
+        <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="compare" isCollapsed={sidebarCollapsed} setIsCollapsed={setSidebarCollapsed} />
         {/* Main Content */}
         <main className="flex-1 pt-20 md:pt-20 md:ml-72 pb-16 md:pb-0">
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="md:hidden fixed top-4 left-4 z-40 p-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm"
+            aria-label="Open sidebar"
+          >
+            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+
           <div className="p-4 md:p-6 lg:p-8">
             {/* Header with Back Button - Only show on desktop */}
             <div className="hidden md:flex items-center justify-between mb-6">

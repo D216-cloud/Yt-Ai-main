@@ -1,22 +1,36 @@
--- Enable Row Level Security and create an owner-only policy for user_challenges
+-- Enable Row Level Security and create granular policies for user_challenges
 -- Run this AFTER running previous migrations and ensure auth.uid() is set up (Supabase Auth)
 
--- Only apply RLS and policy if the table exists to avoid errors when migrations run out-of-order
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'user_challenges') THEN
-    ALTER TABLE public.user_challenges ENABLE ROW LEVEL SECURITY;
+-- Enable RLS on the table
+ALTER TABLE IF EXISTS public.user_challenges ENABLE ROW LEVEL SECURITY;
 
-    -- Policy: only the user (auth.uid()) may SELECT/INSERT/UPDATE/DELETE their rows
-    -- Drop any existing policy first (CREATE POLICY doesn't support IF NOT EXISTS)
-    DROP POLICY IF EXISTS user_can_manage_own_challenge ON public.user_challenges;
+-- Drop any existing policies first
+DROP POLICY IF EXISTS user_can_manage_own_challenge ON public.user_challenges;
+DROP POLICY IF EXISTS "Allow users to view their own challenges" ON public.user_challenges;
+DROP POLICY IF EXISTS "Allow users to create challenges" ON public.user_challenges;
+DROP POLICY IF EXISTS "Allow users to update their own challenges" ON public.user_challenges;
+DROP POLICY IF EXISTS "Allow users to delete their own challenges" ON public.user_challenges;
 
-    CREATE POLICY user_can_manage_own_challenge ON public.user_challenges
-      FOR ALL
-      USING (auth.uid() = user_id)
-      WITH CHECK (auth.uid() = user_id);
-  END IF;
-END$$;
+-- Policy 1: SELECT - users can view their own challenges
+CREATE POLICY "Allow users to view their own challenges" ON public.user_challenges
+  FOR SELECT
+  USING (auth.uid() = user_id);
 
--- Note: On Supabase you may need to run `ALTER TABLE ... ENABLE ROW LEVEL SECURITY;` from SQL editor
--- and ensure the function `auth.uid()` is available (Supabase managed DB provides it).
+-- Policy 2: INSERT - users can create challenges for themselves
+CREATE POLICY "Allow users to create challenges" ON public.user_challenges
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- Policy 3: UPDATE - users can update their own challenges
+CREATE POLICY "Allow users to update their own challenges" ON public.user_challenges
+  FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Policy 4: DELETE - users can delete their own challenges
+CREATE POLICY "Allow users to delete their own challenges" ON public.user_challenges
+  FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Note: These policies ensure that each user can only access/modify their own challenge data.
+-- auth.uid() returns the currently logged-in user's ID from Supabase Auth.

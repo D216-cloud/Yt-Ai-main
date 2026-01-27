@@ -2,7 +2,6 @@
 
 import { useState, useRef } from "react"
 import SharedSidebar from "@/components/shared-sidebar"
-import DashboardHeader from "@/components/dashboard-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -227,7 +226,6 @@ export default function VideoUploadAnalysisPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex">
         <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="vid-info" />

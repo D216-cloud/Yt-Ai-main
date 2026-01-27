@@ -9,8 +9,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { useState, useEffect } from "react"
 import ChannelSummary from '@/components/channel-summary'
-import SharedSidebar from "@/components/shared-sidebar"
-import DashboardHeader from "@/components/dashboard-header"
+import SharedSidebar from "@/components/shared-sidebar" 
 
 interface YouTubeChannel {
   id: string
