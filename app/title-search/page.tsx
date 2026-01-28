@@ -8,7 +8,7 @@ import SharedSidebar from '@/components/shared-sidebar'
 import TitleSearchScoreComponent from '@/components/title-search-score'
 import VideoCard from '@/components/video-card'
 import AnimationLoader from '@/components/animation-loader'
-import { Sparkles, ChevronDown, Youtube, Loader2, AlertCircle, RefreshCw } from 'lucide-react' 
+import { Sparkles, ChevronDown, Youtube, Loader2, AlertCircle, RefreshCw, Play, TrendingUp, Calendar } from 'lucide-react' 
 
 interface YouTubeChannel {
   id: string
@@ -401,7 +401,7 @@ export default function TitleSearchPage() {
   }, [youtubeChannel, accessTokenAvailable])
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-50">
+    <div className="min-h-screen bg-slate-50">
       <AnimationLoader open={showInitialLoader} items={[ANIMATIONS[0]]} perItemDuration={titleLoaderDuration} maxDuration={titleLoaderDuration} useAll={false} sizeClass="w-48 h-48" onFinish={() => setShowInitialLoader(false)} />
 
       <div className="flex">
@@ -415,7 +415,18 @@ export default function TitleSearchPage() {
         />
 
         {/* Main Content */}
-        <main className={`flex-1 pt-14 md:pt-16 p-4 md:p-8 pb-20 md:pb-8 transition-all duration-300 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'}`}>
+        <main className={`flex-1 pt-16 md:pt-18 px-3 sm:px-4 md:px-6 pb-24 md:pb-12 transition-all duration-300 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'}`}>
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="md:hidden fixed top-4 left-4 z-40 p-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm"
+            aria-label="Open sidebar"
+          >
+            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+
           <div className="max-w-7xl mx-auto">
             {/* Channel Selector & Upgrade Banner Section */}
             <div className="mb-8 mt-8 md:mt-10">
@@ -443,53 +454,67 @@ export default function TitleSearchPage() {
 
                   {/* Channel Menu Dropdown */}
                   {showChannelMenu && (
-                    <div className="absolute top-full mt-3 left-1/2 transform -translate-x-1/2 bg-white rounded-2xl shadow-2xl w-[calc(100vw-2rem)] sm:w-full max-w-md text-gray-800 overflow-hidden z-40 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="absolute top-full mt-3 left-1/2 transform -translate-x-1/2 bg-white rounded-3xl shadow-2xl w-[calc(100vw-2rem)] sm:w-full max-w-md text-gray-800 overflow-hidden z-40 animate-in fade-in slide-in-from-top-2 duration-300">
                       {/* Header */}
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 sm:py-4 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-100">
-                        <div className="flex items-center gap-3 sm:gap-4 flex-1 w-full">
-                          <img src={youtubeChannel?.thumbnail} alt={youtubeChannel?.title} className="w-12 sm:w-14 h-12 sm:h-14 rounded-full object-cover shadow-md flex-shrink-0" />
+                      <div className="flex items-center gap-4 px-4 sm:px-6 py-4 bg-gradient-to-r from-indigo-50 to-pink-50 border-b border-gray-100">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="relative">
+                            <img src={youtubeChannel?.thumbnail} alt={youtubeChannel?.title} className="w-14 h-14 rounded-full object-cover shadow-lg ring-2 ring-white" />
+                            <span className="absolute -right-1 -bottom-1 bg-white rounded-full p-[2px] shadow-sm">
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-semibold">{uniqueChannelCount}</span>
+                            </span>
+                          </div>
+
                           <div className="flex flex-col min-w-0">
                             <div className="text-sm sm:text-base font-bold truncate" title={youtubeChannel?.title}>{youtubeChannel?.title}</div>
-                            <div className="text-xs sm:text-sm text-gray-600">Connected • <span className="font-semibold text-gray-800">{formatNumber(youtubeChannel?.videoCount || 0)} videos</span></div>
+                            <div className="text-xs text-gray-500">Connected • <span className="font-semibold text-gray-800">{formatNumber(youtubeChannel?.videoCount || 0)} videos</span></div>
                           </div>
-                        </div>
-                        <div className="ml-auto flex items-center gap-2 flex-shrink-0">
-                          <span className="inline-flex items-center text-xs font-semibold bg-blue-100 text-blue-700 px-2 sm:px-3 py-1 rounded-full whitespace-nowrap">{uniqueChannelCount}</span>
                         </div>
                       </div>
 
                       {/* Channels List */}
-                      <div className="divide-y divide-gray-100 max-h-64 sm:max-h-72 overflow-y-auto">
+                      <div className="px-3 py-3 max-h-64 sm:max-h-72 overflow-y-auto">
                         {visibleAdditionalChannels.length > 0 ? visibleAdditionalChannels.map((ch: YouTubeChannel) => (
-                          <button
-                            key={ch.id}
-                            onClick={() => {
-                              // Switch channel: reload from database
-                              window.location.reload()
-                            }}
-                            className="w-full text-left px-4 sm:px-6 py-3 sm:py-4 hover:bg-blue-50 flex items-center gap-2 sm:gap-3 transition-colors"
-                          >
-                            <img src={ch.thumbnail} alt={ch.title} className="w-9 sm:w-11 h-9 sm:h-11 rounded-full object-cover flex-shrink-0" />
+                          <div key={ch.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 transition">
+                            <img src={ch.thumbnail} alt={ch.title} className="w-10 h-10 rounded-full object-cover flex-shrink-0 shadow-sm" />
                             <div className="flex-1 min-w-0">
-                              <div className="text-xs sm:text-sm font-semibold truncate">{ch.title}</div>
-                              <div className="text-xs text-gray-500">{formatNumber(ch.videoCount)} videos</div>
+                              <div className="text-sm font-semibold truncate">{ch.title}</div>
+                              <div className="text-xs text-gray-500">{formatNumber(ch.videoCount)} videos • {formatNumber(ch.subscriberCount)} subs</div>
                             </div>
-                            <div className="text-xs text-gray-500 flex-shrink-0">{formatNumber(ch.subscriberCount)}</div>
-                          </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  // Switch to this channel (refresh to ensure server state)
+                                  localStorage.setItem('youtube_channel', JSON.stringify(ch))
+                                  const token = localStorage.getItem(`youtube_access_token_${ch.id}`) || null
+                                  if (token) localStorage.setItem('youtube_access_token', token)
+                                  setYoutubeChannel(ch)
+                                  setShowChannelMenu(false)
+                                }}
+                                className="text-sm text-blue-600 px-3 py-1 rounded-md bg-white border border-blue-50 hover:bg-blue-50 font-semibold"
+                              >
+                                Use
+                              </button>
+                            </div>
+                          </div>
                         )) : (
-                          <div className="px-4 sm:px-6 py-5 text-xs sm:text-sm text-gray-600 font-medium text-center bg-gray-50">No other channels connected</div>
+                          <div className="flex items-center justify-center px-6 py-10 text-sm text-gray-500 font-medium bg-gray-50 rounded-xl">No other channels connected</div>
                         )}
                       </div>
 
                       {/* Footer actions */}
-                      <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gray-50 border-t border-gray-100">
-                        <div className="space-y-2 sm:space-y-3">
-                          <Link href="/connect">
-                            <button className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-full py-2.5 sm:py-3 flex items-center justify-center gap-2 shadow-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400 font-semibold text-xs sm:text-sm transition-all active:scale-95">
-                              <Youtube className="w-4 sm:w-5 h-4 sm:h-5" />
-                              Connect Another Channel
-                            </button>
-                          </Link>
+                      <div className="px-5 py-4 bg-white border-t border-gray-100">
+                        <div className="space-y-3">
+                          <button
+                            onClick={() => {
+                              localStorage.setItem('oauth_return_page', 'sidebar')
+                              setShowChannelMenu(false)
+                            }}
+                            className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-full py-3 px-6 flex items-center justify-center gap-3 shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400 font-semibold text-sm transition-all active:scale-95"
+                          >
+                            <Play className="w-4 h-4" />
+                            Connect Another Channel
+                          </button>
                         </div>
                       </div>
                     </div>

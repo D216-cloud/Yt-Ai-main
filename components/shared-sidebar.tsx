@@ -360,7 +360,7 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
             <aside
                 className={`fixed left-0 top-0 bottom-0 flex flex-col shrink-0 bg-white/90 backdrop-blur-sm border-r border-gray-100 shadow-sm transform transition-all duration-300 z-50 h-screen ${
                     sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-                } md:translate-x-0 ${isCollapsed ? 'md:w-20' : 'md:w-64'} w-64`}
+                } md:translate-x-0 ${isCollapsed ? 'md:w-20' : 'md:w-64'} w-full`}
             >
                 {/* Logo Header at Top */}
                 <div className={`flex items-center justify-between md:justify-center ${isCollapsed ? 'md:px-2 md:py-5' : 'md:p-5'} p-5`}>
@@ -409,14 +409,14 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                                     ? 'border-gray-900 bg-gray-50 text-gray-900 shadow-sm ring-1 ring-gray-200'
                                     : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                             }`}
-                            title={isCollapsed ? link.label : ''}
+                            title={isCollapsed && typeof window !== 'undefined' && window.innerWidth >= 768 ? link.label : ''}
                             onMouseLeave={handleMouseLeave}
                             onBlur={handleMouseLeave}
                         >
                                 <div className={`w-9 h-9 flex items-center justify-center rounded-md ${activePage === link.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'} shadow-sm`}> 
                                 <link.icon className="w-5 h-5" />
                             </div>
-                            {!isCollapsed && (
+                            {(!isCollapsed || (typeof window !== 'undefined' && window.innerWidth < 768)) && (
                                 <>
                                     <span className="flex-1 pl-1">{link.label}</span>
                                     {link.badge && (
@@ -487,10 +487,10 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                 </div>
 
                 {/* Collapse Button at Bottom */}
-                <div className="p-4 border-t border-gray-100">
+                <div className="hidden md:block p-4 border-t border-gray-100">
                   <button
                     onClick={() => setIsCollapsed?.(!isCollapsed)}
-                    className="hidden md:flex w-full items-center justify-center gap-2 p-3 rounded-lg hover:bg-gray-100 transition-colors"
+                    className="w-full flex items-center justify-center gap-2 p-3 rounded-lg hover:bg-gray-100 transition-colors"
                     aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
                   >
                     {isCollapsed ? (

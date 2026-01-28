@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Sparkles, Youtube, Monitor, Smartphone, Calendar, Clock, Eye, Heart, MessageCircle } from 'lucide-react' 
 import SharedSidebar from '@/components/shared-sidebar' 
 import AnimationLoader from '@/components/animation-loader'
+import ChallengeTrackingCard from '@/components/challenge-tracking-card'
 import { useToast } from '@/hooks/use-toast' 
 
 type CreatorChallengePlan = {
@@ -73,6 +74,7 @@ export default function ChallengePage() {
   const [selectedFrequency, setSelectedFrequency] = useState(2) // days
   const [selectedVideoType, setSelectedVideoType] = useState<'long' | 'shorts' | null>(null)
   const [challengeStartDate, setChallengeStartDate] = useState<Date | null>(null)
+  const [showProgressDetails, setShowProgressDetails] = useState(false)
 
   // Staged animation when selecting video type: 'idle' | 'running' (first gif) | 'loading2' (second gif)
   const [animStage, setAnimStage] = useState<'idle' | 'running' | 'loading2'>('idle')
@@ -184,6 +186,19 @@ export default function ChallengePage() {
       else break
     }
     return streak
+  }, [scheduleDates])
+
+  // Calculate days until next upload
+  const daysUntilNext = useMemo(() => {
+    const now = new Date()
+    for (const date of scheduleDates) {
+      if (date > now) {
+        const diffTime = date.getTime() - now.getTime()
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        return Math.max(0, diffDays)
+      }
+    }
+    return 0
   }, [scheduleDates])
 
   // Metadata for scheduled videos (titles, thumbnails, notes, uploaded state)
@@ -921,37 +936,6 @@ export default function ChallengePage() {
               </div>
             </div>
 
-            {/* Active Challenge Card (persisted) */}
-            {plan && challengeStartedAt && (
-              <div className="rounded-2xl bg-white border border-gray-100 p-4 mb-6 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm text-gray-500">Active • Started {new Date(challengeStartedAt).toLocaleDateString()}</div>
-                  <div className="text-lg font-semibold text-gray-900 mt-1 truncate">{computed.totalVideos} videos • {consistencyPercent}% consistency</div>
-                  <div className="text-sm text-gray-500 mt-1">{uploadedCount} uploads scheduled before today • {currentStreak} day streak</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={handleOpenChallenge}
-                    className="px-5 py-2 rounded-full bg-blue-50 border border-blue-200 text-blue-600 text-sm font-semibold hover:bg-blue-100 transition-colors"
-                  >
-                    Open
-                  </button>
-                  <button 
-                    onClick={handleEditPlan}
-                    className="px-5 py-2 rounded-full border border-gray-200 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors"
-                  >
-                    Edit
-                  </button>
-                  <button 
-                    onClick={handleResetPlan}
-                    className="px-5 py-2 rounded-full bg-red-50 text-red-600 border border-red-200 text-sm font-semibold hover:bg-red-100 transition-colors"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Challenge Flow Cards */}
             <div className="space-y-6">
               {step === 'start' && (
@@ -1345,6 +1329,21 @@ export default function ChallengePage() {
 
               {step === 'progress' && selectedVideoType && challengeStartDate && (
                 <div className="space-y-6">
+                  {/* Challenge Tracking Card */}
+                  <ChallengeTrackingCard
+                    latestVideoTitle="Your latest upload"
+                    latestVideoDate={new Date().toLocaleDateString()}
+                    latestVideoViews={1765}
+                    nextUploadDate={new Date(challengeStartDate.getTime() + (Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1) * selectedFrequency * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                    daysUntilNext={Math.max(0, daysUntilNext)}
+                    dayStreak={currentStreak}
+                    uploadProgress={consistencyPercent}
+                    totalVideosRequired={totalUploads}
+                    videosUploaded={uploadedCount}
+                    onEdit={handleEditPlan}
+                    onDelete={handleResetPlan}
+                  />
+
                   <div className="rounded-3xl bg-white border border-gray-100 shadow-[0_30px_60px_rgba(8,15,52,0.06)] p-8">
                     <div className="flex flex-col sm:flex-row items-start sm:justify-between gap-4 mb-6">
                       <div>
@@ -1356,8 +1355,6 @@ export default function ChallengePage() {
                         <div className="flex items-center gap-3">
                           <div className="text-sm text-gray-600">Day {Math.max(0, Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24))) + 1} of {selectedDuration * 30}</div>
                         </div>
-
-                        <div className="mt-1 inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">Active</div>
                       </div>
                     </div>
 
