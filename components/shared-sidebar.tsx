@@ -416,7 +416,7 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                                 <div className={`w-9 h-9 flex items-center justify-center rounded-md ${activePage === link.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'} shadow-sm`}> 
                                 <link.icon className="w-5 h-5" />
                             </div>
-                            {!(isCollapsed && window.innerWidth >= 768) && (
+                            {!isCollapsed && (
                                 <>
                                     <span className="flex-1 pl-1">{link.label}</span>
                                     {link.badge && (

@@ -743,7 +743,6 @@ export default function ChallengePage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <AnimationLoader open={showInitialLoader} items={[ANIMATIONS[0]]} perItemDuration={challengeLoaderDuration} maxDuration={challengeLoaderDuration} useAll={false} sizeClass="w-48 h-48" onFinish={() => setShowInitialLoader(false)} />
-      <DashboardHeader sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       <div className="flex">
         <SharedSidebar
