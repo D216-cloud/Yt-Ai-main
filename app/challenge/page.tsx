@@ -6,6 +6,7 @@ import { ChevronDown, Sparkles, Youtube, Monitor, Smartphone, Calendar, Clock, E
 import SharedSidebar from '@/components/shared-sidebar' 
 import AnimationLoader from '@/components/animation-loader'
 import ChallengeTrackingCard from '@/components/challenge-tracking-card'
+import ChallengeVideosModal from '@/components/challenge-videos-modal'
 import { useToast } from '@/hooks/use-toast' 
 
 type CreatorChallengePlan = {
@@ -67,6 +68,12 @@ export default function ChallengePage() {
   const [isPreparing, setIsPreparing] = useState(false)
   const [isStartingAnimation, setIsStartingAnimation] = useState(false)
   const [showStartedBanner, setShowStartedBanner] = useState(false)
+
+  // Challenge modal states
+  const [showChallengeModal, setShowChallengeModal] = useState(false)
+  const [challengeData, setChallengeData] = useState<any>(null)
+  const [challengeVideoSchedule, setChallengeVideoSchedule] = useState<any[]>([])
+  const [loadingChallengeData, setLoadingChallengeData] = useState(true)
 
   // New states for the step-by-step flow
   const [step, setStep] = useState<'start' | 'setup' | 'videoType' | 'progress'>('start')
@@ -233,6 +240,46 @@ export default function ChallengePage() {
       // noop
     }
   }, [scheduledMeta])
+
+  // Fetch active challenge data
+  useEffect(() => {
+    const fetchChallengeData = async () => {
+      setLoadingChallengeData(true)
+      try {
+        const res = await fetch('/api/user-challenge')
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.challenge) {
+            setChallengeData(data.challenge)
+            const progress = data.challenge.progress || []
+            setChallengeVideoSchedule(progress)
+            console.log('Loaded challenge data on challenge page:', data.challenge)
+            
+            // If challenge already exists, skip to progress view
+            if (data.challenge.started_at) {
+              setStep('progress')
+              // Set the start date and config from the existing challenge
+              const startDate = new Date(data.challenge.started_at)
+              setChallengeStartDate(startDate)
+              
+              // Extract config values
+              if (data.challenge.config) {
+                setSelectedDuration(data.challenge.config.durationMonths || 6)
+                setSelectedFrequency(data.challenge.config.cadenceEveryDays || 2)
+                setSelectedVideoType(data.challenge.config.videoType || null)
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching challenge on challenge page:', error)
+      } finally {
+        setLoadingChallengeData(false)
+      }
+    }
+
+    fetchChallengeData()
+  }, [])
 
   const toggleUploaded = (index: number) => {
     setScheduledMeta(prev => {
@@ -1329,230 +1376,182 @@ export default function ChallengePage() {
 
               {step === 'progress' && selectedVideoType && challengeStartDate && (
                 <div className="space-y-6">
-                  {/* Challenge Tracking Card */}
-                  <ChallengeTrackingCard
-                    latestVideoTitle="Your latest upload"
-                    latestVideoDate={new Date().toLocaleDateString()}
-                    latestVideoViews={1765}
-                    nextUploadDate={new Date(challengeStartDate.getTime() + (Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1) * selectedFrequency * 24 * 60 * 60 * 1000).toLocaleDateString()}
-                    daysUntilNext={Math.max(0, daysUntilNext)}
-                    dayStreak={currentStreak}
-                    uploadProgress={consistencyPercent}
-                    totalVideosRequired={totalUploads}
-                    videosUploaded={uploadedCount}
-                    onEdit={handleEditPlan}
-                    onDelete={handleResetPlan}
-                  />
-
-                  <div className="rounded-3xl bg-white border border-gray-100 shadow-[0_30px_60px_rgba(8,15,52,0.06)] p-8">
-                    <div className="flex flex-col sm:flex-row items-start sm:justify-between gap-4 mb-6">
-                      <div>
-                        <h3 className="text-2xl font-extrabold text-gray-900 mb-1">Your Challenge Progress</h3>
-                        <p className="text-gray-600">Track your upload consistency and growth metrics</p>
+                  {/* Loading Skeleton */}
+                  {loadingChallengeData && (
+                    <div className="rounded-2xl bg-slate-800 border border-slate-700 shadow-lg p-4 sm:p-6 mb-6 animate-pulse">
+                      {/* Header skeleton */}
+                      <div className="flex items-start justify-between mb-6">
+                        <div className="flex-1">
+                          <div className="h-8 bg-slate-700 rounded w-48 mb-2"></div>
+                          <div className="h-4 bg-slate-700 rounded w-64"></div>
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="w-10 h-10 bg-slate-700 rounded-lg"></div>
+                          <div className="w-10 h-10 bg-slate-700 rounded-lg"></div>
+                        </div>
                       </div>
 
-                      <div className="flex flex-col sm:items-end items-start gap-2 mt-3 sm:mt-0">
-                        <div className="flex items-center gap-3">
-                          <div className="text-sm text-gray-600">Day {Math.max(0, Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24))) + 1} of {selectedDuration * 30}</div>
+                      {/* Latest Upload skeleton */}
+                      <div className="rounded-xl border border-slate-600 bg-slate-700/50 p-4 mb-4">
+                        <div className="h-3 bg-slate-700 rounded w-32 mb-3"></div>
+                        <div className="h-5 bg-slate-700 rounded w-48 mb-3"></div>
+                        <div className="flex gap-4">
+                          <div className="h-4 bg-slate-700 rounded w-32"></div>
+                          <div className="h-4 bg-slate-700 rounded w-32"></div>
+                        </div>
+                      </div>
+
+                      {/* Next Upload skeleton */}
+                      <div className="rounded-xl border border-slate-600 bg-slate-700/50 p-4 mb-4">
+                        <div className="h-3 bg-slate-700 rounded w-24 mb-2"></div>
+                        <div className="h-6 bg-slate-700 rounded w-40"></div>
+                      </div>
+
+                      {/* Progress skeleton */}
+                      <div className="rounded-xl border border-slate-600 bg-slate-700/50 p-4 mb-4">
+                        <div className="flex justify-between mb-3">
+                          <div className="h-4 bg-slate-700 rounded w-32"></div>
+                          <div className="h-4 bg-slate-700 rounded w-20"></div>
+                        </div>
+                        <div className="w-full h-2 bg-slate-600 rounded-full mb-2"></div>
+                        <div className="h-3 bg-slate-700 rounded w-48"></div>
+                      </div>
+
+                      {/* Stats skeleton */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-lg bg-slate-700/70 border border-slate-600 p-4 text-center space-y-2">
+                          <div className="h-8 bg-slate-700 rounded w-16 mx-auto"></div>
+                          <div className="h-3 bg-slate-700 rounded w-20 mx-auto"></div>
+                        </div>
+                        <div className="rounded-lg bg-slate-700/70 border border-slate-600 p-4 text-center space-y-2">
+                          <div className="h-8 bg-slate-700 rounded w-16 mx-auto"></div>
+                          <div className="h-3 bg-slate-700 rounded w-20 mx-auto"></div>
                         </div>
                       </div>
                     </div>
+                  )}
 
-                    {/* Challenge Configuration Summary */}
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6 p-4 rounded-2xl bg-indigo-50 border border-indigo-100">
-                      <div className="text-center">
-                        <div className="text-xs font-semibold text-indigo-600">Duration</div>
-                        <div className="text-2xl font-bold text-indigo-900 mt-1">{selectedDuration} <span className="text-sm">months</span></div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs font-semibold text-indigo-600">Frequency</div>
-                        <div className="text-2xl font-bold text-indigo-900 mt-1">1 <span className="text-sm">/ {selectedFrequency}d</span></div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs font-semibold text-indigo-600">Per Upload</div>
-                        <div className="text-2xl font-bold text-indigo-900 mt-1">{1} <span className="text-sm">video</span></div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs font-semibold text-indigo-600">Video Type</div>
-                        <div className="text-2xl font-bold text-indigo-900 mt-1">{selectedVideoType === 'long' ? '16:9' : '9:16'}</div>
-                      </div>
+                  {/* Challenge Tracking Card - Show when loaded */}
+                  {!loadingChallengeData && (
+                    <div 
+                      onClick={() => {
+                        if (challengeData && challengeVideoSchedule.length > 0) {
+                          setShowChallengeModal(true)
+                        }
+                      }}
+                      className={`${challengeData ? 'cursor-pointer' : ''}`}
+                    >
+                      <ChallengeTrackingCard
+                        latestVideoTitle="Your latest upload"
+                        latestVideoDate={new Date().toLocaleDateString()}
+                        latestVideoViews={1765}
+                        nextUploadDate={new Date(challengeStartDate.getTime() + (Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1) * selectedFrequency * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                        daysUntilNext={Math.max(0, daysUntilNext)}
+                        dayStreak={currentStreak}
+                        uploadProgress={consistencyPercent}
+                        totalVideosRequired={totalUploads}
+                        videosUploaded={uploadedCount}
+                        onEdit={handleEditPlan}
+                        onDelete={handleResetPlan}
+                      />
                     </div>
+                  )}
 
-                    {/* Progress Overview */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <div className="text-sm font-semibold text-gray-500">Total Videos</div>
-                        <div className="text-2xl font-bold text-gray-900">{Math.floor((selectedDuration * 30) / selectedFrequency)}</div>
-                      </div>
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <div className="text-sm font-semibold text-gray-500">Days Elapsed</div>
-                        <div className="text-2xl font-bold text-gray-900">{Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24))}</div>
-                      </div>
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <div className="text-sm font-semibold text-gray-500">Next Upload</div>
-                        <div className="text-lg font-bold text-gray-900">
-                          {new Date(challengeStartDate.getTime() + (Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1) * selectedFrequency * 24 * 60 * 60 * 1000).toLocaleDateString()}
-                        </div>
-                      </div>
-                      <div className="bg-gray-50 rounded-xl p-4">
-                        <div className="text-sm font-semibold text-gray-500">Status</div>
-                        <div className="text-lg font-bold text-green-600">Active</div>
-                      </div>
+                  {/* Challenge Configuration Summary */}
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-slate-700/50 backdrop-blur-sm p-4 sm:p-6 shadow-lg">
+                    <div className="text-center py-2 sm:py-4">
+                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Duration</div>
+                      <div className="text-2xl sm:text-3xl font-bold text-white mt-2">{selectedDuration} <span className="text-xs sm:text-sm font-normal text-slate-400">months</span></div>
                     </div>
-
-                    {/* Compact progress stats + heatmap */}
-                    <div className="mb-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                        <div className="bg-white border border-gray-100 rounded-xl p-3 text-center">
-                          <div className="text-xs text-gray-500">Next upload</div>
-                          <div className="text-base font-semibold text-gray-900 mt-1">{challengeStartDate ? new Date(challengeStartDate.getTime() + (Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1) * selectedFrequency * 24 * 60 * 60 * 1000).toLocaleDateString() : '--'}</div>
-                        </div>
-
-                        <div className="bg-white border border-gray-100 rounded-xl p-3 text-center">
-                          <div className="text-xs text-gray-500">Days Elapsed</div>
-                          <div className="text-base font-semibold text-gray-900 mt-1">{challengeStartDate ? Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) : 0}</div>
-                        </div>
-
-                        <div className="bg-white border border-gray-100 rounded-xl p-3 text-center">
-                          <div className="text-xs text-gray-500">Total videos</div>
-                          <div className="text-base font-semibold text-gray-900 mt-1">{totalUploads}</div>
-                        </div>
-
-                        <div className="bg-white border border-gray-100 rounded-xl p-3 text-center">
-                          <div className="text-xs text-gray-500">Status</div>
-                          <div className="text-base font-semibold text-green-600 mt-1">{uploadedCount === 0 ? 'Upcoming' : (uploadedCount >= totalUploads ? 'Completed' : 'Active')}</div>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex flex-col sm:flex-row gap-3 items-start">
-                        <div className="sm:flex-1 bg-white border border-gray-100 rounded-xl p-3">
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm font-semibold text-gray-900">Consistency</div>
-                            <div className="text-sm font-semibold text-gray-900">{consistencyPercent}%</div>
-                          </div>
-                          <div className="w-full bg-gray-100 h-2 rounded-full mt-2 overflow-hidden">
-                            <div className="h-2 bg-blue-600 rounded-full" style={{ width: `${consistencyPercent}%` }}></div>
-                          </div>
-                          <div className="mt-2 text-xs text-gray-500">Streak: <span className="font-semibold text-gray-900">{currentStreak} days</span></div>
-                        </div>
-
-                        <div className="sm:w-48 bg-white border border-gray-100 rounded-xl p-3">
-                          <div className="text-xs text-gray-500 mb-2">Upcoming schedule</div>
-                          <div className="grid grid-cols-7 gap-1" role="grid" aria-label="Upload schedule heatmap">
-                            {scheduleDates.slice(0, 28).map((d, idx) => {
-                              const isPast = d < new Date()
-                              const isToday = d.toDateString() === new Date().toDateString()
-                              return (
-                                <div
-                                  key={idx}
-                                  role="gridcell"
-                                  aria-label={`${d.toLocaleDateString()} ${isPast ? 'Uploaded' : isToday ? 'Today' : 'Upcoming'}`}
-                                  title={`${d.toLocaleDateString()} ${isPast ? 'Uploaded' : isToday ? 'Today' : 'Upcoming'}`}
-                                  className={`w-4 h-4 rounded-sm ${isPast ? 'bg-green-400' : isToday ? 'bg-blue-400' : 'bg-gray-200'}`}
-                                />
-                              )
-                            })}
-                          </div>
-                        </div>
-                      </div>
+                    <div className="text-center py-2 sm:py-4">
+                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Frequency</div>
+                      <div className="text-2xl sm:text-3xl font-bold text-white mt-2">1 <span className="text-xs sm:text-sm font-normal text-slate-400">/ {selectedFrequency}d</span></div>
                     </div>
-
-                    {/* Metrics Placeholders — improved with icons and mobile-friendly layout */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
-                        <Eye className="w-5 h-5 text-gray-500 shrink-0" />
-                        <div>
-                          <div className="text-xs text-gray-500">Views</div>
-                          <div className="text-2xl font-bold text-gray-900">--</div>
-                        </div>
-                      </div>
-
-                      <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
-                        <Heart className="w-5 h-5 text-gray-500 shrink-0" />
-                        <div>
-                          <div className="text-xs text-gray-500">Likes</div>
-                          <div className="text-2xl font-bold text-gray-900">--</div>
-                        </div>
-                      </div>
-
-                      <div className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-3">
-                        <MessageCircle className="w-5 h-5 text-gray-500 shrink-0" />
-                        <div>
-                          <div className="text-xs text-gray-500">Comments</div>
-                          <div className="text-2xl font-bold text-gray-900">--</div>
-                        </div>
-                      </div>
-                    </div> 
+                    <div className="text-center py-2 sm:py-4">
+                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Per Upload</div>
+                      <div className="text-2xl sm:text-3xl font-bold text-white mt-2">{1} <span className="text-xs sm:text-sm font-normal text-slate-400">video</span></div>
+                    </div>
+                    <div className="text-center py-2 sm:py-4">
+                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Video Type</div>
+                      <div className="text-2xl sm:text-3xl font-bold text-white mt-2">{selectedVideoType === 'long' ? '16:9' : '9:16'}</div>
+                    </div>
                   </div>
 
                   {/* Upload Schedule */}
-                  <div className="rounded-3xl bg-white border border-gray-100 shadow-[0_30px_60px_rgba(8,15,52,0.06)] p-4 sm:p-8">
-                    <h4 className="text-lg sm:text-xl font-extrabold text-gray-900 mb-4">Upload Schedule</h4>
+                  <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-slate-700/50 backdrop-blur-sm p-4 sm:p-6 shadow-xl">
+                    <h4 className="text-xl sm:text-2xl font-bold text-white mb-6 flex items-center gap-2">
+                      <Calendar className="w-6 h-6 text-amber-400" />
+                      Upload Schedule
+                    </h4>
 
                     {/* Real-time video cards — previews show selected format (16:9 or 9:16) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
                       {Array.from({ length: (showFullSchedule ? totalUploads : scheduleCount) }, (_, i) => {
                         const uploadDate = new Date(challengeStartDate.getTime() + i * selectedFrequency * 24 * 60 * 60 * 1000)
                         const isPast = uploadDate < new Date()
                         const isToday = uploadDate.toDateString() === new Date().toDateString()
 
                         const primaryClass = selectedVideoType === 'long' ? 'aspect-video' : 'aspect-9/16'
-                        const previewWidthClass = selectedVideoType === 'long' ? 'w-full' : 'w-full max-w-[320px] mx-auto sm:max-w-none'
+                        const previewWidthClass = selectedVideoType === 'long' ? 'w-full' : 'w-full max-w-[280px] mx-auto'
 
                         return (
                           <div
                             key={i}
-                            className={`group rounded-2xl border border-gray-100 bg-white p-3 sm:p-5 shadow-sm transition-shadow hover:shadow-md ${isToday ? 'ring-2 ring-blue-100' : ''}`}
+                            className={`group rounded-xl border border-slate-600/50 bg-slate-700/40 backdrop-blur-sm p-4 sm:p-5 shadow-lg transition-all duration-300 hover:shadow-xl hover:border-slate-500 ${isToday ? 'ring-2 ring-amber-400/50 border-amber-400/30' : ''} ${isPast ? 'opacity-75' : ''}`}
                           >
-                            <div className="flex flex-col h-full">
-                              <div className="mb-3 sm:mb-4">
-                                <div className={`${previewWidthClass} overflow-hidden rounded-xl border border-gray-100 ${primaryClass}`}>
-                                  <div className="w-full h-full bg-linear-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
-                                    <div className="flex flex-col items-center gap-2 text-gray-500">
-                                      <Youtube className="w-8 h-8" />
-                                      <div className="text-xs font-medium">Thumbnail preview</div>
+                            <div className="flex flex-col h-full gap-4">
+                              {/* Video Thumbnail Preview */}
+                              <div>
+                                <div className={`${previewWidthClass} overflow-hidden rounded-lg border border-slate-600/50 ${primaryClass}`}>
+                                  <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center">
+                                    <div className="flex flex-col items-center gap-2 text-slate-400">
+                                      <Youtube className="w-10 h-10" />
+                                      <div className="text-xs font-medium">Thumbnail</div>
                                     </div>
                                   </div>
                                 </div>
                               </div>
 
-                              <div className="flex-1">
-                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                                  <div className="min-w-0">
-                                    <div className="text-sm font-semibold text-gray-900">Day {i * selectedFrequency + 1} of {selectedDuration * 30}</div>
-                                    <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
-                                      <Calendar className="w-3.5 h-3.5" />
-                                      <span>{uploadDate.toLocaleDateString()}</span>
-                                    </div>
-                                  </div>
-
-                                  <div className="sm:text-right">
-                                    <div className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${isPast ? 'bg-green-100 text-green-700' : isToday ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
-                                      {isPast ? 'Uploaded' : isToday ? 'Today' : 'Upcoming'}
-                                    </div>
+                              {/* Card Content */}
+                              <div className="flex-1 space-y-3">
+                                {/* Day and Date */}
+                                <div>
+                                  <div className="text-sm font-semibold text-white">Day {i * selectedFrequency + 1} of {selectedDuration * 30}</div>
+                                  <div className="mt-1 flex items-center gap-2 text-xs text-slate-300">
+                                    <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                                    <span>{uploadDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                                   </div>
                                 </div>
 
-                                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                                  <div className="bg-gray-50 rounded-lg px-2 py-2">
-                                    <div className="text-[11px] sm:text-xs text-gray-500">Views</div>
-                                    <div className="text-sm sm:text-base font-semibold text-gray-900">--</div>
-                                  </div>
-                                  <div className="bg-gray-50 rounded-lg px-2 py-2">
-                                    <div className="text-[11px] sm:text-xs text-gray-500">Likes</div>
-                                    <div className="text-sm sm:text-base font-semibold text-gray-900">--</div>
-                                  </div>
-                                  <div className="bg-gray-50 rounded-lg px-2 py-2">
-                                    <div className="text-[11px] sm:text-xs text-gray-500">Comments</div>
-                                    <div className="text-sm sm:text-base font-semibold text-gray-900">--</div>
+                                {/* Status Badge */}
+                                <div className="flex items-center gap-2">
+                                  <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold gap-1 ${isPast ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : isToday ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-slate-600/40 text-slate-300 border border-slate-600/50'}`}>
+                                    <span className={`w-2 h-2 rounded-full ${isPast ? 'bg-emerald-400' : isToday ? 'bg-amber-400' : 'bg-slate-400'}`}></span>
+                                    {isPast ? 'Uploaded' : isToday ? 'Today' : 'Upcoming'}
                                   </div>
                                 </div>
 
-                                {/* Card footer: Title + small details */}
-                                <div className="mt-3 pt-3 border-t border-gray-100">
-                                  <div className="text-sm font-semibold text-gray-900 truncate">{scheduledMeta[i]?.title || `Video ${i + 1}`}</div>
+                                {/* Metrics */}
+                                <div className="grid grid-cols-3 gap-2">
+                                  <div className="bg-slate-600/30 rounded-lg px-2.5 py-2 text-center border border-slate-600/50 hover:border-slate-500/70 transition-colors">
+                                    <div className="text-[10px] sm:text-xs text-slate-400 font-medium">Views</div>
+                                    <div className="text-xs sm:text-sm font-bold text-white mt-0.5">--</div>
+                                  </div>
+                                  <div className="bg-slate-600/30 rounded-lg px-2.5 py-2 text-center border border-slate-600/50 hover:border-slate-500/70 transition-colors">
+                                    <div className="text-[10px] sm:text-xs text-slate-400 font-medium">Likes</div>
+                                    <div className="text-xs sm:text-sm font-bold text-white mt-0.5">--</div>
+                                  </div>
+                                  <div className="bg-slate-600/30 rounded-lg px-2.5 py-2 text-center border border-slate-600/50 hover:border-slate-500/70 transition-colors">
+                                    <div className="text-[10px] sm:text-xs text-slate-400 font-medium">Comments</div>
+                                    <div className="text-xs sm:text-sm font-bold text-white mt-0.5">--</div>
+                                  </div>
+                                </div>
+
+                                {/* Video Title */}
+                                <div className="pt-2 border-t border-slate-600/50">
+                                  <div className="text-xs sm:text-sm font-semibold text-white truncate">{scheduledMeta[i]?.title || `Video ${i + 1}`}</div>
                                   {scheduledMeta[i]?.notes ? (
-                                    <div className="text-xs text-gray-500 mt-1 line-clamp-2">{scheduledMeta[i]?.notes}</div>
+                                    <div className="text-xs text-slate-400 mt-1 line-clamp-2">{scheduledMeta[i]?.notes}</div>
                                   ) : null}
                                 </div>
                               </div>
@@ -1564,12 +1563,12 @@ export default function ChallengePage() {
 
                     {/* View more / show less */}
                     {totalUploads > scheduleCount && (
-                      <div className="mt-4 text-right">
+                      <div className="mt-6 text-center">
                         <button
                           onClick={() => setShowFullSchedule((s) => !s)}
-                          className="inline-flex items-center justify-center px-4 py-2 rounded-full border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 w-full sm:w-auto"
+                          className="inline-flex items-center justify-center px-6 py-2.5 rounded-full border border-slate-600/50 bg-slate-700/40 hover:bg-slate-700/60 text-white font-medium transition-all duration-300 hover:shadow-lg hover:border-slate-500"
                         >
-                          {showFullSchedule ? 'Show less' : `View more (${totalUploads - scheduleCount} more)`}
+                          {showFullSchedule ? '← Show less' : `View more (${totalUploads - scheduleCount} more) →`}
                         </button>
                       </div>
                     )}
@@ -1580,6 +1579,22 @@ export default function ChallengePage() {
           </div>
         </main>
       </div>
+
+      {/* Challenge Videos Modal */}
+      <ChallengeVideosModal
+        isOpen={showChallengeModal}
+        onClose={() => setShowChallengeModal(false)}
+        videoSchedule={challengeVideoSchedule}
+        totalVideos={challengeData?.config?.videosPerCadence ? 
+          Math.ceil((challengeData.config.durationMonths || 6) * 30 / (challengeData.config.cadenceEveryDays || 2)) * (challengeData.config.videosPerCadence || 1)
+          : 0}
+        uploadedCount={challengeVideoSchedule.filter((v: any) => v.uploaded).length}
+        nextUploadDate={challengeVideoSchedule.find((v: any) => !v.uploaded)?.date}
+        challengeStartDate={challengeData?.started_at}
+        challengeEndDate={challengeData?.started_at ? 
+          new Date(new Date(challengeData.started_at).getTime() + (challengeData.config?.durationMonths || 6) * 30 * 24 * 60 * 60 * 1000).toISOString()
+          : undefined}
+      />
     </div>
   )
 }

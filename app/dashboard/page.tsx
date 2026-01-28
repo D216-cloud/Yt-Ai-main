@@ -10,6 +10,7 @@ import SharedSidebar from "@/components/shared-sidebar"
 import Image from "next/image"
 import { TagBox } from "@/components/tag-box"
 import AnimationLoader from '@/components/animation-loader'
+import ChallengeVideosModal from '@/components/challenge-videos-modal'
 import { Trophy, TrendingUp, Flame, Target, Calendar, CheckCircle, Play } from 'lucide-react'
 
 interface YouTubeChannel {
@@ -64,6 +65,12 @@ export default function DashboardPage() {
   const [publishError, setPublishError] = useState('')
   const [videosWithoutTags, setVideosWithoutTags] = useState<LatestVideo[]>([])
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0)
+
+  // Challenge states
+  const [challengeData, setChallengeData] = useState<any>(null)
+  const [loadingChallenge, setLoadingChallenge] = useState(false)
+  const [showChallengeModal, setShowChallengeModal] = useState(false)
+  const [challengeVideoSchedule, setChallengeVideoSchedule] = useState<any[]>([])
 
   // Channel menu state
   const [showChannelMenu, setShowChannelMenu] = useState(false)
@@ -206,6 +213,39 @@ export default function DashboardPage() {
     }
 
     loadChannelData()
+  }, [])
+
+  // Fetch active challenge data
+  useEffect(() => {
+    const fetchChallengeData = async () => {
+      try {
+        setLoadingChallenge(true)
+        const res = await fetch('/api/user-challenge')
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.challenge) {
+            setChallengeData(data.challenge)
+            // Extract progress array as video schedule
+            const progress = data.challenge.progress || []
+            setChallengeVideoSchedule(progress)
+            console.log('Loaded challenge data:', data.challenge)
+          } else {
+            setChallengeData(null)
+            setChallengeVideoSchedule([])
+          }
+        } else {
+          console.warn('Failed to fetch challenge:', res.status)
+          setChallengeData(null)
+        }
+      } catch (error) {
+        console.error('Error fetching challenge:', error)
+        setChallengeData(null)
+      } finally {
+        setLoadingChallenge(false)
+      }
+    }
+
+    fetchChallengeData()
   }, [])
 
   // Disconnect a specific additional channel (keeps primary intact)
@@ -1078,7 +1118,14 @@ export default function DashboardPage() {
 
             {/* Challenge Tracking Card */}
             <div className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-2xl border border-slate-700/50 backdrop-blur-sm transition-all duration-500 hover:shadow-2xl hover:shadow-amber-500/20">
+              <div 
+                onClick={() => {
+                  if (challengeData && challengeVideoSchedule.length > 0) {
+                    setShowChallengeModal(true)
+                  }
+                }}
+                className={`bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-2xl border border-slate-700/50 backdrop-blur-sm transition-all duration-500 hover:shadow-2xl hover:shadow-amber-500/20 ${challengeData ? 'cursor-pointer' : ''}`}
+              >
                 <div className="flex items-start justify-between mb-5">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -1550,6 +1597,22 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Challenge Videos Modal */}
+      <ChallengeVideosModal
+        isOpen={showChallengeModal}
+        onClose={() => setShowChallengeModal(false)}
+        videoSchedule={challengeVideoSchedule}
+        totalVideos={challengeData?.config?.videosPerCadence ? 
+          Math.ceil((challengeData.config.durationMonths || 6) * 30 / (challengeData.config.cadenceEveryDays || 2)) * (challengeData.config.videosPerCadence || 1)
+          : 0}
+        uploadedCount={challengeVideoSchedule.filter((v: any) => v.uploaded).length}
+        nextUploadDate={challengeVideoSchedule.find((v: any) => !v.uploaded)?.date}
+        challengeStartDate={challengeData?.started_at}
+        challengeEndDate={challengeData?.started_at ? 
+          new Date(new Date(challengeData.started_at).getTime() + (challengeData.config?.durationMonths || 6) * 30 * 24 * 60 * 60 * 1000).toISOString()
+          : undefined}
+      />
     </div>
   )
 }
