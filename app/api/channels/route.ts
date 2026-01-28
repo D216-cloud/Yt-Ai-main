@@ -135,15 +135,31 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createServerSupabaseClient()
-    const { data: userRow, error: userErr } = await supabase
+    let { data: userRow, error: userErr } = await supabase
       .from('users')
       .select('id')
       .eq('email', userEmail)
       .limit(1)
       .single()
 
+    // If user doesn't exist, create them
     if (userErr || !userRow) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      console.warn('User not found in GET, creating new user:', userEmail)
+      const { data: newUser, error: createErr } = await supabase
+        .from('users')
+        .insert({
+          email: userEmail,
+          name: (session?.user as any)?.name || userEmail.split('@')[0],
+          image: (session?.user as any)?.image || null,
+        })
+        .select('id')
+        .single()
+
+      if (createErr || !newUser) {
+        console.error('Failed to create user:', createErr)
+        return NextResponse.json({ error: 'Failed to create user account' }, { status: 500 })
+      }
+      userRow = newUser
     }
 
     const userId = userRow.id

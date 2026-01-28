@@ -197,7 +197,8 @@ export default function DashboardPage() {
             console.log('Loaded additional channels from DB:', additional.length)
           }
         } else {
-          console.error('Failed to fetch channels:', await res.text())
+          const errorData = await res.json().catch(() => ({}))
+          console.warn('Failed to fetch channels:', errorData?.error || res.status)
         }
       } catch (error) {
         console.error('Failed to load channel data from database:', error)
