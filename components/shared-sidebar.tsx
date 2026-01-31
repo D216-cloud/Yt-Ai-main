@@ -409,7 +409,7 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                                     ? 'border-gray-900 bg-gray-50 text-gray-900 shadow-sm ring-1 ring-gray-200'
                                     : 'border-transparent text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                             }`}
-                            title={isCollapsed && typeof window !== 'undefined' && window.innerWidth >= 768 ? link.label : ''}
+                            title={link.label}
                             onMouseLeave={handleMouseLeave}
                             onBlur={handleMouseLeave}
                         >

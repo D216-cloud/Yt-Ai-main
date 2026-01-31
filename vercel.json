@@ -1,0 +1,18 @@
+{
+  "crons": [
+    {
+      "path": "/api/challenges/cron/daily-check",
+      "schedule": "0 */6 * * *",
+      "headers": {
+        "Authorization": "Bearer ${CRON_SECRET}"
+      }
+    },
+    {
+      "path": "/api/challenges/cron/process-notifications", 
+      "schedule": "0 * * * *",
+      "headers": {
+        "Authorization": "Bearer ${CRON_SECRET}"
+      }
+    }
+  ]
+}

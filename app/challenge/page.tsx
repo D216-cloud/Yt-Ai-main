@@ -2,12 +2,25 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Sparkles, Youtube, Monitor, Smartphone, Calendar, Clock, Eye, Heart, MessageCircle } from 'lucide-react' 
+import { ChevronDown, Sparkles, Youtube, Monitor, Smartphone, Calendar, Clock, Eye, Heart, MessageCircle, Trophy, Target, Flame, Award, Users, Plus, BarChart3, Crown, Medal, Zap, CheckCircle, XCircle, AlertCircle, Upload, Info } from 'lucide-react' 
 import SharedSidebar from '@/components/shared-sidebar' 
 import AnimationLoader from '@/components/animation-loader'
 import ChallengeTrackingCard from '@/components/challenge-tracking-card'
 import ChallengeVideosModal from '@/components/challenge-videos-modal'
-import { useToast } from '@/hooks/use-toast' 
+import ChallengeCreator from '@/components/challenge-creator'
+import ChallengeStats from '@/components/challenge-stats'
+import SideContentPanel from '@/components/side-content-panel'
+import { useToast } from '@/hooks/use-toast'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Challenge, UserChallengeStats, CHALLENGE_TEMPLATES, ChallengeConfig } from '@/types/challenge' 
 
 type CreatorChallengePlan = {
   durationMonths: number
@@ -75,6 +88,25 @@ export default function ChallengePage() {
   const [challengeVideoSchedule, setChallengeVideoSchedule] = useState<any[]>([])
   const [loadingChallengeData, setLoadingChallengeData] = useState(true)
 
+  // Enhanced features state
+  const [activeTab, setActiveTab] = useState<'challenges' | 'create' | 'stats' | 'leaderboard'>('challenges')
+  const [allChallenges, setAllChallenges] = useState<Challenge[]>([])
+  const [userStats, setUserStats] = useState<UserChallengeStats | null>(null)
+  const [leaderboard, setLeaderboard] = useState<any[]>([])
+  const [showUploadTracker, setShowUploadTracker] = useState(false)
+  const [uploadVideoId, setUploadVideoId] = useState('')
+  const [trackingChallenge, setTrackingChallenge] = useState<string | null>(null)
+  const [statsLoading, setStatsLoading] = useState(true)
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true)
+  const [showUploadDialog, setShowUploadDialog] = useState(false)
+  const [uploadVideoUrl, setUploadVideoUrl] = useState('')
+  const [selectedChallengeForUpload, setSelectedChallengeForUpload] = useState<string | null>(null)
+  
+  // Side panel states
+  const [sidePanelOpen, setSidePanelOpen] = useState(false)
+  const [sidePanelType, setSidePanelType] = useState<'upload' | 'details'>('upload')
+  const [sidePanelChallenge, setSidePanelChallenge] = useState<Challenge | null>(null)
+
   // New states for the step-by-step flow
   const [step, setStep] = useState<'start' | 'setup' | 'videoType' | 'progress'>('start')
   const [selectedDuration, setSelectedDuration] = useState(6) // months
@@ -94,6 +126,202 @@ export default function ChallengePage() {
       if (animT2.current) clearTimeout(animT2.current)
     }
   }, [])
+
+  // Load enhanced features data
+  useEffect(() => {
+    loadAllChallenges()
+    loadUserStats()
+    loadLeaderboard()
+  }, [])
+
+  const loadAllChallenges = async () => {
+    try {
+      const response = await fetch('/api/challenges?includeUploads=true', {
+        credentials: 'include'
+      })
+      
+      if (!response.ok) {
+        console.error('Failed to load challenges:', response.status, response.statusText)
+        return
+      }
+      
+      const data = await response.json()
+      setAllChallenges(data.challenges || [])
+    } catch (error) {
+      console.error('Failed to load challenges:', error)
+    }
+  }
+
+  const handleCreateChallenge = async (config: any) => {
+    try {
+      const response = await fetch('/api/challenges', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(config)
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        toast({ title: 'Challenge created successfully!', description: 'Your challenge has been started.' })
+        setActiveTab('challenges')
+        loadAllChallenges()
+      } else {
+        const errorMsg = data.message || data.error || `Error: ${response.status}`
+        console.error('Challenge creation failed:', errorMsg, data)
+        toast({ 
+          title: 'Failed to create challenge', 
+          description: errorMsg,
+          variant: 'destructive'
+        })
+      }
+    } catch (error) {
+      console.error('Failed to create challenge:', error)
+      toast({ 
+        title: 'Error', 
+        description: 'Failed to create challenge. Please try again.',
+        variant: 'destructive'
+      })
+    }
+  }
+
+  const loadUserStats = async () => {
+    try {
+      const response = await fetch('/api/challenges/stats', {
+        credentials: 'include'
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        setUserStats(data.stats)
+      }
+    } catch (error) {
+      console.error('Failed to load stats:', error)
+    } finally {
+      setStatsLoading(false)
+    }
+  }
+
+  const loadLeaderboard = async () => {
+    try {
+      const response = await fetch('/api/challenges/leaderboard?limit=10', {
+        credentials: 'include'
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        setLeaderboard(data.leaderboard || [])
+      }
+    } catch (error) {
+      console.error('Failed to load leaderboard:', error)
+    } finally {
+      setLeaderboardLoading(false)
+    }
+  }
+
+  // Enhanced challenge functions
+  const handleTrackUpload = async (challengeId: string) => {
+    if (!uploadVideoId.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a video ID or URL",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      const videoId = extractVideoId(uploadVideoId)
+      const response = await fetch('/api/challenges/track-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          challengeId,
+          videoId,
+          videoTitle: 'Manual Upload',
+          videoUrl: `https://www.youtube.com/watch?v=${videoId}`
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok) {
+        toast({
+          title: "Success! 🎬",
+          description: data.message || "Upload tracked successfully!",
+        })
+        
+        setUploadVideoId('')
+        setShowUploadTracker(false)
+        setTrackingChallenge(null)
+        loadAllChallenges()
+        loadUserStats()
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to track upload",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to track upload",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const extractVideoId = (input: string): string => {
+    // Extract video ID from URL or return input if it's already an ID
+    const match = input.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/)
+    return match ? match[1] : input
+  }
+
+  const getStatusIcon = (challenge: Challenge) => {
+    if (challenge.status === 'completed') {
+      return <CheckCircle className="w-5 h-5 text-green-500" />
+    }
+    if (challenge.status === 'paused') {
+      return <AlertCircle className="w-5 h-5 text-yellow-500" />
+    }
+    if (challenge.nextUploadDeadline && new Date(challenge.nextUploadDeadline) < new Date()) {
+      return <XCircle className="w-5 h-5 text-red-500" />
+    }
+    return <CheckCircle className="w-5 h-5 text-green-500" />
+  }
+
+  const formatTimeUntilDeadline = (deadline: string): string => {
+    const now = new Date()
+    const target = new Date(deadline)
+    const diff = target.getTime() - now.getTime()
+
+    if (diff <= 0) return 'Overdue'
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60))
+    if (hours < 24) return `${hours}h left`
+    
+    const days = Math.floor(hours / 24)
+    return `${days}d left`
+  }
+
+  const getRankIcon = (rank: number) => {
+    if (rank === 1) return <Crown className="w-5 h-5 text-yellow-500" />
+    if (rank === 2) return <Trophy className="w-5 h-5 text-gray-400" />
+    if (rank === 3) return <Medal className="w-5 h-5 text-amber-600" />
+    return <span className="w-5 h-5 flex items-center justify-center text-sm font-bold text-gray-500">#{rank}</span>
+  }
+
+  const getLevelBadgeColor = (level: string) => {
+    switch (level) {
+      case 'Legend': return 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+      case 'Master': return 'bg-gradient-to-r from-orange-400 to-red-500 text-white'
+      case 'Pro': return 'bg-gradient-to-r from-blue-400 to-purple-500 text-white'
+      case 'Creator': return 'bg-gradient-to-r from-green-400 to-blue-500 text-white'
+      default: return 'bg-gray-200 text-gray-700'
+    }
+  }
 
   const handleSelectVideoType = (type: 'long' | 'shorts') => {
     // select immediately for visual state
@@ -246,7 +474,9 @@ export default function ChallengePage() {
     const fetchChallengeData = async () => {
       setLoadingChallengeData(true)
       try {
-        const res = await fetch('/api/user-challenge')
+        const res = await fetch('/api/user-challenge', {
+          credentials: 'include'
+        })
         if (res.ok) {
           const data = await res.json()
           if (data?.challenge) {
@@ -478,6 +708,7 @@ export default function ChallengePage() {
       const res = await fetch('/api/user-challenge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ 
           config: nextPlan, 
           progress: Object.values(scheduledMeta),
@@ -614,7 +845,9 @@ export default function ChallengePage() {
   useEffect(() => {
     const loadChannelData = async () => {
       try {
-        const res = await fetch('/api/channels')
+        const res = await fetch('/api/channels', {
+          credentials: 'include'
+        })
         if (!res.ok) return
         const data = await res.json()
         if (!data?.channels || !Array.isArray(data.channels)) return
@@ -688,7 +921,9 @@ export default function ChallengePage() {
     // Fetch persisted active challenge from server and merge
     const fetchActive = async () => {
       try {
-        const res = await fetch('/api/user-challenge')
+        const res = await fetch('/api/user-challenge', {
+          credentials: 'include'
+        })
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: 'Server error' }))
           console.error('Failed to fetch active challenge:', err)
@@ -815,7 +1050,8 @@ export default function ChallengePage() {
           setIsCollapsed={setSidebarCollapsed}
         />
 
-        <main className={`flex-1 pt-14 md:pt-16 p-4 md:p-8 pb-20 md:pb-8 transition-all duration-300 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'}`}>
+        {/* Syntax fix: close the template literal for className */}
+        <main className={`flex-1 pt-14 md:pt-16 p-4 md:p-8 pb-20 md:pb-8 transition-all duration-300 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'}`}> 
           <div className="max-w-7xl mx-auto">
             {showStartedBanner && (
               <div className="mb-4">
@@ -948,44 +1184,317 @@ export default function ChallengePage() {
 
               {/* Plan banner (same style) */}
               <div className="flex justify-center mb-6 px-3">
-                <div className="inline-flex items-center gap-3 rounded-full bg-white/5 border border-gray-100 px-4 py-2 text-sm text-gray-700 shadow-sm max-w-full overflow-hidden">
+                <div className="inline-flex items-center gap-3 rounded-full bg-white/5 border border-gray-100 px-4 py-2 text-sm text-gray-700 shadow-sm max-w-full overflow-hidden" suppressHydrationWarning>
                   <Sparkles className="w-4 h-4 text-amber-500" />
                   <div className="flex items-center gap-3">
                     <span className="font-semibold">Plan: Free</span>
                     <span className="text-gray-500 hidden sm:inline">• Limited features</span>
                   </div>
-                  <Link href="/settings" className="ml-3 hidden sm:inline-flex items-center px-3 py-1 rounded-full bg-gray-50 text-gray-800 text-sm font-semibold">Manage plan</Link>
+                  <Link href="/settings" className="ml-3 hidden sm:inline-flex items-center px-3 py-1 rounded-full bg-gray-50 text-gray-800 text-sm font-semibold">
+                    <span>Manage plan</span>
+                  </Link>
                 </div>
               </div>
             </div>
 
             {/* Creator Challenge Header */}
-            <div className="w-full mb-8">
-              <div className="flex flex-col gap-4 mb-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm bg-white border border-gray-100">
-                    <Youtube className="w-6 h-6 text-red-600" />
-                  </div>
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                    <div>
-                      <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-1">
+            <div className="w-full mb-6 sm:mb-8">
+              <div className="flex flex-col gap-3 sm:gap-4 mb-4">
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center shadow-sm bg-white border border-gray-100 flex-shrink-0">
+                      <Youtube className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h2 className="text-xl sm:text-3xl font-extrabold text-gray-900 mb-1">
                         Creator Challenge
                       </h2>
-                      <p className="text-gray-600 text-sm sm:text-base max-w-full sm:max-w-xl leading-snug wrap-break-word">Build consistent upload habits and grow your YouTube channel with structured challenges</p>
+                      <p className="text-gray-600 text-xs sm:text-sm leading-snug">Build consistent upload habits and grow your YouTube channel</p>
                     </div>
-                    {youtubeChannel && (
-                      <span className="ml-0 sm:ml-2 mt-2 sm:mt-0 inline-flex items-center px-3 py-1 rounded-full bg-white border border-gray-100 text-xs font-semibold text-gray-700 shadow-sm">
-                        Using: <span className="ml-2 font-medium">{youtubeChannel.title}</span>
-                      </span>
-                    )}
                   </div>
+                  {youtubeChannel && (
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-gray-100 text-xs font-semibold text-gray-700 shadow-sm w-fit">
+                      Using: <span className="ml-1.5 font-medium truncate">{youtubeChannel.title}</span>
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Challenge Flow Cards */}
-            <div className="space-y-6">
-              {step === 'start' && (
+            {/* Enhanced Challenge System with Tabs */}
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
+              <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4 mb-10 sm:mb-6 gap-1 items-center">
+                <TabsTrigger 
+                  value="challenges" 
+                  className="w-full flex items-center justify-center h-9 sm:h-10 bg-transparent text-gray-600 data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-md data-[state=active]:z-10 rounded-full px-2 sm:px-3 font-semibold text-xs sm:text-sm transition-all duration-200"
+                >
+                  <Trophy className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">My Challenges</span>
+                  <span className="sm:hidden">My</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="create" 
+                  className="w-full flex items-center justify-center h-9 sm:h-10 bg-transparent text-gray-600 data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-md data-[state=active]:z-10 rounded-full px-2 sm:px-3 font-semibold text-xs sm:text-sm transition-all duration-200"
+                >
+                  <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Create</span>
+                  <span className="sm:hidden">Add</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="stats" 
+                  className="w-full flex items-center justify-center h-9 sm:h-10 bg-transparent text-gray-600 data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-md data-[state=active]:z-10 rounded-full px-2 sm:px-3 font-semibold text-xs sm:text-sm transition-all duration-200"
+                >
+                  <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Stats</span>
+                  <span className="sm:hidden">Stats</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="leaderboard" 
+                  className="w-full flex items-center justify-center h-9 sm:h-10 bg-transparent text-gray-600 data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-md data-[state=active]:z-10 rounded-full px-2 sm:px-3 font-semibold text-xs sm:text-sm transition-all duration-200"
+                >
+                  <Crown className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Leaderboard</span>
+                  <span className="sm:hidden">Rank</span>
+                </TabsTrigger>
+              </TabsList>
+
+              {/* My Challenges Tab */}
+              <TabsContent value="challenges" className="space-y-6 pt-3">
+                {allChallenges.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 flex items-center justify-center">
+                      <Trophy className="w-10 h-10 text-blue-500" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">No Active Challenges</h3>
+                    <p className="text-gray-600 mb-6">Create your first challenge to start building consistency!</p>
+                    <Button onClick={() => setActiveTab('create')} className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Your First Challenge
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                    {allChallenges.map((challenge) => (
+                      <Card key={challenge.id} className="border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-300 h-full flex flex-col">
+                        <CardContent className="p-3 sm:p-4 flex flex-col flex-1">
+                          {/* Header with Title and Status */}
+                          <div className="mb-2 sm:mb-3 pb-2 sm:pb-3 border-b border-gray-100 dark:border-gray-700">
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <h3 className="font-bold text-gray-900 dark:text-white text-xs sm:text-sm flex-1 line-clamp-1">{challenge.challengeTitle}</h3>
+                              <Badge className={`text-xs font-semibold flex-shrink-0 whitespace-nowrap py-0.5 px-2 ${
+                                challenge.status === 'active' ? 'bg-green-100 text-green-800' : 
+                                challenge.status === 'completed' ? 'bg-blue-100 text-blue-800' : 
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {challenge.status.charAt(0).toUpperCase() + challenge.status.slice(1)}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1">{challenge.challengeDescription}</p>
+                          </div>
+
+                          {/* Stats - 2 columns with smaller size */}
+                          <div className="grid grid-cols-2 gap-2 mb-2 sm:mb-3">
+                            <div className="flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700">
+                              <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400 mb-0.5 sm:mb-1" />
+                              <div className="text-xs text-gray-600 dark:text-gray-400 font-medium">Videos</div>
+                              <div className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">{challenge.uploads?.length || 0}</div>
+                            </div>
+                            <div className="flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700">
+                              <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-600 dark:text-cyan-400 mb-0.5 sm:mb-1" />
+                              <div className="text-xs text-gray-600 dark:text-gray-400 font-medium">Points</div>
+                              <div className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">{challenge.pointsEarned || 0}</div>
+                            </div>
+                          </div>
+
+                          {/* Progress Section */}
+                          <div className="mb-2 sm:mb-3 flex flex-col items-center justify-center py-1.5 sm:py-2">
+                            {challenge.completionPercentage === 0 && challenge.uploads?.length === 0 ? (
+                              <>
+                                <div className="w-5 h-5 border-3 border-blue-200 dark:border-blue-900/30 border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin mb-0.5"></div>
+                                <div className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400">Fetching...</div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="text-base sm:text-lg font-bold text-blue-600 dark:text-blue-400 mb-0.5">{challenge.completionPercentage || 0}%</div>
+                                <div className="text-xs text-gray-600 dark:text-gray-400">Progress</div>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Streak Badge */}
+                          <div className="flex items-center justify-center gap-1 mb-2 sm:mb-3 px-2 sm:px-2.5 py-1.5 sm:py-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                            <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-orange-600 dark:text-orange-400" />
+                            <span className="font-semibold text-xs text-orange-700 dark:text-orange-300">{challenge.streakCount}d Streak</span>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex gap-2 mt-auto pt-2 border-t border-gray-100 dark:border-gray-700">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                setSidePanelChallenge(challenge)
+                                setSidePanelType('upload')
+                                setSidePanelOpen(true)
+                              }}
+                              className="flex-1 text-xs h-7 sm:h-8 border-gray-200 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                            >
+                              <Upload className="w-3 h-3 mr-0.5 sm:mr-1" />
+                              <span className="hidden sm:inline">Track</span>
+                              <span className="sm:hidden">Track</span>
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => {
+                                setSidePanelChallenge(challenge)
+                                setSidePanelType('details')
+                                setSidePanelOpen(true)
+                              }}
+                              className="flex-1 text-xs h-7 sm:h-8 border-gray-200 dark:border-gray-600 hover:bg-cyan-50 dark:hover:bg-cyan-900/20"
+                            >
+                              <Info className="w-3 h-3 mr-0.5 sm:mr-1" />
+                              Details
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Create Challenge Tab */}
+              <TabsContent value="create" className="space-y-6 pt-3">
+                <ChallengeCreator 
+                  onCreateChallenge={handleCreateChallenge}
+                  onCancel={() => setActiveTab('challenges')}
+                />
+              </TabsContent>
+
+              {/* Statistics Tab */}
+              <TabsContent value="stats" className="space-y-6 pt-3">
+                {userStats ? (
+                  <ChallengeStats stats={userStats} />
+                ) : (
+                  <div className="text-center py-12">
+                    <BarChart3 className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                    <p className="text-gray-600">Complete your first challenge to see statistics!</p>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="leaderboard" className="space-y-6 pt-3">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 rounded-xl p-6 text-white shadow-lg">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                      <Crown className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold">Community Leaderboard</h2>
+                      <p className="text-sm text-orange-100">Top creators this month</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Leaderboard Content */}
+                <Card className="border-0 shadow-md overflow-hidden">
+                  <CardContent className="p-0">
+                    {leaderboard.length === 0 ? (
+                      <div className="text-center py-16 px-6">
+                        <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Users className="w-8 h-8 text-gray-400" />
+                        </div>
+                        <p className="text-gray-600 dark:text-gray-400 font-medium">Be the first on the leaderboard!</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">Complete challenges to earn points and climb the ranks</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {leaderboard.map((entry, index) => (
+                          <div key={entry.user_id} className="p-4 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
+                            <div className="flex items-center gap-4">
+                              {/* Rank */}
+                              <div className="flex items-center justify-center w-12 h-12 rounded-full font-bold text-lg flex-shrink-0 bg-gradient-to-br ${index === 0 ? 'from-amber-400 to-amber-600 text-white' : index === 1 ? 'from-gray-300 to-gray-400 text-white' : index === 2 ? 'from-orange-400 to-orange-600 text-white' : 'from-blue-100 to-blue-200 text-blue-700 dark:from-blue-900 dark:to-blue-800 dark:text-blue-100'}">
+                                {getRankIcon(index + 1) || `#${index + 1}`}
+                              </div>
+
+                              {/* Creator Info */}
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-semibold text-gray-900 dark:text-white truncate">{entry.display_name || 'Anonymous Creator'}</h3>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                  <span className="font-medium text-gray-900 dark:text-white">{entry.total_points}</span> points • 
+                                  <span className="ml-1 font-medium text-gray-900 dark:text-white">{entry.active_challenges}</span> active
+                                </p>
+                              </div>
+
+                              {/* Level Badge */}
+                              <div className="flex-shrink-0">
+                                <Badge className={`${getLevelBadgeColor(entry.current_level)} text-white font-semibold px-3 py-1`}>
+                                  Level {entry.current_level}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+
+            {/* Upload Tracking Dialog */}
+            <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Upload className="w-5 h-5 text-blue-600" />
+                    Track Video Upload
+                  </DialogTitle>
+                  <DialogDescription>
+                    Enter your YouTube video URL or ID to track it for this challenge.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">Video URL or ID</label>
+                    <Input
+                      type="text"
+                      placeholder="https://youtube.com/watch?v=... or video ID"
+                      value={uploadVideoUrl}
+                      onChange={(e) => setUploadVideoUrl(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowUploadDialog(false)
+                        setUploadVideoUrl('')
+                      }}
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (selectedChallengeForUpload) {
+                          handleTrackUpload(selectedChallengeForUpload)
+                        }
+                      }}
+                      disabled={!uploadVideoUrl.trim()}
+                      className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+                    >
+                      Track Upload
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {step === 'start' && false && ( /* Keep original flow hidden for fallback */
                 <div className="rounded-3xl bg-white border border-gray-200 shadow-sm p-5 sm:p-8">
                   <div className="max-w-2xl mx-auto">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-5">
@@ -1431,157 +1940,15 @@ export default function ChallengePage() {
                     </div>
                   )}
 
-                  {/* Challenge Tracking Card - Show when loaded */}
-                  {!loadingChallengeData && (
-                    <div 
-                      onClick={() => {
-                        if (challengeData && challengeVideoSchedule.length > 0) {
-                          setShowChallengeModal(true)
-                        }
-                      }}
-                      className={`${challengeData ? 'cursor-pointer' : ''}`}
-                    >
-                      <ChallengeTrackingCard
-                        latestVideoTitle="Your latest upload"
-                        latestVideoDate={new Date().toLocaleDateString()}
-                        latestVideoViews={1765}
-                        nextUploadDate={new Date(challengeStartDate.getTime() + (Math.floor((new Date().getTime() - challengeStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1) * selectedFrequency * 24 * 60 * 60 * 1000).toLocaleDateString()}
-                        daysUntilNext={Math.max(0, daysUntilNext)}
-                        dayStreak={currentStreak}
-                        uploadProgress={consistencyPercent}
-                        totalVideosRequired={totalUploads}
-                        videosUploaded={uploadedCount}
-                        onEdit={handleEditPlan}
-                        onDelete={handleResetPlan}
-                      />
-                    </div>
-                  )}
-
                   {/* Challenge Configuration Summary */}
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-slate-700/50 backdrop-blur-sm p-4 sm:p-6 shadow-lg">
-                    <div className="text-center py-2 sm:py-4">
-                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Duration</div>
-                      <div className="text-2xl sm:text-3xl font-bold text-white mt-2">{selectedDuration} <span className="text-xs sm:text-sm font-normal text-slate-400">months</span></div>
-                    </div>
-                    <div className="text-center py-2 sm:py-4">
-                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Frequency</div>
-                      <div className="text-2xl sm:text-3xl font-bold text-white mt-2">1 <span className="text-xs sm:text-sm font-normal text-slate-400">/ {selectedFrequency}d</span></div>
-                    </div>
-                    <div className="text-center py-2 sm:py-4">
-                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Per Upload</div>
-                      <div className="text-2xl sm:text-3xl font-bold text-white mt-2">{1} <span className="text-xs sm:text-sm font-normal text-slate-400">video</span></div>
-                    </div>
-                    <div className="text-center py-2 sm:py-4">
-                      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Video Type</div>
-                      <div className="text-2xl sm:text-3xl font-bold text-white mt-2">{selectedVideoType === 'long' ? '16:9' : '9:16'}</div>
-                    </div>
-                  </div>
-
-                  {/* Upload Schedule */}
-                  <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-slate-700/50 backdrop-blur-sm p-4 sm:p-6 shadow-xl">
-                    <h4 className="text-xl sm:text-2xl font-bold text-white mb-6 flex items-center gap-2">
-                      <Calendar className="w-6 h-6 text-amber-400" />
-                      Upload Schedule
-                    </h4>
-
-                    {/* Real-time video cards — previews show selected format (16:9 or 9:16) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-                      {Array.from({ length: (showFullSchedule ? totalUploads : scheduleCount) }, (_, i) => {
-                        const uploadDate = new Date(challengeStartDate.getTime() + i * selectedFrequency * 24 * 60 * 60 * 1000)
-                        const isPast = uploadDate < new Date()
-                        const isToday = uploadDate.toDateString() === new Date().toDateString()
-
-                        const primaryClass = selectedVideoType === 'long' ? 'aspect-video' : 'aspect-9/16'
-                        const previewWidthClass = selectedVideoType === 'long' ? 'w-full' : 'w-full max-w-[280px] mx-auto'
-
-                        return (
-                          <div
-                            key={i}
-                            className={`group rounded-xl border border-slate-600/50 bg-slate-700/40 backdrop-blur-sm p-4 sm:p-5 shadow-lg transition-all duration-300 hover:shadow-xl hover:border-slate-500 ${isToday ? 'ring-2 ring-amber-400/50 border-amber-400/30' : ''} ${isPast ? 'opacity-75' : ''}`}
-                          >
-                            <div className="flex flex-col h-full gap-4">
-                              {/* Video Thumbnail Preview */}
-                              <div>
-                                <div className={`${previewWidthClass} overflow-hidden rounded-lg border border-slate-600/50 ${primaryClass}`}>
-                                  <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center">
-                                    <div className="flex flex-col items-center gap-2 text-slate-400">
-                                      <Youtube className="w-10 h-10" />
-                                      <div className="text-xs font-medium">Thumbnail</div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Card Content */}
-                              <div className="flex-1 space-y-3">
-                                {/* Day and Date */}
-                                <div>
-                                  <div className="text-sm font-semibold text-white">Day {i * selectedFrequency + 1} of {selectedDuration * 30}</div>
-                                  <div className="mt-1 flex items-center gap-2 text-xs text-slate-300">
-                                    <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                                    <span>{uploadDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                                  </div>
-                                </div>
-
-                                {/* Status Badge */}
-                                <div className="flex items-center gap-2">
-                                  <div className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold gap-1 ${isPast ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : isToday ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-slate-600/40 text-slate-300 border border-slate-600/50'}`}>
-                                    <span className={`w-2 h-2 rounded-full ${isPast ? 'bg-emerald-400' : isToday ? 'bg-amber-400' : 'bg-slate-400'}`}></span>
-                                    {isPast ? 'Uploaded' : isToday ? 'Today' : 'Upcoming'}
-                                  </div>
-                                </div>
-
-                                {/* Metrics */}
-                                <div className="grid grid-cols-3 gap-2">
-                                  <div className="bg-slate-600/30 rounded-lg px-2.5 py-2 text-center border border-slate-600/50 hover:border-slate-500/70 transition-colors">
-                                    <div className="text-[10px] sm:text-xs text-slate-400 font-medium">Views</div>
-                                    <div className="text-xs sm:text-sm font-bold text-white mt-0.5">--</div>
-                                  </div>
-                                  <div className="bg-slate-600/30 rounded-lg px-2.5 py-2 text-center border border-slate-600/50 hover:border-slate-500/70 transition-colors">
-                                    <div className="text-[10px] sm:text-xs text-slate-400 font-medium">Likes</div>
-                                    <div className="text-xs sm:text-sm font-bold text-white mt-0.5">--</div>
-                                  </div>
-                                  <div className="bg-slate-600/30 rounded-lg px-2.5 py-2 text-center border border-slate-600/50 hover:border-slate-500/70 transition-colors">
-                                    <div className="text-[10px] sm:text-xs text-slate-400 font-medium">Comments</div>
-                                    <div className="text-xs sm:text-sm font-bold text-white mt-0.5">--</div>
-                                  </div>
-                                </div>
-
-                                {/* Video Title */}
-                                <div className="pt-2 border-t border-slate-600/50">
-                                  <div className="text-xs sm:text-sm font-semibold text-white truncate">{scheduledMeta[i]?.title || `Video ${i + 1}`}</div>
-                                  {scheduledMeta[i]?.notes ? (
-                                    <div className="text-xs text-slate-400 mt-1 line-clamp-2">{scheduledMeta[i]?.notes}</div>
-                                  ) : null}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    {/* View more / show less */}
-                    {totalUploads > scheduleCount && (
-                      <div className="mt-6 text-center">
-                        <button
-                          onClick={() => setShowFullSchedule((s) => !s)}
-                          className="inline-flex items-center justify-center px-6 py-2.5 rounded-full border border-slate-600/50 bg-slate-700/40 hover:bg-slate-700/60 text-white font-medium transition-all duration-300 hover:shadow-lg hover:border-slate-500"
-                        >
-                          {showFullSchedule ? '← Show less' : `View more (${totalUploads - scheduleCount} more) →`}
-                        </button>
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
             </div>
-          </div>
         </main>
       </div>
 
-      {/* Challenge Videos Modal */}
-      <ChallengeVideosModal
+    {/* Challenge Videos Modal */}
+     <ChallengeVideosModal
         isOpen={showChallengeModal}
         onClose={() => setShowChallengeModal(false)}
         videoSchedule={challengeVideoSchedule}
@@ -1594,6 +1961,14 @@ export default function ChallengePage() {
         challengeEndDate={challengeData?.started_at ? 
           new Date(new Date(challengeData.started_at).getTime() + (challengeData.config?.durationMonths || 6) * 30 * 24 * 60 * 60 * 1000).toISOString()
           : undefined}
+      />
+
+      {/* Side Content Panel */}
+      <SideContentPanel 
+        challenge={sidePanelChallenge}
+        isOpen={sidePanelOpen}
+        type={sidePanelType}
+        onClose={() => setSidePanelOpen(false)}
       />
     </div>
   )

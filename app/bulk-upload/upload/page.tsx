@@ -690,13 +690,15 @@ export default function BulkUploadFullPage() {
         )}
 
         <div className="flex justify-center mb-6 px-3">
-          <div className="inline-flex items-center gap-3 rounded-full bg-white/5 border border-gray-100 px-4 py-2 text-sm text-gray-700 shadow-sm max-w-full overflow-hidden">
+          <div className="inline-flex items-center gap-3 rounded-full bg-white/5 border border-gray-100 px-4 py-2 text-sm text-gray-700 shadow-sm max-w-full overflow-hidden" suppressHydrationWarning>
             <svg className="w-4 h-4 text-amber-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2l1.5 4.5L18 8l-4 2.5L15 16l-3-2-3 2 1-5.5L6 8l4.5-1.5L12 2z" fill="currentColor"/></svg>
             <div className="flex items-center gap-3">
               <span className="font-semibold">Plan: Free</span>
               <span className="text-gray-500 hidden md:inline">• Limited features</span>
             </div>
-            <Link href="/settings" className="ml-3 hidden md:inline-flex items-center px-3 py-1 rounded-full bg-gray-50 text-gray-800 text-sm font-semibold">Manage plan</Link>
+            <Link href="/settings" className="ml-3 hidden md:inline-flex items-center px-3 py-1 rounded-full bg-gray-50 text-gray-800 text-sm font-semibold">
+              <span>Manage plan</span>
+            </Link>
           </div>
         </div>
 

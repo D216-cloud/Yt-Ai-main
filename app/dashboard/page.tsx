@@ -1036,13 +1036,15 @@ export default function DashboardPage() {
               )}
 
               <div className="flex justify-center mb-6 px-3">
-                <div className="inline-flex items-center gap-3 rounded-full bg-white/5 border border-gray-100 px-4 py-2 text-sm text-gray-700 shadow-sm max-w-full overflow-hidden">
+                <div className="inline-flex items-center gap-3 rounded-full bg-white/5 border border-gray-100 px-4 py-2 text-sm text-gray-700 shadow-sm max-w-full overflow-hidden" suppressHydrationWarning>
                   <span className="text-lg">✨</span>
                   <div className="flex items-center gap-3">
                     <span className="font-semibold">Plan: Free</span>
                     <span className="text-gray-500 hidden sm:inline">• Limited features</span>
                   </div>
-                  <Link href="/settings" className="ml-3 hidden sm:inline-flex items-center px-3 py-1 rounded-full bg-gray-50 text-gray-800 text-sm font-semibold">Manage plan</Link>
+                  <Link href="/settings" className="ml-3 hidden sm:inline-flex items-center px-3 py-1 rounded-full bg-gray-50 text-gray-800 text-sm font-semibold">
+                    <span>Manage plan</span>
+                  </Link>
                 </div>
               </div>
 
