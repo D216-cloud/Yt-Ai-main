@@ -42,7 +42,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
       )
     }
 
-    // Delete the challenge (cascades will delete uploads, notifications, etc)
+    // Delete the challenge (primary row)
     const { error: deleteError } = await supabase
       .from('user_challenges')
       .delete()
@@ -55,16 +55,44 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
 
     console.log('✅ Challenge deleted successfully:', challengeId)
 
-    // Update user stats (reduce active challenges count)
+    // Also remove any related rows (uploads, notifications, achievements) to be safe
+    try {
+      const { error: uploadsError } = await supabase
+        .from('challenge_uploads')
+        .delete()
+        .eq('challenge_id', challengeId)
+
+      if (uploadsError) console.warn('Could not delete challenge_uploads:', uploadsError)
+
+      const { error: notifError } = await supabase
+        .from('challenge_notifications')
+        .delete()
+        .eq('challenge_id', challengeId)
+
+      if (notifError) console.warn('Could not delete challenge_notifications:', notifError)
+
+      const { error: achievementsError } = await supabase
+        .from('challenge_achievements')
+        .delete()
+        .eq('challenge_id', challengeId)
+
+      if (achievementsError) console.warn('Could not delete challenge_achievements:', achievementsError)
+    } catch (e) {
+      console.error('Error cleaning up related challenge rows:', e)
+    }
+
+    // Refresh user stats (trigger should have updated stats but fetch fresh value)
     const { data: updatedStats } = await supabase
       .from('user_challenge_stats')
-      .select('active_challenges')
+      .select('active_challenges, total_challenges, total_points')
       .eq('user_id', auth.userId)
       .single()
 
     return NextResponse.json({
       message: 'Challenge deleted successfully',
-      activeChallengeCount: updatedStats?.active_challenges || 0
+      activeChallengeCount: updatedStats?.active_challenges || 0,
+      totalChallenges: updatedStats?.total_challenges || 0,
+      totalPoints: updatedStats?.total_points || 0
     })
   } catch (err: any) {
     console.error('challenge DELETE unexpected', err)

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Sparkles, Youtube, Monitor, Smartphone, Calendar, Clock, Eye, Heart, MessageCircle, Trophy, Target, Flame, Award, Users, Plus, BarChart3, Crown, Medal, Zap, CheckCircle, XCircle, AlertCircle, Upload, Info } from 'lucide-react' 
+import { ChevronDown, Sparkles, Youtube, Monitor, Smartphone, Calendar, Clock, Eye, Heart, MessageCircle, Trophy, Target, Flame, Award, Users, Plus, BarChart3, Crown, Medal, Zap, CheckCircle, XCircle, AlertCircle, Upload, Info, Trash2 } from 'lucide-react' 
 import SharedSidebar from '@/components/shared-sidebar' 
 import AnimationLoader from '@/components/animation-loader'
 import ChallengeTrackingCard from '@/components/challenge-tracking-card'
@@ -101,6 +101,11 @@ export default function ChallengePage() {
   const [showUploadDialog, setShowUploadDialog] = useState(false)
   const [uploadVideoUrl, setUploadVideoUrl] = useState('')
   const [selectedChallengeForUpload, setSelectedChallengeForUpload] = useState<string | null>(null)
+
+  // Delete challenge confirmation state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [challengeToDelete, setChallengeToDelete] = useState<Challenge | null>(null)
+  const [deletingChallengeId, setDeletingChallengeId] = useState<string | null>(null)
   
   // Side panel states
   const [sidePanelOpen, setSidePanelOpen] = useState(false)
@@ -290,6 +295,61 @@ export default function ChallengePage() {
       return <XCircle className="w-5 h-5 text-red-500" />
     }
     return <CheckCircle className="w-5 h-5 text-green-500" />
+  }
+
+  // Delete challenge helpers
+  const handleRequestDelete = (challenge: Challenge) => {
+    setChallengeToDelete(challenge)
+    setDeleteConfirmOpen(true)
+  }
+
+  const handleDeleteChallenge = async (challengeId?: string) => {
+    if (!challengeId) return
+    try {
+      setDeletingChallengeId(challengeId)
+      const res = await fetch(`/api/challenges/${encodeURIComponent(challengeId)}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      })
+      const data = await res.json()
+      if (res.ok) {
+        toast({ title: 'Challenge deleted', description: data.message || 'Deleted successfully' })
+        setAllChallenges(prev => prev.filter(c => c.id !== challengeId))
+
+        // If deleted challenge is stored locally (creator flow), clear local storage keys
+        try {
+          const storedId = localStorage.getItem('creator_challenge_id')
+          if (storedId && storedId === challengeId) {
+            localStorage.removeItem('creator_challenge_id')
+            localStorage.removeItem('creator_challenge_plan')
+            localStorage.removeItem('creator_challenge_setup_hidden')
+            localStorage.removeItem('creator_challenge_started_at')
+            localStorage.removeItem('challenge_scheduled_meta')
+          }
+        } catch (e) {
+          console.warn('Could not clear localStorage after delete', e)
+        }
+
+        // Close side panel if this was the selected challenge
+        if (sidePanelChallenge?.id === challengeId) {
+          setSidePanelOpen(false)
+          setSidePanelChallenge(null)
+        }
+
+        // If we were tracking upload for this challenge, reset
+        if (trackingChallenge === challengeId) setTrackingChallenge(null)
+
+        setDeleteConfirmOpen(false)
+        setChallengeToDelete(null)
+      } else {
+        toast({ title: 'Delete failed', description: data.error || data.message || 'Failed to delete', variant: 'destructive' })
+      }
+    } catch (e) {
+      console.error('Failed to delete challenge', e)
+      toast({ title: 'Error', description: 'Failed to delete challenge', variant: 'destructive' })
+    } finally {
+      setDeletingChallengeId(null)
+    }
   }
 
   const formatTimeUntilDeadline = (deadline: string): string => {
@@ -1280,14 +1340,21 @@ export default function ChallengePage() {
                           {/* Header with Title and Status */}
                           <div className="mb-2 sm:mb-3 pb-2 sm:pb-3 border-b border-gray-100 dark:border-gray-700">
                             <div className="flex items-start justify-between gap-2 mb-1">
-                              <h3 className="font-bold text-gray-900 dark:text-white text-xs sm:text-sm flex-1 line-clamp-1">{challenge.challengeTitle}</h3>
-                              <Badge className={`text-xs font-semibold flex-shrink-0 whitespace-nowrap py-0.5 px-2 ${
-                                challenge.status === 'active' ? 'bg-green-100 text-green-800' : 
-                                challenge.status === 'completed' ? 'bg-blue-100 text-blue-800' : 
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {challenge.status.charAt(0).toUpperCase() + challenge.status.slice(1)}
-                              </Badge>
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-bold text-gray-900 dark:text-white text-xs sm:text-sm flex-1 line-clamp-1">{challenge.challengeTitle}</h3>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge className={`text-xs font-semibold flex-shrink-0 whitespace-nowrap py-0.5 px-2 ${
+                                  challenge.status === 'active' ? 'bg-green-100 text-green-800' : 
+                                  challenge.status === 'completed' ? 'bg-blue-100 text-blue-800' : 
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {challenge.status.charAt(0).toUpperCase() + challenge.status.slice(1)}
+                                </Badge>
+                                <button onClick={() => handleRequestDelete(challenge)} className="p-1 rounded-md hover:bg-red-50 text-red-600" title="Delete challenge">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </div>
                             <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-1">{challenge.challengeDescription}</p>
                           </div>
@@ -1946,6 +2013,22 @@ export default function ChallengePage() {
             </div>
         </main>
       </div>
+
+    {/* Confirm Delete Dialog */}
+    <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete challenge?</DialogTitle>
+          <DialogDescription>Deleting this challenge will remove all uploads and progress. This action cannot be undone.</DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="outline" onClick={() => { setDeleteConfirmOpen(false); setChallengeToDelete(null) }}>Cancel</Button>
+          <Button onClick={() => handleDeleteChallenge(challengeToDelete?.id)} className="bg-red-600 text-white" disabled={!!deletingChallengeId}>
+            {deletingChallengeId ? 'Deleting...' : 'Delete'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
 
     {/* Challenge Videos Modal */}
      <ChallengeVideosModal

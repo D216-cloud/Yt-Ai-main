@@ -148,6 +148,7 @@ ALTER TABLE public.user_challenge_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.challenge_achievements ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for challenge_uploads
+DROP POLICY IF EXISTS "Users can view their own challenge uploads" ON public.challenge_uploads;
 CREATE POLICY "Users can view their own challenge uploads" ON public.challenge_uploads
   FOR SELECT USING (
     EXISTS (
@@ -157,6 +158,7 @@ CREATE POLICY "Users can view their own challenge uploads" ON public.challenge_u
     )
   );
 
+DROP POLICY IF EXISTS "Users can insert their own challenge uploads" ON public.challenge_uploads;
 CREATE POLICY "Users can insert their own challenge uploads" ON public.challenge_uploads
   FOR INSERT WITH CHECK (
     EXISTS (
@@ -167,17 +169,21 @@ CREATE POLICY "Users can insert their own challenge uploads" ON public.challenge
   );
 
 -- RLS Policies for user_challenge_stats
+DROP POLICY IF EXISTS "Users can view their own stats" ON public.user_challenge_stats;
 CREATE POLICY "Users can view their own stats" ON public.user_challenge_stats
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own stats" ON public.user_challenge_stats;
 CREATE POLICY "Users can update their own stats" ON public.user_challenge_stats
   FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- RLS Policies for challenge_achievements
+DROP POLICY IF EXISTS "Users can view their own achievements" ON public.challenge_achievements;
 CREATE POLICY "Users can view their own achievements" ON public.challenge_achievements
   FOR SELECT USING (auth.uid() = user_id);
 
 -- RLS Policies for challenge_notifications (admin only for security)
+DROP POLICY IF EXISTS "Service role can manage notifications" ON public.challenge_notifications;
 CREATE POLICY "Service role can manage notifications" ON public.challenge_notifications
   FOR ALL USING (auth.role() = 'service_role');
 
