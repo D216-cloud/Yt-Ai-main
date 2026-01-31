@@ -211,8 +211,8 @@ export async function POST(req: Request) {
     
     console.log('✅ Challenge created successfully:', newChallenge.id)
     
-    // Schedule welcome email notification
-    const { error: notifError } = await supabase.from('challenge_notifications').insert({
+    // Schedule welcome email notification and try to send immediately
+    const { data: insertedNotif, error: notifError } = await supabase.from('challenge_notifications').insert({
       challenge_id: newChallenge.id,
       notification_type: 'welcome',
       next_reminder_date: new Date(Date.now() + 2 * 60 * 1000).toISOString(), // 2 minutes from now
@@ -220,12 +220,30 @@ export async function POST(req: Request) {
         challengeTitle: title || config.title,
         startDate,
         config
-      }
-    })
-    
+      },
+      ui_url: '/challenge'
+    }).select().single()
+
     if (notifError) {
       console.warn('⚠️ Failed to create welcome notification:', notifError.message)
       // Don't fail the whole request if notification fails
+    }
+
+    // If notifications are enabled for this challenge, attempt to send the welcome email immediately
+    if (emailNotifications) {
+      try {
+        const { sendChallengeWelcomeEmail } = await import('@/lib/challengeEmailService')
+        await sendChallengeWelcomeEmail({ userEmail: auth.email, userName: auth.name, challenge: newChallenge })
+
+        // Mark notification as sent to avoid double-send via cron
+        if (insertedNotif?.id) {
+          await supabase.from('challenge_notifications').update({ email_status: 'sent', sent_date: new Date().toISOString() }).eq('id', insertedNotif.id)
+        }
+
+        console.log('✅ Welcome email sent immediately to', auth.email)
+      } catch (e: any) {
+        console.warn('⚠️ Immediate welcome email failed (will be retried by cron):', e?.message || e)
+      }
     }
     
     return NextResponse.json({ 

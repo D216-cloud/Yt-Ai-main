@@ -12,6 +12,8 @@ import { TagBox } from "@/components/tag-box"
 import AnimationLoader from '@/components/animation-loader'
 import ChallengeVideosModal from '@/components/challenge-videos-modal'
 import { Trophy, TrendingUp, Flame, Target, Calendar, CheckCircle, Play } from 'lucide-react'
+import dynamic from 'next/dynamic'
+const NotificationBell = dynamic(() => import('@/components/notification-bell'), { ssr: false })
 
 interface YouTubeChannel {
   id: string
@@ -869,6 +871,10 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Fixed notification bell at top-right (replaces floating rank badge) */}
+      <div className="fixed top-4 right-4 z-50">
+        <NotificationBell />
+      </div>
       <AnimationLoader open={showInitialLoader} items={[ANIMATIONS[0]]} perItemDuration={dashboardLoaderDuration} maxDuration={dashboardLoaderDuration} useAll={false} sizeClass="w-48 h-48" onFinish={() => setShowInitialLoader(false)} />
 
       <div className="flex">
@@ -1493,10 +1499,7 @@ export default function DashboardPage() {
                     topVideos && topVideos.length > 0 ? (
                       topVideos.map((v, idx) => (
                         <div key={v.id} className="group bg-white rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100 hover:shadow-xl hover:border-blue-200 transition-all duration-300 overflow-hidden">
-                          {/* Rank Badge */}
-                          <div className="absolute top-3 right-3 sm:top-4 sm:right-4 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-lg">
-                            #{idx + 1}
-                          </div>
+
 
                           <div className="flex items-start gap-3 sm:gap-4">
                             <div className="relative w-24 h-14 sm:w-28 sm:h-16 rounded-md overflow-hidden bg-gray-100 shrink-0 shadow-sm ring-2 ring-gray-200 group-hover:ring-blue-300 transition-all">

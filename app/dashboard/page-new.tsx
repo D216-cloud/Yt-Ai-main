@@ -9,6 +9,8 @@ import { ViewsIcon, SubscribersIcon, WatchTimeIcon, EngagementIcon, UploadedIcon
 import { useRouter, useSearchParams } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { useState, useEffect } from "react"
+import dynamic from 'next/dynamic'
+const NotificationBell = dynamic(() => import('@/components/notification-bell'), { ssr: false })
 import ChannelSummary from '@/components/channel-summary'
 import SharedSidebar from "@/components/shared-sidebar"
 
@@ -319,6 +321,10 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Fixed notification bell at top-right (replaces floating rank badge) */}
+      <div className="fixed top-4 right-4 z-50">
+        <NotificationBell />
+      </div>
 
       <div className="flex">
         {/* Shared Sidebar */}

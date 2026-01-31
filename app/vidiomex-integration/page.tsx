@@ -12,8 +12,8 @@ export default function VidiomexIntegration() {
             <div className="flex items-center space-x-3">
               <div className="h-10 w-10 rounded-lg overflow-hidden shadow-lg">
                 <Image 
-                  src="/vidiomex-logo.svg" 
-                  alt="Vidiomex" 
+                  src="/vidlyst-logo.svg" 
+                  alt="Vidlyst" 
                   width={40} 
                   height={40} 
                   className="object-cover" 
@@ -21,7 +21,7 @@ export default function VidiomexIntegration() {
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
-                  Vidiomex
+                  Vidlyst
                 </span>
                 <span className="text-xs text-gray-300">AI Video Tools</span>
               </div>
@@ -35,7 +35,7 @@ export default function VidiomexIntegration() {
       <div className="max-w-7xl mx-auto px-6 py-12">
         <div className="text-center mb-16">
           <h1 className="text-5xl font-bold text-white mb-4">
-            Vidiomex Logo Integration
+            Vidlyst Logo Integration
           </h1>
           <p className="text-xl text-gray-300">
             Successfully deployed across all pages and components
@@ -47,14 +47,6 @@ export default function VidiomexIntegration() {
           {/* Header */}
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
             <div className="flex items-center gap-4 mb-4">
-              <div className="h-8 w-8">
-                <Image 
-                  src="/vidiomex-logo.svg" 
-                  alt="Vidiomex" 
-                  width={32} 
-                  height={32}
-                />
-              </div>
               <h3 className="text-lg font-bold text-white">Header</h3>
             </div>
             <p className="text-gray-300 text-sm">
@@ -66,14 +58,6 @@ export default function VidiomexIntegration() {
           {/* Footer */}
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
             <div className="flex items-center gap-4 mb-4">
-              <div className="h-8 w-8">
-                <Image 
-                  src="/vidiomex-logo.svg" 
-                  alt="Vidiomex" 
-                  width={32} 
-                  height={32}
-                />
-              </div>
               <h3 className="text-lg font-bold text-white">Footer</h3>
             </div>
             <p className="text-gray-300 text-sm">
@@ -85,14 +69,6 @@ export default function VidiomexIntegration() {
           {/* Sidebar */}
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
             <div className="flex items-center gap-4 mb-4">
-              <div className="h-8 w-8">
-                <Image 
-                  src="/vidiomex-logo.svg" 
-                  alt="Vidiomex" 
-                  width={32} 
-                  height={32}
-                />
-              </div>
               <h3 className="text-lg font-bold text-white">Sidebar</h3>
             </div>
             <p className="text-gray-300 text-sm">
@@ -104,14 +80,6 @@ export default function VidiomexIntegration() {
           {/* All Pages */}
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20">
             <div className="flex items-center gap-4 mb-4">
-              <div className="h-8 w-8">
-                <Image 
-                  src="/vidiomex-logo.svg" 
-                  alt="Vidiomex" 
-                  width={32} 
-                  height={32}
-                />
-              </div>
               <h3 className="text-lg font-bold text-white">All Pages</h3>
             </div>
             <p className="text-gray-300 text-sm">

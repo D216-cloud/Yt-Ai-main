@@ -88,14 +88,14 @@ export function Footer() {
           <div className="lg:col-span-2">
             <Link href="/" className="flex items-center gap-3 mb-6">
               <Image
-                src="/vidiomex-logo.svg"
-                alt="Vidiomex"
+                src="/vidlyst-logo.svg"
+                alt="Vidlyst"
                 width={48}
                 height={48}
               />
               <div className="flex flex-col">
                 <span className="text-2xl font-black bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent">
-                  Vidiomex
+                  Vidlyst
                 </span>
                 <span className="text-xs text-gray-500">AI Video Platform</span>
               </div>
@@ -241,7 +241,7 @@ export function Footer() {
         <div className="border-t border-gray-200 pt-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-gray-600 text-sm text-center md:text-left">
-              © {new Date().getFullYear()} Vidiomex. All rights reserved.
+              © {new Date().getFullYear()} Vidlyst. All rights reserved.
             </p>
 
             <div className="flex items-center gap-6">

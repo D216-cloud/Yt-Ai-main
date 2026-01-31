@@ -1262,31 +1262,36 @@ export default function ChallengePage() {
               <div className="flex flex-col gap-3 sm:gap-4 mb-4">
                 <div className="flex flex-col gap-3">
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center shadow-sm bg-white border border-gray-100 flex-shrink-0">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center shadow-sm bg-white border border-gray-100 shrink-0">
                       <Youtube className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" />
                     </div>
                     <div className="flex-1">
                       <h2 className="text-xl sm:text-3xl font-extrabold text-gray-900 mb-1">
                         Creator Challenge
                       </h2>
-                      <p className="text-gray-600 text-xs sm:text-sm leading-snug">Build consistent upload habits and grow your YouTube channel</p>
+                      <p className="text-gray-600 text-sm sm:text-base leading-snug">Build consistent upload habits and grow your YouTube channel.</p>
+
+                      <p className="mt-2 text-sm text-gray-500">Using short, focused uploads and a repeatable schedule improves audience retention and growth. This view gives quick tips and reminders to help you stay consistent.</p>
                     </div>
                   </div>
-                  {youtubeChannel && (
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white border border-gray-100 text-xs font-semibold text-gray-700 shadow-sm w-fit">
-                      Using: <span className="ml-1.5 font-medium truncate">{youtubeChannel.title}</span>
-                    </span>
-                  )}
+                  <div className="mt-3">
+                    {youtubeChannel && (
+                      <div className="inline-flex items-center gap-3 px-3 py-1.5 rounded-full bg-white border border-gray-100 text-xs sm:text-sm font-semibold text-gray-700 shadow-sm">
+                        <span className="text-slate-500">Using:</span>
+                        <span className="ml-2 font-medium truncate">{youtubeChannel.title}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Enhanced Challenge System with Tabs */}
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
-              <TabsList className="w-full grid grid-cols-2 sm:grid-cols-4 mb-10 sm:mb-6 gap-1 items-center">
+              <TabsList className="w-full flex gap-2 overflow-x-auto snap-x snap-mandatory no-scrollbar mb-6 sm:grid sm:grid-cols-4 sm:gap-1 sm:overflow-visible">
                 <TabsTrigger 
                   value="challenges" 
-                  className="w-full flex items-center justify-center h-9 sm:h-10 bg-transparent text-gray-600 data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-md data-[state=active]:z-10 rounded-full px-2 sm:px-3 font-semibold text-xs sm:text-sm transition-all duration-200"
+                  className="shrink-0 snap-start flex items-center justify-center h-10 min-w-24 sm:min-w-0 px-3 rounded-xl font-semibold text-sm transition-all duration-150 text-gray-700 bg-slate-50 hover:bg-slate-100 border border-transparent data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-md data-[state=active]:border data-[state=active]:border-gray-200"
                 >
                   <Trophy className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                   <span className="hidden sm:inline">My Challenges</span>
@@ -1294,7 +1299,7 @@ export default function ChallengePage() {
                 </TabsTrigger>
                 <TabsTrigger 
                   value="create" 
-                  className="w-full flex items-center justify-center h-9 sm:h-10 bg-transparent text-gray-600 data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-md data-[state=active]:z-10 rounded-full px-2 sm:px-3 font-semibold text-xs sm:text-sm transition-all duration-200"
+                  className="shrink-0 snap-start flex items-center justify-center h-10 min-w-24 sm:min-w-0 px-3 rounded-xl font-semibold text-sm transition-all duration-150 text-gray-700 bg-slate-50 hover:bg-slate-100 border border-transparent data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-md data-[state=active]:border data-[state=active]:border-gray-200"
                 >
                   <Plus className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                   <span className="hidden sm:inline">Create</span>
@@ -1302,7 +1307,7 @@ export default function ChallengePage() {
                 </TabsTrigger>
                 <TabsTrigger 
                   value="stats" 
-                  className="w-full flex items-center justify-center h-9 sm:h-10 bg-transparent text-gray-600 data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-md data-[state=active]:z-10 rounded-full px-2 sm:px-3 font-semibold text-xs sm:text-sm transition-all duration-200"
+                  className="shrink-0 snap-start flex items-center justify-center h-10 min-w-24 sm:min-w-0 px-3 rounded-xl font-semibold text-sm transition-all duration-150 text-gray-700 bg-slate-50 hover:bg-slate-100 border border-transparent data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-md data-[state=active]:border data-[state=active]:border-gray-200"
                 >
                   <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                   <span className="hidden sm:inline">Stats</span>
@@ -1310,7 +1315,7 @@ export default function ChallengePage() {
                 </TabsTrigger>
                 <TabsTrigger 
                   value="leaderboard" 
-                  className="w-full flex items-center justify-center h-9 sm:h-10 bg-transparent text-gray-600 data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-md data-[state=active]:z-10 rounded-full px-2 sm:px-3 font-semibold text-xs sm:text-sm transition-all duration-200"
+                  className="shrink-0 snap-start flex items-center justify-center h-10 min-w-24 sm:min-w-0 px-3 rounded-xl font-semibold text-sm transition-all duration-150 text-gray-700 bg-slate-50 hover:bg-slate-100 border border-transparent data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-md data-[state=active]:border data-[state=active]:border-gray-200"
                 >
                   <Crown className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                   <span className="hidden sm:inline">Leaderboard</span>
@@ -1322,12 +1327,12 @@ export default function ChallengePage() {
               <TabsContent value="challenges" className="space-y-6 pt-3">
                 {allChallenges.length === 0 ? (
                   <div className="text-center py-12">
-                    <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 flex items-center justify-center">
+                    <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-linear-to-br from-blue-50 to-blue-100 border border-blue-200 flex items-center justify-center">
                       <Trophy className="w-10 h-10 text-blue-500" />
                     </div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">No Active Challenges</h3>
                     <p className="text-gray-600 mb-6">Create your first challenge to start building consistency!</p>
-                    <Button onClick={() => setActiveTab('create')} className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
+                    <Button onClick={() => setActiveTab('create')} className="bg-linear-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
                       <Plus className="w-4 h-4 mr-2" />
                       Create Your First Challenge
                     </Button>
@@ -1344,7 +1349,7 @@ export default function ChallengePage() {
                                 <h3 className="font-bold text-gray-900 dark:text-white text-xs sm:text-sm flex-1 line-clamp-1">{challenge.challengeTitle}</h3>
                               </div>
                               <div className="flex items-center gap-2">
-                                <Badge className={`text-xs font-semibold flex-shrink-0 whitespace-nowrap py-0.5 px-2 ${
+                                <Badge className={`text-xs font-semibold shrink-0 whitespace-nowrap py-0.5 px-2 ${
                                   challenge.status === 'active' ? 'bg-green-100 text-green-800' : 
                                   challenge.status === 'completed' ? 'bg-blue-100 text-blue-800' : 
                                   'bg-gray-100 text-gray-800'

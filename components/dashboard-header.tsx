@@ -20,6 +20,8 @@ import {
     HelpCircle,
     Moon
 } from "lucide-react"
+import dynamic from 'next/dynamic'
+const NotificationBell = dynamic(() => import('@/components/notification-bell'), { ssr: false })
 
 interface DashboardHeaderProps {
     sidebarOpen: boolean
@@ -70,13 +72,17 @@ export default function DashboardHeader({ sidebarOpen, setSidebarOpen }: Dashboa
 
                 {/* Right-side enlarged logo (partial right) */}
                 <div className="hidden lg:flex items-center gap-3 ml-4 mr-2">
-                  <Image src="/vidiomex-logo.svg" alt="Vidio" width={72} height={72} className="rounded-lg" />
-                  <span className="text-2xl font-extrabold text-gray-900">vidio</span>
+                  <Image src="/vidlyst-logo.svg" alt="Vidlyst" width={72} height={72} className="rounded-lg" />
+                  <span className="text-2xl font-extrabold text-gray-900">Vidlyst</span>
                 </div>
 
                 {/* Right: Actions & Profile */}
                 <div className="flex items-center gap-3">
-                    {/* Notifications & Settings removed per request */}
+                    {/* Notifications */}
+                    <div className="hidden md:block mr-2">
+                      {/* client-only, dynamic import to avoid SSR */}
+                      <NotificationBell />
+                    </div>
 
                     {/* Profile Dropdown */}
                     <div className="relative">

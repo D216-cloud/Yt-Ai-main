@@ -365,21 +365,17 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                 {/* Logo Header at Top */}
                 <div className={`flex items-center justify-between md:justify-center ${isCollapsed ? 'md:px-2 md:py-5' : 'md:p-5'} p-5`}>
                     {/* Logo Icon (show when collapsed on desktop, hide on mobile) */}
-                    <div className={`hidden ${isCollapsed ? 'md:flex' : 'md:hidden'} w-10 h-10 rounded-lg bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-700`}>
-                        <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                        </svg>
+                    <div className={`hidden ${isCollapsed ? 'md:flex' : 'md:hidden'} w-10 h-10 rounded-lg bg-white flex items-center justify-center shadow-sm transition-all duration-300 border border-slate-200`}>
+                      <img src="/vidlyst-logo.svg" alt="Vidlyst" className="w-6 h-6" />
                     </div>
 
                     {/* Logo with Text (show when expanded on desktop and on mobile) */}
                     <div className={`${isCollapsed ? 'md:hidden' : 'md:flex'} md:flex flex items-center gap-3`}>
-                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 border border-slate-700">
-                            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                            </svg>
+                        <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shadow-sm transition-all duration-300 border border-slate-200">
+                          <img src="/vidlyst-logo.svg" alt="Vidlyst" className="w-6 h-6" />
                         </div>
                         <div>
-                            <div className="text-lg font-bold text-slate-900">Vidio</div>
+                            <div className="text-lg font-bold text-slate-900">Vidlyst</div>
                             <div className="text-xs text-slate-500 font-semibold">Creator Hub</div>
                         </div>
                     </div>

@@ -8,6 +8,8 @@ import { PillNav, PillButton } from "@/components/pills"
 import { Menu, X, Play, LogOut, User, Mail, Sparkles, DollarSign, Cog, Youtube, Search } from "lucide-react"
 import { useSession, signOut } from "next-auth/react"
 import { useRouter, usePathname } from "next/navigation"
+import dynamic from 'next/dynamic'
+const NotificationBell = dynamic(() => import('@/components/notification-bell'), { ssr: false })
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -42,7 +44,7 @@ export function Header() {
           <div className="shrink-0">
             <Link href="/" className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-md overflow-hidden shadow-sm flex items-center justify-center">
-                <Image src="/vidiomex-logo.svg" alt="Vidiomex" width={32} height={32} className="object-cover" />
+                <Image src="/vidlyst-logo.svg" alt="Vidlyst" width={32} height={32} className="object-cover" />
               </div>
               <span className="hidden sm:inline-block text-sm font-semibold text-gray-800">Pallet Ross</span>
             </Link>
@@ -61,6 +63,11 @@ export function Header() {
             <button aria-label="Search" className="p-2 rounded-full hover:bg-gray-100 transition-colors">
               <Search className="h-4 w-4 text-gray-700" />
             </button>
+
+            {/* Notification Bell */}
+            <div className="hidden md:block">
+              <NotificationBell />
+            </div>
 
             {session ? (
               <div className="hidden md:flex items-center gap-3">
