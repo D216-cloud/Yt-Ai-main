@@ -938,7 +938,7 @@ export default function DashboardPage() {
                   {showChannelMenu && (
                     <div className="absolute top-full mt-3 left-1/2 transform -translate-x-1/2 bg-white rounded-3xl shadow-2xl w-[calc(100vw-2rem)] sm:w-full max-w-md text-gray-800 overflow-hidden z-40 animate-in fade-in slide-in-from-top-2 duration-300">
                       {/* Header */}
-                      <div className="flex items-center gap-4 px-4 sm:px-6 py-4 bg-gradient-to-r from-indigo-50 to-pink-50 border-b border-gray-100">
+                      <div className="flex items-center gap-4 px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
                           <div className="relative">
                             <img src={youtubeChannel?.thumbnail} alt={youtubeChannel?.title} className="w-14 h-14 rounded-full object-cover shadow-lg ring-2 ring-white" />
@@ -1015,7 +1015,7 @@ export default function DashboardPage() {
                               setShowChannelMenu(false)
                               startYouTubeAuth()
                             }}
-                            className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-full py-3 px-6 flex items-center justify-center gap-3 shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400 font-semibold text-sm transition-all active:scale-95"
+                            className="w-full bg-gray-900 hover:bg-gray-800 text-white rounded-full py-3 px-6 flex items-center justify-center gap-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400 font-semibold text-sm transition-all active:scale-95"
                           >
                             <span className="text-lg">▶</span>
                             Connect Another Channel
@@ -1031,7 +1031,7 @@ export default function DashboardPage() {
               {!youtubeChannel && (
                 <div className="flex justify-center mb-8 px-3">
                   <Link href="/connect">
-                    <button className="inline-flex items-center gap-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white px-6 py-3 rounded-full shadow-lg transition-all duration-200">
+                    <button className="inline-flex items-center gap-3 bg-gray-900 hover:bg-gray-800 text-white px-6 py-3 rounded-full shadow-sm transition-all duration-200">
                       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                       </svg>
@@ -1066,7 +1066,7 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="flex-1 hidden sm:block">
-                      <span className="inline-block h-px bg-gradient-to-r from-blue-100 via-indigo-100 to-purple-100 ml-3 w-full"></span>
+                      <span className="inline-block h-px bg-gray-200 ml-3 w-full"></span>
                     </div>
 
                     <div className="mt-3 sm:mt-0 flex w-full sm:w-auto">
@@ -1523,12 +1523,18 @@ export default function DashboardPage() {
                                   <Calendar className="w-3.5 h-3.5 text-blue-500" />
                                   <span className="text-gray-600">{new Date(v.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                                 </div>
+                                {v.titleScore && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-gray-700">📊</span>
+                                    <span className="text-gray-600">Title Score: <span className="font-semibold">{Math.round(v.titleScore * 10) / 10}</span></span>
+                                  </div>
+                                )}
                               </div>
 
                               {/* Tags */}
                               <div className="mt-3 flex items-center gap-1.5 flex-wrap">
-                                <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border border-blue-200">★ Top</span>
-                                <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gradient-to-r from-purple-50 to-purple-100 text-purple-700 border border-purple-200">⚡ Boost</span>
+                                <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-700 border border-gray-300">★ Top</span>
+                                <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-700 border border-gray-300">⚡ Boost</span>
                               </div>
                             </div>
                           </div>

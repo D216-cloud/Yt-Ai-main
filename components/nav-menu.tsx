@@ -9,7 +9,8 @@ import {
   BarChart3, 
   Upload, 
   Settings, 
-  Sparkles 
+  Sparkles,
+  Trophy
 } from "lucide-react"
 import { useRouter } from 'next/navigation'
 
@@ -30,7 +31,7 @@ export function NavMenu({ activePage }: NavMenuProps) {
     { id: "dashboard", icon: Home, label: "Dashboard", href: "/dashboard" },
     { id: "profile", icon: User, label: "Profile", href: "/dashboard?page=profile" },
     { id: "compare", icon: GitCompare, label: "Compare", href: "/compare" },
-    { id: "bulk-upload", icon: Upload, label: "Smart Upload", href: "/bulk-upload" },
+    { id: "challenge", icon: Trophy, label: "Start Challenges", href: "/challenge" },
   ]
 
   return (

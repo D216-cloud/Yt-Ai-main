@@ -21,7 +21,8 @@ import {
     Play,
     Plus,
     Settings,
-    X
+    X,
+    Trophy
 } from "lucide-react"
 
 interface SharedSidebarProps {
@@ -298,9 +299,9 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
 
     const navLinks = [
         { icon: Home, label: 'Dashboard', href: '/dashboard', id: 'dashboard', badge: null, description: 'Overview of channel analytics & insights' },
-        { icon: Sparkles, label: 'Title Search', href: '/title-search', id: 'title-search', badge: 'NEW', description: 'Generate SEO-friendly titles & scores' },
+        { icon: Sparkles, label: 'SEO Tags', href: '/title-search', id: 'title-search', badge: 'NEW', description: 'Generate SEO-friendly titles, tags & descriptions' },
         { icon: FileText, label: 'Vid-Info', href: '/vid-info', id: 'vid-info', badge: null, description: 'View and edit video metadata' },
-        { icon: Upload, label: 'Smart Upload', href: '/bulk-upload', id: 'bulk-upload', badge: null, description: 'Upload multiple videos at once' },
+        { icon: Trophy, label: 'Start Challenges', href: '/challenge', id: 'challenge', badge: null, description: 'Start your YouTube consistency challenge' },
         { icon: GitCompare, label: 'Compare', href: '/compare', id: 'compare', badge: null, description: 'Compare channel performance' },
     ]
 
@@ -409,21 +410,15 @@ export default function SharedSidebar({ sidebarOpen, setSidebarOpen, activePage:
                             onMouseLeave={handleMouseLeave}
                             onBlur={handleMouseLeave}
                         >
-                                <div className={`w-9 h-9 flex items-center justify-center rounded-md ${activePage === link.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'} shadow-sm`}> 
+                            <div className={`w-9 h-9 flex items-center justify-center rounded-md ${activePage === link.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'} shadow-sm`}> 
                                 <link.icon className="w-5 h-5" />
                             </div>
-                            {(!isCollapsed || (typeof window !== 'undefined' && window.innerWidth < 768)) && (
-                                <>
-                                    <span className="flex-1 pl-1">{link.label}</span>
-                                    {link.badge && (
-                                        <span className={`px-2 py-1 text-xs font-bold rounded-full ${
-                                            activePage === link.id ? 'bg-gray-200 text-gray-900' : 'bg-gray-200 text-gray-700'
-                                        }`}>
-                                            {link.badge}
-                                        </span>
-                                    )}
-                                </>
-                            )}
+                            <span className={`flex-1 pl-1 ${!isCollapsed && typeof window !== 'undefined' && window.innerWidth >= 768 ? '' : 'hidden'}`}>{link.label}</span>
+                            <span className={`${(!isCollapsed || (typeof window !== 'undefined' && window.innerWidth < 768)) && link.badge ? '' : 'hidden'} px-2 py-1 text-xs font-bold rounded-full ${
+                                activePage === link.id ? 'bg-gray-200 text-gray-900' : 'bg-gray-200 text-gray-700'
+                            }`}>
+                                {link.badge}
+                            </span>
                         </Link>
                     ))}
                 </nav>

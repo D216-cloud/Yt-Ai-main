@@ -8,6 +8,8 @@ import ChannelSummary from '@/components/channel-summary'
 import SharedSidebar from '@/components/shared-sidebar'
 import { Upload, X, Youtube, Menu, Video } from 'lucide-react'
 import { useSession, signOut } from 'next-auth/react'
+import dynamic from 'next/dynamic'
+const NotificationBell = dynamic(() => import('@/components/notification-bell'), { ssr: false })
 
 export default function BulkUploadFullPage() {
   const router = useRouter()
@@ -527,142 +529,27 @@ export default function BulkUploadFullPage() {
   }
 
   return (
-    <>
-      {/* Mobile Header */}
-      <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100 pt-2 pb-2 px-4">
-        <div className="flex h-14 items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-md text-gray-600"
-            >
-              {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-            <a href="/" className="flex items-center space-x-2 group">
-              <Image
-                src="/vidiomex-logo.svg"
-                alt="Vidiomex"
-                width={32}
-                height={32}
-                className="flex-shrink-0"
-              />
-              <span className="text-sm font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent">Vidiomex</span>
-            </a>
-          </div>
+    <div className="min-h-screen bg-slate-50">
+      {/* Fixed notification bell at top-right */}
+      <div className="fixed top-4 right-4 z-50">
+        <NotificationBell />
+      </div>
 
-          <div className="flex items-center space-x-2">
-            {session && (
-              <div
-                role="button"
-                title="Profile"
-                onClick={() => router.push('/dashboard?page=profile')}
-                className="cursor-pointer flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-purple-600 shadow-md"
-              >
-                <span className="text-white text-sm font-bold uppercase">
-                  {session.user?.email?.substring(0, 2) || "U"}
-                </span>
-              </div>
-            )}
-            <button
-              onClick={handleSignOut}
-              className="text-red-600 p-2 rounded-md"
-              title="Sign Out"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </header>
+      <div className="flex">
+        <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="bulk-upload" isCollapsed={sidebarCollapsed} setIsCollapsed={setSidebarCollapsed} />
+        <main className={`flex-1 pt-16 md:pt-18 px-3 sm:px-4 md:px-6 pb-24 md:pb-12 transition-all duration-300 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'}`}>
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="md:hidden fixed top-4 left-4 z-40 p-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm"
+            aria-label="Open sidebar"
+          >
+            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
 
-      {/* Desktop Header */}
-      <header className="hidden md:block fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white h-16">
-        <div className="flex h-16 items-center justify-between px-6 lg:px-8">
-          <a href="/" className="flex items-center space-x-3 group">
-            <Image
-              src="/vidiomex-logo.svg"
-              alt="Vidiomex"
-              width={36}
-              height={36}
-              className="flex-shrink-0"
-            />
-            <span className="text-lg font-bold bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent">Vidiomex</span>
-          </a>
-
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-3 border-l border-gray-200 pl-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">{session?.user?.name || "Creator Studio"}</p>
-                <p className="text-xs text-gray-500">{session?.user?.email || "Premium Plan"}</p>
-              </div>
-              <div
-                role="button"
-                title="Profile"
-                onClick={() => router.push('/dashboard?page=profile')}
-                className="cursor-pointer w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 border-2 border-blue-200 shadow-md flex items-center justify-center flex-shrink-0"
-              >
-                <span className="text-white text-sm font-semibold">{session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || "U"}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Notification System */}
-      {notifications.length > 0 && (
-        <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
-          {notifications.slice(0, 5).map((notification) => (
-            <div
-              key={notification.id}
-              className={`p-4 rounded-xl border shadow-lg backdrop-blur-sm transition-all duration-300 transform hover:scale-[1.02] ${
-                notification.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
-                notification.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' :
-                notification.type === 'warning' ? 'bg-yellow-50 border-yellow-200 text-yellow-800' :
-                'bg-blue-50 border-blue-200 text-blue-800'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-lg">
-                      {notification.type === 'success' ? '✅' :
-                       notification.type === 'error' ? '❌' :
-                       notification.type === 'warning' ? '⚠️' : 'ℹ️'}
-                    </span>
-                    <h4 className="font-semibold text-sm truncate">{notification.title}</h4>
-                  </div>
-                  <p className="text-xs opacity-90 break-words">{notification.message}</p>
-                  <div className="text-xs opacity-60 mt-1">
-                    {notification.timestamp.toLocaleTimeString()}
-                  </div>
-                </div>
-                <button
-                  onClick={() => removeNotification(notification.id)}
-                  className="p-1 rounded-full hover:bg-white/50 transition-colors flex-shrink-0"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
-          
-          {notifications.length > 5 && (
-            <div className="text-center">
-              <button
-                onClick={clearAllNotifications}
-                className="text-xs text-gray-500 hover:text-gray-700 bg-white px-3 py-1 rounded-full shadow-sm border"
-              >
-                Clear all ({notifications.length})
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    
-    <div className="flex">
-      <SharedSidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} activePage="bulk-upload" isCollapsed={sidebarCollapsed} setIsCollapsed={setSidebarCollapsed} />
-      <main className={`flex-1 pt-20 md:pt-24 ${sidebarCollapsed ? 'md:ml-20' : 'md:ml-72'} pb-12 ${pageBackgroundClass} min-h-screen transition-all overflow-x-hidden`}>
-        <div>
-          <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 md:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto w-full">
 
         {/* Channel pill + Upgrade banner (same style as Smart Upload) */}
         {channel ? (
@@ -1482,9 +1369,8 @@ export default function BulkUploadFullPage() {
             </div>
           )}
         </div>
-      </div>
-    </main>
+      </main>
     </div>
-    </>
+    </div>
   )
 }

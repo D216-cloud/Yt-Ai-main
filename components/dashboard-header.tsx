@@ -37,11 +37,11 @@ export default function DashboardHeader({ sidebarOpen, setSidebarOpen }: Dashboa
 
     const pageTitles: Record<string,string> = {
         '/dashboard': 'Dashboard',
-        '/title-search': 'Title Search',
+        '/title-search': 'SEO Tags',
         '/vid-info': 'Vid-Info',
         '/compare': 'Compare',
         '/upload': 'Upload',
-        '/bulk-upload': 'Bulk Upload'
+        '/challenge': 'Start Challenges'
     }
 
     const currentPageTitle = pageTitles[pathname?.split('?')?.[0] || pathname || '/dashboard'] || 'Dashboard'

@@ -6,12 +6,21 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const ids = searchParams.get('ids')
+    const accessToken = searchParams.get('access_token')
     const apiKey = process.env.YOUTUBE_API_KEY
+    
     if (!ids) return NextResponse.json({ error: 'ids query param required' }, { status: 400 })
-    if (!apiKey) return NextResponse.json({ error: 'API key not configured' }, { status: 500 })
+    if (!apiKey && !accessToken) return NextResponse.json({ error: 'API key or access token not configured' }, { status: 500 })
 
     // Request all available parts for comprehensive data
-    const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails,status&id=${encodeURIComponent(ids)}&key=${apiKey}`
+    // Use access token if provided, otherwise use API key
+    let url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails,status&id=${encodeURIComponent(ids)}`
+    if (accessToken) {
+      url += `&access_token=${encodeURIComponent(accessToken)}`
+    } else {
+      url += `&key=${apiKey}`
+    }
+    
     const res = await fetch(url)
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))

@@ -6,11 +6,68 @@ import { getUserTokens, getValidAccessToken, getValidAccessTokenForChannel } fro
 // This route reads runtime request details (e.g. `req.url`) so it must run dynamically.
 export const dynamic = 'force-dynamic'
 
+const CHANNEL_ID_RE = /^UC[a-zA-Z0-9_-]{22}$/
+
+function normalizeYouTubeChannelInput(input: string): { kind: 'id', value: string } | { kind: 'handle', value: string } {
+  const raw = String(input || '').trim()
+  if (!raw) return { kind: 'handle', value: '' }
+
+  let clean = raw.split('?')[0].split('#')[0].trim().replace(/\/+$/, '')
+  if (CHANNEL_ID_RE.test(clean)) return { kind: 'id', value: clean }
+  if (clean.startsWith('@')) return { kind: 'handle', value: clean.slice(1) }
+
+  const looksLikeYouTubeUrl = /youtube\.com\//i.test(clean) || /youtu\.be\//i.test(clean)
+  if (looksLikeYouTubeUrl && !/^https?:\/\//i.test(clean)) {
+    clean = `https://${clean}`
+  }
+
+  try {
+    if (/^https?:\/\//i.test(clean)) {
+      const url = new URL(clean)
+      const host = url.hostname.replace(/^www\./i, '').toLowerCase()
+      const path = url.pathname.replace(/\/+$/, '')
+      if (host.endsWith('youtube.com')) {
+        const parts = path.split('/').filter(Boolean)
+        if (parts[0] === 'channel' && parts[1] && CHANNEL_ID_RE.test(parts[1])) {
+          return { kind: 'id', value: parts[1] }
+        }
+        if (parts[0]?.startsWith('@')) {
+          return { kind: 'handle', value: parts[0].slice(1) }
+        }
+        if ((parts[0] === 'c' || parts[0] === 'user') && parts[1]) {
+          return { kind: 'handle', value: parts[1] }
+        }
+      }
+    }
+  } catch {
+    // fall through
+  }
+
+  if (/^[a-zA-Z0-9_.-]+$/.test(clean)) return { kind: 'handle', value: clean }
+  return { kind: 'handle', value: clean }
+}
+
+async function resolveHandleToChannelId(apiKey: string, handle: string): Promise<string | null> {
+  const h = String(handle || '').trim().replace(/^@/, '')
+  if (!h) return null
+  const queries = [ `@${h}`, h ]
+  for (const q of queries) {
+    const res = await fetch(
+      `https://www.googleapis.com/youtube/v3/search?part=snippet&type=channel&q=${encodeURIComponent(q)}&key=${apiKey}&maxResults=1`
+    )
+    if (!res.ok) continue
+    const data: any = await res.json().catch(() => null)
+    const channelId = data?.items?.[0]?.id?.channelId
+    if (channelId && CHANNEL_ID_RE.test(channelId)) return channelId
+  }
+  return null
+}
+
 export async function GET(req: NextRequest) {
   try {
     console.log('[YouTube Videos] Route executed at runtime:', new Date().toISOString())
     const { searchParams } = new URL(req.url)
-    const channelId = searchParams.get("channelId")
+    let channelId = searchParams.get("channelId")
     const mineParam = String(searchParams.get('mine') || 'false').toLowerCase() === 'true'
     // Default to 20 results, allow 1..50 per YouTube API
     const maxResultsRaw = searchParams.get("maxResults") || "20"
@@ -24,6 +81,21 @@ export async function GET(req: NextRequest) {
     // Page cap for fetchAll to prevent unbounded loops; configurable via query param
     const pageCapRaw = parseInt(String(searchParams.get('pageCap') || '10'), 10)
     const pageCap = isNaN(pageCapRaw) ? 10 : pageCapRaw
+    // If caller passed a channel URL/handle, resolve it to a channel ID first.
+    if (channelId && !mineParam) {
+      const apiKey = process.env.YOUTUBE_API_KEY
+      const normalized = normalizeYouTubeChannelInput(channelId)
+      if (normalized.kind === 'id') {
+        channelId = normalized.value
+      } else if (apiKey) {
+        const resolved = await resolveHandleToChannelId(apiKey, normalized.value)
+        if (!resolved) {
+          return NextResponse.json({ error: 'Channel not found. Please check the URL/handle and try again.' }, { status: 404 })
+        }
+        channelId = resolved
+      }
+    }
+
     console.log('[YouTube Videos] params:', { channelId, maxResults, fetchAll, pageToken, pageCap })
     const initialMax = fetchAll ? 50 : maxResults
 
@@ -203,8 +275,8 @@ export async function GET(req: NextRequest) {
       // Cap to avoid unbounded fetches; maximum permitted pages default-> 10 (50 * 10 = 500 videos)
       const pageCap = 10
       while (nextPageToken && pagesFetched < pageCap) {
-        const pagedUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=50&pageToken=${nextPageToken}`
-        const pagedRes = await fetch(pagedUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+        const pagedUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsPlaylistId}&maxResults=50&pageToken=${nextPageToken}${usingApiKey ? `&key=${process.env.YOUTUBE_API_KEY}` : ''}`
+        const pagedRes = await fetch(pagedUrl, usingApiKey ? {} : { headers: { Authorization: `Bearer ${accessToken}` } })
         if (!pagedRes.ok) break
         const pagedData = await pagedRes.json()
         if (Array.isArray(pagedData.items)) items.push(...pagedData.items)
@@ -234,8 +306,8 @@ export async function GET(req: NextRequest) {
       const statsResponses: any[] = []
       for (let i = 0; i < uniqueIds.length; i += 50) {
         const batch = uniqueIds.slice(i, i + 50).join(',')
-        const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails,snippet,status&id=${batch}`
-        const statsResponse = await fetch(statsUrl, { headers: { Authorization: `Bearer ${accessToken}` } })
+        const statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails,snippet,status&id=${batch}${usingApiKey ? `&key=${process.env.YOUTUBE_API_KEY}` : ''}`
+        const statsResponse = await fetch(statsUrl, usingApiKey ? {} : { headers: { Authorization: `Bearer ${accessToken}` } })
         if (statsResponse.ok) {
           const statsData = await statsResponse.json()
           statsResponses.push(...(statsData.items || []))
@@ -253,9 +325,9 @@ export async function GET(req: NextRequest) {
             id: vid,
             title: snippet.title || '',
             thumbnail: snippet.thumbnails?.medium?.url || snippet.thumbnails?.default?.url || '',
-            viewCount: stats?.statistics?.viewCount || 0,
-            likeCount: stats?.statistics?.likeCount || 0,
-            commentCount: stats?.statistics?.commentCount || 0,
+            viewCount: parseInt(stats?.statistics?.viewCount || '0', 10),
+            likeCount: parseInt(stats?.statistics?.likeCount || '0', 10),
+            commentCount: parseInt(stats?.statistics?.commentCount || '0', 10),
             publishedAt: snippet.publishedAt || '',
             tags: stats?.snippet?.tags || [],
             duration: stats?.contentDetails?.duration || null,

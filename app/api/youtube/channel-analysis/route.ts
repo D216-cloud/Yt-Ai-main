@@ -22,8 +22,24 @@ export async function GET(request: NextRequest) {
     
     // Handle different channel URL formats
     if (channelId.startsWith('@') || channelId.startsWith('c/') || channelId.startsWith('user/')) {
-      // Per project policy search.list is disabled — require explicit channelId
-      return NextResponse.json({ error: 'Please provide a channel ID (starts with "UC...") — search by handle/username is disabled.' }, { status: 400 })
+      // Try to resolve handle to channel ID
+      try {
+        const protocol = request.headers.get('x-forwarded-proto') || 'http'
+        const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || 'localhost:3000'
+        const baseUrl = `${protocol}://${host}`
+        
+        const resolveResponse = await fetch(
+          `${baseUrl}/api/youtube/resolveHandle?handle=${encodeURIComponent(channelId)}`
+        )
+        const resolveData = await resolveResponse.json()
+        if (resolveData.success && resolveData.channelId) {
+          finalChannelId = resolveData.channelId
+        } else {
+          return NextResponse.json({ error: 'Please provide a channel ID (starts with "UC...") or a valid YouTube handle/username.' }, { status: 400 })
+        }
+      } catch (e) {
+        return NextResponse.json({ error: 'Failed to resolve channel handle. Please provide a channel ID (starts with "UC...").' }, { status: 400 })
+      }
     }
 
     // Get channel details
@@ -103,9 +119,9 @@ export async function GET(request: NextRequest) {
     let bestPerformingCategories: string[] = []
 
     // Process recent videos for upload time analysis
-    if (videosResponse.ok && videosData.items) {
+    if (recentVideosData.items && recentVideosData.items.length > 0) {
       // Get detailed video statistics for recent videos
-      const videoIds = videosData.items.map((item: any) => item.id.videoId).join(',')
+      const videoIds = recentVideosData.items.map((item: any) => item.snippet?.resourceId?.videoId).filter(Boolean).join(',')
       
       if (videoIds) {
         const videoStatsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds}&${
@@ -137,9 +153,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Process top performing videos separately
-    if (topVideosResponse.ok && topVideosData.items) {
+    if (topVideosData.items && topVideosData.items.length > 0) {
       // Get detailed video statistics for top videos
-      const topVideoIds = topVideosData.items.map((item: any) => item.id.videoId).join(',')
+      const topVideoIds = topVideosData.items.map((item: any) => item.id).join(',')
       
       if (topVideoIds) {
         const topVideoStatsUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${topVideoIds}&${
